@@ -402,3 +402,66 @@ export async function createBlocker(input: {
 
   return result.rows[0];
 }
+
+export async function createApproval(input: {
+  transactionId: string;
+  proposedSubject: string;
+  proposedBody: string;
+  proposedTo: string[];
+  proposedCc: string[];
+  expiresAt?: Date;
+}) {
+  const result = await query<{ id: string }>(
+    `insert into approvals (
+       transaction_id,
+       proposed_subject,
+       proposed_body,
+       proposed_to,
+       proposed_cc,
+       expires_at
+     )
+     values ($1, $2, $3, $4, $5, $6)
+     returning id`,
+    [
+      input.transactionId,
+      input.proposedSubject,
+      input.proposedBody,
+      input.proposedTo,
+      input.proposedCc,
+      input.expiresAt ?? null
+    ]
+  );
+
+  return result.rows[0];
+}
+
+export async function updateApprovalStatus(id: string, status: string) {
+  const result = await query<{
+    id: string;
+    transaction_id: string;
+    proposed_subject: string;
+    proposed_body: string;
+    proposed_to: string[];
+    proposed_cc: string[];
+    inbox_id: string;
+  }>(
+    `update approvals a
+     set status = $2
+     from transactions t
+     join tc_profiles p on p.id = t.tc_profile_id
+     where a.id = $1
+       and a.transaction_id = t.id
+       and a.status = 'pending'
+     returning
+       a.id,
+       a.transaction_id,
+       a.proposed_subject,
+       a.proposed_body,
+       a.proposed_to,
+       a.proposed_cc,
+       coalesce(p.agentmail_inbox_id, p.inbox_address) as inbox_id`,
+    [id, status]
+  );
+
+  return result.rows[0] ?? null;
+}
