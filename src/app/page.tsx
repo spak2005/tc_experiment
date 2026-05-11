@@ -1,3 +1,5 @@
+import { SignupForm } from "@/app/signup-form";
+
 export default function Home() {
   return (
     <main className="shell">
@@ -10,6 +12,7 @@ export default function Home() {
           escalates deadline risk.
         </p>
       </section>
+      <SignupForm />
     </main>
   );
 }
