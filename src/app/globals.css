@@ -136,3 +136,53 @@ button:disabled {
     font-size: 3rem;
   }
 }
+
+.dashboard {
+  min-height: 100vh;
+  padding: 42px;
+}
+
+.dashboard h1 {
+  font-size: clamp(2.5rem, 5vw, 4.5rem);
+}
+
+.dashboard-grid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 36px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.panel h2 {
+  margin: 0 0 18px;
+}
+
+.rows {
+  display: grid;
+  gap: 12px;
+}
+
+.row {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 6px;
+  padding-top: 12px;
+}
+
+.row span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 900px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
