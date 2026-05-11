@@ -51,7 +51,7 @@ export async function provisionTcInbox(
     displayName: input.displayName,
     clientId: `tc-profile-${input.teamId}`
   });
-  const looseInbox = inbox as Record<string, string | undefined>;
+  const looseInbox = inbox as unknown as Record<string, string | undefined>;
 
   const inboxId =
     looseInbox.inboxId ??
@@ -68,8 +68,7 @@ export async function provisionTcInbox(
 export async function sendTcEmail(input: SendTcEmailInput) {
   const client = getAgentMailClient();
 
-  return client.inboxes.messages.send({
-    inboxId: input.inboxId,
+  return client.inboxes.messages.send(input.inboxId, {
     to: input.to,
     cc: input.cc,
     bcc: input.bcc,
@@ -89,26 +88,21 @@ export async function createTcDraft(input: CreateTcDraftInput) {
     };
   };
 
-  return client.inboxes.drafts.create({
-    inboxId: input.inboxId,
+  return client.inboxes.drafts.create(input.inboxId, {
     to: input.to,
     cc: input.cc,
     bcc: input.bcc,
     subject: input.subject,
     text: input.text,
     html: input.html,
-    labels: input.labels,
-    metadata: input.transactionId ? { transactionId: input.transactionId } : undefined
+    labels: input.labels
   });
 }
 
 export async function getTcMessage(input: { inboxId: string; messageId: string }) {
   const client = getAgentMailClient();
 
-  return client.inboxes.messages.get({
-    inboxId: input.inboxId,
-    messageId: input.messageId
-  });
+  return client.inboxes.messages.get(input.inboxId, input.messageId);
 }
 
 export async function getTcAttachment(input: {
@@ -124,9 +118,9 @@ export async function getTcAttachment(input: {
     };
   };
 
-  return client.inboxes.messages.getAttachment({
-    inboxId: input.inboxId,
-    messageId: input.messageId,
-    attachmentId: input.attachmentId
-  });
+  return client.inboxes.messages.getAttachment(
+    input.inboxId,
+    input.messageId,
+    input.attachmentId
+  );
 }

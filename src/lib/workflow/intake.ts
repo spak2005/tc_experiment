@@ -76,7 +76,7 @@ export async function processAgentMailInbound(input: {
     const body = looseAttachment.arrayBuffer
       ? await looseAttachment.arrayBuffer()
       : looseAttachment.bytes
-        ? await looseAttachment.bytes()
+        ? Buffer.from(await looseAttachment.bytes())
         : "";
     const stored = await storePrivateDocument({
       teamId: tcProfile.team_id,

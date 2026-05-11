@@ -5,7 +5,7 @@ export interface StoreDocumentInput {
   transactionId?: string;
   filename: string;
   contentType: string;
-  body: Blob | ArrayBuffer | Uint8Array | Buffer | string;
+  body: Blob | ArrayBuffer | Buffer | string;
 }
 
 function normalizeFilename(filename: string): string {
