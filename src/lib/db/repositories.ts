@@ -120,3 +120,147 @@ export async function createAuditEvent(input: {
     ]
   );
 }
+
+export async function findTcProfileByInbox(inboxAddress: string) {
+  const result = await query<{
+    id: string;
+    team_id: string;
+    inbox_address: string;
+    agentmail_inbox_id: string | null;
+    escalation_email: string;
+    display_name: string;
+  }>(
+    `select id, team_id, inbox_address, agentmail_inbox_id, escalation_email, display_name
+     from tc_profiles
+     where inbox_address = $1 or agentmail_inbox_id = $1
+     limit 1`,
+    [inboxAddress]
+  );
+
+  return result.rows[0] ?? null;
+}
+
+export async function createTransaction(input: {
+  teamId: string;
+  tcProfileId: string;
+  propertyAddress?: string;
+  side?: string;
+  effectiveDate?: string;
+  closingDate?: string;
+  status?: string;
+}) {
+  const result = await query<{ id: string }>(
+    `insert into transactions (
+       team_id,
+       tc_profile_id,
+       property_address,
+       side,
+       status,
+       effective_date,
+       closing_date
+     )
+     values ($1, $2, $3, $4, $5, $6, $7)
+     returning id`,
+    [
+      input.teamId,
+      input.tcProfileId,
+      input.propertyAddress ?? null,
+      input.side ?? "unknown",
+      input.status ?? "intake_processing",
+      input.effectiveDate ?? null,
+      input.closingDate ?? null
+    ]
+  );
+
+  return result.rows[0];
+}
+
+export async function saveExtractedContractFacts(input: {
+  transactionId: string;
+  contractVersion: string;
+  facts: Record<string, unknown>;
+  validationStatus: string;
+}) {
+  const result = await query<{ id: string }>(
+    `insert into extracted_contract_facts (
+       transaction_id,
+       contract_version,
+       facts,
+       validation_status
+     )
+     values ($1, $2, $3, $4)
+     returning id`,
+    [
+      input.transactionId,
+      input.contractVersion,
+      input.facts,
+      input.validationStatus
+    ]
+  );
+
+  return result.rows[0];
+}
+
+export async function insertMilestones(
+  transactionId: string,
+  milestones: Array<{
+    key: string;
+    title: string;
+    phase: string;
+    dueDate?: string;
+    sourceType: string;
+    sourceReference?: string;
+    riskLevel: string;
+  }>
+) {
+  for (const milestone of milestones) {
+    await query(
+      `insert into milestones (
+         transaction_id,
+         key,
+         title,
+         phase,
+         due_date,
+         source_type,
+         source_reference,
+         risk_level
+       )
+       values ($1, $2, $3, $4, $5, $6, $7, $8)
+       on conflict (transaction_id, key) do update
+         set title = excluded.title,
+             phase = excluded.phase,
+             due_date = excluded.due_date,
+             source_type = excluded.source_type,
+             source_reference = excluded.source_reference,
+             risk_level = excluded.risk_level`,
+      [
+        transactionId,
+        milestone.key,
+        milestone.title,
+        milestone.phase,
+        milestone.dueDate ?? null,
+        milestone.sourceType,
+        milestone.sourceReference ?? null,
+        milestone.riskLevel
+      ]
+    );
+  }
+}
+
+export async function insertTasks(
+  transactionId: string,
+  tasks: Array<{
+    title: string;
+    ownerRole: string;
+    status: string;
+    dueDate?: string;
+  }>
+) {
+  for (const task of tasks) {
+    await query(
+      `insert into tasks (transaction_id, title, owner_role, status, due_date)
+       values ($1, $2, $3, $4, $5)`,
+      [transactionId, task.title, task.ownerRole, task.status, task.dueDate ?? null]
+    );
+  }
+}
