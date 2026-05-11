@@ -465,3 +465,58 @@ export async function updateApprovalStatus(id: string, status: string) {
 
   return result.rows[0] ?? null;
 }
+
+export async function getDashboardSnapshot(teamId: string) {
+  const [transactions, blockers, approvals] = await Promise.all([
+    query<{
+      id: string;
+      property_address: string | null;
+      status: string;
+      phase: string | null;
+      current_risk: string;
+      closing_date: string | null;
+    }>(
+      `select id, property_address, status, phase, current_risk, closing_date::text
+       from transactions
+       where team_id = $1
+       order by updated_at desc
+       limit 20`,
+      [teamId]
+    ),
+    query<{
+      id: string;
+      transaction_id: string;
+      title: string;
+      risk_level: string;
+      created_at: string;
+    }>(
+      `select b.id, b.transaction_id, b.title, b.risk_level, b.created_at::text
+       from blockers b
+       join transactions t on t.id = b.transaction_id
+       where t.team_id = $1 and b.resolved_at is null
+       order by b.created_at desc
+       limit 20`,
+      [teamId]
+    ),
+    query<{
+      id: string;
+      transaction_id: string;
+      proposed_subject: string;
+      created_at: string;
+    }>(
+      `select a.id, a.transaction_id, a.proposed_subject, a.created_at::text
+       from approvals a
+       join transactions t on t.id = a.transaction_id
+       where t.team_id = $1 and a.status = 'pending'
+       order by a.created_at desc
+       limit 20`,
+      [teamId]
+    )
+  ]);
+
+  return {
+    transactions: transactions.rows,
+    blockers: blockers.rows,
+    approvals: approvals.rows
+  };
+}
