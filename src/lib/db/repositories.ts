@@ -338,3 +338,67 @@ export async function createDocumentRecord(input: {
 
   return result.rows[0];
 }
+
+export async function findAtRiskMilestones(daysAhead = 2) {
+  const result = await query<{
+    transaction_id: string;
+    team_id: string;
+    property_address: string | null;
+    milestone_id: string;
+    title: string;
+    due_date: string;
+    risk_level: string;
+    escalation_email: string;
+    inbox_id: string;
+  }>(
+    `select
+       t.id as transaction_id,
+       t.team_id,
+       t.property_address,
+       m.id as milestone_id,
+       m.title,
+       m.due_date::text,
+       m.risk_level,
+       p.escalation_email,
+       coalesce(p.agentmail_inbox_id, p.inbox_address) as inbox_id
+     from milestones m
+     join transactions t on t.id = m.transaction_id
+     join tc_profiles p on p.id = t.tc_profile_id
+     where m.completed_at is null
+       and m.due_date is not null
+       and m.due_date <= current_date + ($1::int * interval '1 day')
+       and t.status not in ('closed', 'terminated')`,
+    [daysAhead]
+  );
+
+  return result.rows;
+}
+
+export async function createBlocker(input: {
+  transactionId: string;
+  title: string;
+  details: string;
+  riskLevel: string;
+  deadlineId?: string;
+}) {
+  const result = await query<{ id: string }>(
+    `insert into blockers (
+       transaction_id,
+       title,
+       details,
+       risk_level,
+       deadline_id
+     )
+     values ($1, $2, $3, $4, $5)
+     returning id`,
+    [
+      input.transactionId,
+      input.title,
+      input.details,
+      input.riskLevel,
+      input.deadlineId ?? null
+    ]
+  );
+
+  return result.rows[0];
+}
