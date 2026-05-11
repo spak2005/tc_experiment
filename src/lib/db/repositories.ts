@@ -264,3 +264,77 @@ export async function insertTasks(
     );
   }
 }
+
+export async function createMessage(input: {
+  transactionId?: string;
+  agentMailMessageId: string;
+  threadId?: string;
+  from: string;
+  to: string[];
+  cc: string[];
+  subject: string;
+  receivedAt?: Date;
+  sentAt?: Date;
+  summary?: string;
+}) {
+  await query(
+    `insert into messages (
+       transaction_id,
+       agentmail_message_id,
+       thread_id,
+       from_address,
+       to_addresses,
+       cc_addresses,
+       subject,
+       received_at,
+       sent_at,
+       summary
+     )
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+     on conflict (agentmail_message_id) do nothing`,
+    [
+      input.transactionId ?? null,
+      input.agentMailMessageId,
+      input.threadId ?? null,
+      input.from,
+      input.to,
+      input.cc,
+      input.subject,
+      input.receivedAt ?? null,
+      input.sentAt ?? null,
+      input.summary ?? null
+    ]
+  );
+}
+
+export async function createDocumentRecord(input: {
+  transactionId: string;
+  type: string;
+  name: string;
+  status: string;
+  blobKey?: string;
+  sourceMessageId?: string;
+}) {
+  const result = await query<{ id: string }>(
+    `insert into documents (
+       transaction_id,
+       type,
+       name,
+       status,
+       blob_key,
+       source_message_id
+     )
+     values ($1, $2, $3, $4, $5, $6)
+     returning id`,
+    [
+      input.transactionId,
+      input.type,
+      input.name,
+      input.status,
+      input.blobKey ?? null,
+      input.sourceMessageId ?? null
+    ]
+  );
+
+  return result.rows[0];
+}
