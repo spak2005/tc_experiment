@@ -80,13 +80,7 @@ export async function sendTcEmail(input: SendTcEmailInput) {
 }
 
 export async function createTcDraft(input: CreateTcDraftInput) {
-  const client = getAgentMailClient() as unknown as {
-    inboxes: {
-      drafts: {
-        create(payload: Record<string, unknown>): Promise<unknown>;
-      };
-    };
-  };
+  const client = getAgentMailClient();
 
   return client.inboxes.drafts.create(input.inboxId, {
     to: input.to,
@@ -110,13 +104,7 @@ export async function getTcAttachment(input: {
   messageId: string;
   attachmentId: string;
 }) {
-  const client = getAgentMailClient() as unknown as {
-    inboxes: {
-      messages: {
-        getAttachment(payload: Record<string, unknown>): Promise<unknown>;
-      };
-    };
-  };
+  const client = getAgentMailClient();
 
   return client.inboxes.messages.getAttachment(
     input.inboxId,
