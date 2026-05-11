@@ -1,4 +1,5 @@
 import { processAgentMailInbound } from "@/lib/workflow/intake";
+import { checkDeadlineRisk } from "@/lib/workflow/deadline-monitor";
 import { inngest } from "@/lib/inngest/client";
 import { events } from "@/lib/inngest/events";
 
@@ -15,4 +16,12 @@ export const processInboundEmail = inngest.createFunction(
   }
 );
 
-export const functions = [processInboundEmail];
+export const monitorDeadlineRisk = inngest.createFunction(
+  { id: "monitor-deadline-risk" },
+  { cron: "*/30 * * * *" },
+  async ({ step }) => {
+    return step.run("check deadline risk", checkDeadlineRisk);
+  }
+);
+
+export const functions = [processInboundEmail, monitorDeadlineRisk];
