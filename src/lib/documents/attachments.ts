@@ -36,7 +36,7 @@ async function binaryResponseToBuffer(response: unknown): Promise<Buffer> {
   throw new Error("Attachment response did not include binary content.");
 }
 
-export function isPdfAttachment(attachment: IncomingAttachment) {
+export function isPdfAttachment(attachment: Pick<IncomingAttachment, "contentType" | "filename">) {
   return (
     attachment.contentType === "application/pdf" ||
     attachment.filename.toLowerCase().endsWith(".pdf")
