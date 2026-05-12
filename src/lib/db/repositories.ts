@@ -560,3 +560,173 @@ export async function getDashboardSnapshot(teamId: string) {
     approvals: approvals.rows
   };
 }
+
+export async function findLatestOpenTransaction(teamId: string) {
+  const result = await query<{
+    id: string;
+    property_address: string | null;
+    status: string;
+    phase: string | null;
+    current_risk: string;
+    closing_date: string | null;
+  }>(
+    `select id, property_address, status, phase, current_risk, closing_date::text
+     from transactions
+     where team_id = $1
+       and status not in ('closed', 'terminated')
+     order by updated_at desc
+     limit 1`,
+    [teamId]
+  );
+
+  return result.rows[0] ?? null;
+}
+
+export async function getTransactionStatusSummary(transactionId: string) {
+  const [transaction, nextMilestone, blockers] = await Promise.all([
+    query<{
+      id: string;
+      property_address: string | null;
+      status: string;
+      phase: string | null;
+      current_risk: string;
+      closing_date: string | null;
+    }>(
+      `select id, property_address, status, phase, current_risk, closing_date::text
+       from transactions
+       where id = $1`,
+      [transactionId]
+    ),
+    query<{
+      title: string;
+      due_date: string | null;
+      source_reference: string | null;
+      risk_level: string;
+    }>(
+      `select title, due_date::text, source_reference, risk_level
+       from milestones
+       where transaction_id = $1
+         and completed_at is null
+       order by due_date nulls last, risk_level desc
+       limit 1`,
+      [transactionId]
+    ),
+    query<{ title: string; risk_level: string }>(
+      `select title, risk_level
+       from blockers
+       where transaction_id = $1
+         and resolved_at is null
+       order by created_at desc
+       limit 5`,
+      [transactionId]
+    )
+  ]);
+
+  return {
+    transaction: transaction.rows[0] ?? null,
+    nextMilestone: nextMilestone.rows[0] ?? null,
+    blockers: blockers.rows
+  };
+}
+
+export async function getTransactionDetail(transactionId: string) {
+  const [transaction, milestones, tasks, documents, messages, auditEvents, facts] =
+    await Promise.all([
+      query<{
+        id: string;
+        team_id: string;
+        property_address: string | null;
+        status: string;
+        phase: string | null;
+        current_risk: string;
+        effective_date: string | null;
+        closing_date: string | null;
+        created_at: string;
+        updated_at: string;
+      }>(
+        `select
+           id,
+           team_id,
+           property_address,
+           status,
+           phase,
+           current_risk,
+           effective_date::text,
+           closing_date::text,
+           created_at::text,
+           updated_at::text
+         from transactions
+         where id = $1`,
+        [transactionId]
+      ),
+      query<{
+        key: string;
+        title: string;
+        phase: string;
+        due_date: string | null;
+        source_reference: string | null;
+        risk_level: string;
+        completed_at: string | null;
+      }>(
+        `select key, title, phase, due_date::text, source_reference, risk_level, completed_at::text
+         from milestones
+         where transaction_id = $1
+         order by due_date nulls last, title`,
+        [transactionId]
+      ),
+      query<{ title: string; owner_role: string; status: string; due_date: string | null }>(
+        `select title, owner_role, status, due_date::text
+         from tasks
+         where transaction_id = $1
+         order by due_date nulls last, created_at`,
+        [transactionId]
+      ),
+      query<{ type: string; name: string; status: string; blob_key: string | null }>(
+        `select type, name, status, blob_key
+         from documents
+         where transaction_id = $1
+         order by created_at desc`,
+        [transactionId]
+      ),
+      query<{
+        from_address: string;
+        to_addresses: string[];
+        subject: string;
+        received_at: string | null;
+        sent_at: string | null;
+        summary: string | null;
+      }>(
+        `select from_address, to_addresses, subject, received_at::text, sent_at::text, summary
+         from messages
+         where transaction_id = $1
+         order by coalesce(received_at, sent_at) desc nulls last`,
+        [transactionId]
+      ),
+      query<{ actor: string; event_type: string; payload: unknown; created_at: string }>(
+        `select actor, event_type, payload, created_at::text
+         from audit_events
+         where transaction_id = $1
+         order by created_at desc
+         limit 100`,
+        [transactionId]
+      ),
+      query<{ contract_version: string; validation_status: string; facts: unknown; created_at: string }>(
+        `select contract_version, validation_status, facts, created_at::text
+         from extracted_contract_facts
+         where transaction_id = $1
+         order by created_at desc
+         limit 1`,
+        [transactionId]
+      )
+    ]);
+
+  return {
+    transaction: transaction.rows[0] ?? null,
+    milestones: milestones.rows,
+    tasks: tasks.rows,
+    documents: documents.rows,
+    messages: messages.rows,
+    auditEvents: auditEvents.rows,
+    facts: facts.rows[0] ?? null
+  };
+}
