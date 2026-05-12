@@ -1,5 +1,5 @@
 import { normalizeAgentMailInbound } from "@/lib/agentmail/inbound";
-import { sendTcEmail } from "@/lib/agentmail/service";
+import { replyTcEmail, sendTcEmail } from "@/lib/agentmail/service";
 import { extractContractFactsFromPdf } from "@/lib/contracts/anthropic-extract";
 import { extractTexasContractFacts } from "@/lib/contracts/extract";
 import { getStringFact } from "@/lib/contracts/facts";
@@ -25,10 +25,38 @@ import {
   storeIncomingAttachment
 } from "@/lib/documents/attachments";
 import { generateTexasMilestones } from "@/lib/milestones/engine";
+import { buildStatusAnswer, isStatusQuestion } from "@/lib/workflow/status-responder";
 import { createOpeningTasks, createTasksForMilestone } from "@/lib/workflow/tasks";
 
 function isoDateOrUndefined(value?: string) {
   return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
+}
+
+async function respondToInbound(input: {
+  inboxId: string;
+  messageId?: string;
+  to: string[];
+  subject: string;
+  text: string;
+  labels: string[];
+}) {
+  if (input.messageId) {
+    return replyTcEmail({
+      inboxId: input.inboxId,
+      messageId: input.messageId,
+      to: input.to,
+      text: input.text,
+      labels: input.labels
+    });
+  }
+
+  return sendTcEmail({
+    inboxId: input.inboxId,
+    to: input.to,
+    subject: input.subject,
+    text: input.text,
+    labels: input.labels
+  });
 }
 
 export async function processAgentMailInbound(input: {
@@ -42,12 +70,50 @@ export async function processAgentMailInbound(input: {
     return { status: "ignored", reason: "unknown_inbox" };
   }
 
+  const emailText = [inbound.subject, inbound.text, inbound.html].filter(Boolean).join("\n\n");
+
+  if (inbound.attachments.length === 0 && isStatusQuestion(emailText)) {
+    const answer = await buildStatusAnswer(tcProfile.team_id);
+
+    await createMessage({
+      transactionId: answer.transactionId,
+      agentMailMessageId: inbound.messageId || inbound.eventId,
+      threadId: inbound.threadId,
+      from: inbound.from,
+      to: inbound.to,
+      cc: inbound.cc,
+      subject: inbound.subject,
+      receivedAt: new Date(),
+      summary: "Inbound status question received by TC inbox."
+    });
+    await respondToInbound({
+      inboxId: inbound.inboxId,
+      messageId: inbound.messageId,
+      to: [tcProfile.escalation_email],
+      subject: `Re: ${inbound.subject}`,
+      text: answer.text,
+      labels: ["status_answer"]
+    });
+    await createAuditEvent({
+      teamId: tcProfile.team_id,
+      transactionId: answer.transactionId,
+      actor: "tc_agent",
+      eventType: "status_question_answered",
+      payload: { subject: inbound.subject }
+    });
+    await markWebhookEventProcessed(input.webhookEventId);
+
+    return {
+      status: "status_answered",
+      transactionId: answer.transactionId
+    };
+  }
+
   const transaction = await createTransaction({
     teamId: tcProfile.team_id,
     tcProfileId: tcProfile.id,
     status: "intake_processing"
   });
-  const emailText = [inbound.subject, inbound.text, inbound.html].filter(Boolean).join("\n\n");
 
   await createMessage({
     transactionId: transaction.id,
@@ -84,8 +150,9 @@ export async function processAgentMailInbound(input: {
       missingItems: ["Forward the executed contract PDF."]
     });
 
-    await sendTcEmail({
+    await respondToInbound({
       inboxId: inbound.inboxId,
+      messageId: inbound.messageId,
       to: [tcProfile.escalation_email],
       subject: confirmation.subject,
       text: confirmation.text,
@@ -210,8 +277,9 @@ export async function processAgentMailInbound(input: {
     missingItems: validation.requiredClarifications
   });
 
-  await sendTcEmail({
+  await respondToInbound({
     inboxId: inbound.inboxId,
+    messageId: inbound.messageId,
     to: [tcProfile.escalation_email],
     subject: transactionMap.subject,
     text: transactionMap.text,
