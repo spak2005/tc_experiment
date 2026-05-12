@@ -181,8 +181,42 @@ button:disabled {
   font-size: 0.9rem;
 }
 
+.row a {
+  color: inherit;
+}
+
+.row small {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.compact {
+  margin-top: 16px;
+}
+
+.detail-grid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 36px;
+}
+
+pre {
+  background: #f7f5ef;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  margin: 0;
+  max-height: 380px;
+  overflow: auto;
+  padding: 12px;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 900px) {
-  .dashboard-grid {
+  .dashboard-grid,
+  .detail-grid {
     grid-template-columns: 1fr;
   }
 }

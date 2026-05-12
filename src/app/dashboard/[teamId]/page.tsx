@@ -1,4 +1,5 @@
 import { getDashboardSnapshot } from "@/lib/db/repositories";
+import Link from "next/link";
 
 export default async function DashboardPage({
   params
@@ -19,7 +20,11 @@ export default async function DashboardPage({
         <Panel title="Transactions">
           {snapshot.transactions.map((transaction) => (
             <article className="row" key={transaction.id}>
-              <strong>{transaction.property_address ?? "Address pending"}</strong>
+              <strong>
+                <Link href={`/transactions/${transaction.id}`}>
+                  {transaction.property_address ?? "Address pending"}
+                </Link>
+              </strong>
               <span>
                 {transaction.status} · {transaction.phase ?? "no phase"} ·{" "}
                 {transaction.current_risk}
