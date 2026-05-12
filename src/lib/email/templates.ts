@@ -59,3 +59,45 @@ export function approvalRequestEmail(input: ApprovalRequestEmailInput) {
     text: `I drafted the email below and need your approval before sending.\n\nSubject: ${input.proposedSubject}\n\n${input.proposedBody}\n\nApprove: ${input.approveUrl}\nReject: ${input.rejectUrl}`
   };
 }
+
+export interface TransactionMapEmailInput {
+  propertyAddress?: string;
+  effectiveDate?: string;
+  closingDate?: string;
+  milestones: Array<{
+    title: string;
+    dueDate?: string;
+    sourceReference?: string;
+    riskLevel: string;
+  }>;
+  missingItems: string[];
+}
+
+export function transactionMapEmail(input: TransactionMapEmailInput) {
+  const property = input.propertyAddress ?? "this transaction";
+  const headline = [
+    `Property: ${property}`,
+    `Effective Date: ${input.effectiveDate ?? "Needs confirmation"}`,
+    `Closing Date: ${input.closingDate ?? "Needs confirmation"}`
+  ].join("\n");
+  const milestones =
+    input.milestones.length > 0
+      ? input.milestones
+          .map((milestone) => {
+            const source = milestone.sourceReference
+              ? ` (${milestone.sourceReference})`
+              : "";
+            return `- ${milestone.title}: ${milestone.dueDate ?? "event-triggered"}${source}`;
+          })
+          .join("\n")
+      : "- No milestones could be generated yet.";
+  const missing =
+    input.missingItems.length > 0
+      ? `\n\nI still need you to confirm:\n${input.missingItems.map((item) => `- ${item}`).join("\n")}`
+      : "\n\nI have enough information to start tracking the file.";
+
+  return {
+    subject: `Transaction map: ${property}`,
+    text: `Hi there,\n\nI reviewed the contract and built the initial transaction map.\n\n${headline}\n\nKey milestones:\n${milestones}${missing}\n\nI will keep monitoring the timeline and will escalate if a deadline is at risk.\n\nBest,\nYour TC`
+  };
+}
