@@ -120,6 +120,16 @@ export async function processAgentMailInbound(input: {
   let facts = extractTexasContractFacts(emailText);
   let extractionMode: "anthropic_pdf" | "email_fallback" = "email_fallback";
 
+  await createAuditEvent({
+    teamId: tcProfile.team_id,
+    transactionId: transaction.id,
+    actor: "tc_agent",
+    eventType: "contract_pdf_extraction_started",
+    payload: {
+      filename: pdfAttachment.filename
+    }
+  });
+
   try {
     facts = await extractContractFactsFromPdf({
       filename: pdfAttachment.filename,
@@ -128,6 +138,16 @@ export async function processAgentMailInbound(input: {
     });
     extractionMode = "anthropic_pdf";
     await markStoredAttachmentProcessed(pdfAttachment, "approved");
+    await createAuditEvent({
+      teamId: tcProfile.team_id,
+      transactionId: transaction.id,
+      actor: "tc_agent",
+      eventType: "contract_pdf_extraction_completed",
+      payload: {
+        filename: pdfAttachment.filename,
+        contractVersion: facts.contractVersion
+      }
+    });
   } catch (error) {
     await markStoredAttachmentProcessed(pdfAttachment, "needs_correction");
     await createAuditEvent({
