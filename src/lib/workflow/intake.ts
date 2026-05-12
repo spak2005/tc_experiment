@@ -1,22 +1,35 @@
 import { normalizeAgentMailInbound } from "@/lib/agentmail/inbound";
-import { getTcAttachment, sendTcEmail } from "@/lib/agentmail/service";
+import { sendTcEmail } from "@/lib/agentmail/service";
+import { extractContractFactsFromPdf } from "@/lib/contracts/anthropic-extract";
 import { extractTexasContractFacts } from "@/lib/contracts/extract";
+import { getStringFact } from "@/lib/contracts/facts";
 import { validateContractFacts } from "@/lib/contracts/validate";
 import {
   createAuditEvent,
-  createDocumentRecord,
   createMessage,
   createTransaction,
   findTcProfileByInbox,
   insertMilestones,
   insertTasks,
   markWebhookEventProcessed,
-  saveExtractedContractFacts
+  saveExtractedContractFacts,
+  updateTransactionFromFacts
 } from "@/lib/db/repositories";
-import { intakeConfirmationEmail } from "@/lib/email/templates";
+import {
+  intakeConfirmationEmail,
+  transactionMapEmail
+} from "@/lib/email/templates";
+import {
+  isPdfAttachment,
+  markStoredAttachmentProcessed,
+  storeIncomingAttachment
+} from "@/lib/documents/attachments";
 import { generateTexasMilestones } from "@/lib/milestones/engine";
-import { storePrivateDocument } from "@/lib/storage/blob";
 import { createOpeningTasks, createTasksForMilestone } from "@/lib/workflow/tasks";
+
+function isoDateOrUndefined(value?: string) {
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
+}
 
 export async function processAgentMailInbound(input: {
   webhookEventId: string;
@@ -29,20 +42,12 @@ export async function processAgentMailInbound(input: {
     return { status: "ignored", reason: "unknown_inbox" };
   }
 
-  const emailText = [inbound.subject, inbound.text, inbound.html].filter(Boolean).join("\n\n");
-  const facts = extractTexasContractFacts(emailText);
-  const validation = validateContractFacts(facts);
   const transaction = await createTransaction({
     teamId: tcProfile.team_id,
     tcProfileId: tcProfile.id,
-    propertyAddress:
-      typeof facts.propertyAddress?.value === "string" ? facts.propertyAddress.value : undefined,
-    effectiveDate:
-      typeof facts.effectiveDate?.value === "string" ? facts.effectiveDate.value : undefined,
-    closingDate:
-      typeof facts.closingDate?.value === "string" ? facts.closingDate.value : undefined,
-    status: validation.status === "ready_for_review" ? "needs_agent_confirmation" : "needs_info"
+    status: "intake_processing"
   });
+  const emailText = [inbound.subject, inbound.text, inbound.html].filter(Boolean).join("\n\n");
 
   await createMessage({
     transactionId: transaction.id,
@@ -56,52 +61,112 @@ export async function processAgentMailInbound(input: {
     summary: "Inbound intake email received by TC inbox."
   });
 
-  await saveExtractedContractFacts({
-    transactionId: transaction.id,
-    contractVersion: facts.contractVersion,
-    facts,
-    validationStatus: validation.status
-  });
+  const storedAttachments = [];
 
   for (const attachment of inbound.attachments) {
-    const remoteAttachment = await getTcAttachment({
-      inboxId: inbound.inboxId,
-      messageId: inbound.messageId,
-      attachmentId: attachment.id
-    });
-    const looseAttachment = remoteAttachment as {
-      arrayBuffer?: () => Promise<ArrayBuffer>;
-      bytes?: () => Promise<Uint8Array>;
-    };
-    const body = looseAttachment.arrayBuffer
-      ? await looseAttachment.arrayBuffer()
-      : looseAttachment.bytes
-        ? Buffer.from(await looseAttachment.bytes())
-        : "";
-    const stored = await storePrivateDocument({
+    const storedAttachment = await storeIncomingAttachment({
       teamId: tcProfile.team_id,
       transactionId: transaction.id,
-      filename: attachment.filename,
-      contentType: attachment.contentType,
-      body
+      inboxId: inbound.inboxId,
+      messageId: inbound.messageId,
+      attachment
+    });
+    storedAttachments.push(storedAttachment);
+  }
+
+  const pdfAttachment = storedAttachments.find((attachment) =>
+    isPdfAttachment(attachment)
+  );
+
+  if (!pdfAttachment) {
+    const confirmation = intakeConfirmationEmail({
+      agentName: "there",
+      missingItems: ["Forward the executed contract PDF."]
     });
 
-    await createDocumentRecord({
+    await sendTcEmail({
+      inboxId: inbound.inboxId,
+      to: [tcProfile.escalation_email],
+      subject: confirmation.subject,
+      text: confirmation.text,
+      labels: ["intake", "missing_pdf"]
+    });
+    await createAuditEvent({
+      teamId: tcProfile.team_id,
       transactionId: transaction.id,
-      type: attachment.contentType === "application/pdf" ? "contract" : "attachment",
-      name: attachment.filename,
-      status: "received",
-      blobKey: stored.key,
-      sourceMessageId: inbound.messageId
+      actor: "tc_agent",
+      eventType: "contract_pdf_missing",
+      payload: { attachmentCount: inbound.attachments.length }
+    });
+    await markWebhookEventProcessed(input.webhookEventId);
+
+    return {
+      status: "needs_pdf",
+      transactionId: transaction.id
+    };
+  }
+
+  await createAuditEvent({
+    teamId: tcProfile.team_id,
+    transactionId: transaction.id,
+    actor: "tc_agent",
+    eventType: "contract_pdf_received",
+    payload: {
+      filename: pdfAttachment.filename,
+      blobKey: pdfAttachment.blobKey
+    }
+  });
+
+  let facts = extractTexasContractFacts(emailText);
+  let extractionMode: "anthropic_pdf" | "email_fallback" = "email_fallback";
+
+  try {
+    facts = await extractContractFactsFromPdf({
+      filename: pdfAttachment.filename,
+      pdf: pdfAttachment.body,
+      emailContext: emailText
+    });
+    extractionMode = "anthropic_pdf";
+    await markStoredAttachmentProcessed(pdfAttachment, "approved");
+  } catch (error) {
+    await markStoredAttachmentProcessed(pdfAttachment, "needs_correction");
+    await createAuditEvent({
+      teamId: tcProfile.team_id,
+      transactionId: transaction.id,
+      actor: "tc_agent",
+      eventType: "contract_pdf_extraction_failed",
+      payload: {
+        error: error instanceof Error ? error.message : "Unknown extraction error"
+      }
     });
   }
 
+  const validation = validateContractFacts(facts);
+  const transactionStatus =
+    validation.status === "ready_for_review" ? "needs_agent_confirmation" : "needs_info";
+  const propertyAddress = getStringFact(facts.propertyAddress);
+  const effectiveDate = isoDateOrUndefined(getStringFact(facts.effectiveDate));
+  const closingDate = isoDateOrUndefined(getStringFact(facts.closingDate));
   const milestones = generateTexasMilestones(facts);
   const tasks = [
     ...createOpeningTasks(),
     ...milestones.flatMap((milestone) => createTasksForMilestone(milestone))
   ];
 
+  await updateTransactionFromFacts({
+    transactionId: transaction.id,
+    propertyAddress,
+    effectiveDate,
+    closingDate,
+    status: transactionStatus,
+    phase: "opening_file"
+  });
+  await saveExtractedContractFacts({
+    transactionId: transaction.id,
+    contractVersion: facts.contractVersion,
+    facts,
+    validationStatus: validation.status
+  });
   await insertMilestones(transaction.id, milestones);
   await insertTasks(transaction.id, tasks);
 
@@ -112,23 +177,25 @@ export async function processAgentMailInbound(input: {
     eventType: "transaction_intake_processed",
     payload: {
       validationStatus: validation.status,
-      missingItems: validation.requiredClarifications
+      missingItems: validation.requiredClarifications,
+      extractionMode
     }
   });
 
-  const confirmation = intakeConfirmationEmail({
-    agentName: "there",
-    propertyAddress:
-      typeof facts.propertyAddress?.value === "string" ? facts.propertyAddress.value : undefined,
+  const transactionMap = transactionMapEmail({
+    propertyAddress,
+    effectiveDate,
+    closingDate,
+    milestones,
     missingItems: validation.requiredClarifications
   });
 
   await sendTcEmail({
     inboxId: inbound.inboxId,
     to: [tcProfile.escalation_email],
-    subject: confirmation.subject,
-    text: confirmation.text,
-    labels: ["intake", validation.status]
+    subject: transactionMap.subject,
+    text: transactionMap.text,
+    labels: ["transaction_map", validation.status, extractionMode]
   });
 
   await markWebhookEventProcessed(input.webhookEventId);
