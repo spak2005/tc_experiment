@@ -24,6 +24,17 @@ export interface SendTcEmailInput {
   labels?: string[];
 }
 
+export interface ReplyTcEmailInput {
+  inboxId: string;
+  messageId: string;
+  to?: string[];
+  cc?: string[];
+  bcc?: string[];
+  text: string;
+  html?: string;
+  labels?: string[];
+}
+
 export interface CreateTcDraftInput extends SendTcEmailInput {
   transactionId?: string;
 }
@@ -73,6 +84,19 @@ export async function sendTcEmail(input: SendTcEmailInput) {
     cc: input.cc,
     bcc: input.bcc,
     subject: input.subject,
+    text: input.text,
+    html: input.html,
+    labels: input.labels
+  });
+}
+
+export async function replyTcEmail(input: ReplyTcEmailInput) {
+  const client = getAgentMailClient();
+
+  return client.inboxes.messages.reply(input.inboxId, input.messageId, {
+    to: input.to,
+    cc: input.cc,
+    bcc: input.bcc,
     text: input.text,
     html: input.html,
     labels: input.labels
