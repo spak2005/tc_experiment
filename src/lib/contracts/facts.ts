@@ -37,3 +37,13 @@ export type ContractFacts = z.infer<typeof contractFactsSchema>;
 export function needsFactConfirmation(fact?: ExtractedValue): boolean {
   return !fact || fact.needsConfirmation || fact.confidence < 0.8 || fact.value === null;
 }
+
+export function getStringFact(fact?: ExtractedValue): string | undefined {
+  return typeof fact?.value === "string" && fact.value.trim()
+    ? fact.value.trim()
+    : undefined;
+}
+
+export function getNumberFact(fact?: ExtractedValue): number | undefined {
+  return typeof fact?.value === "number" ? fact.value : undefined;
+}
