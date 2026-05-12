@@ -175,6 +175,34 @@ export async function createTransaction(input: {
   return result.rows[0];
 }
 
+export async function updateTransactionFromFacts(input: {
+  transactionId: string;
+  propertyAddress?: string;
+  effectiveDate?: string;
+  closingDate?: string;
+  status: string;
+  phase?: string;
+}) {
+  await query(
+    `update transactions
+     set property_address = coalesce($2, property_address),
+         effective_date = coalesce($3::date, effective_date),
+         closing_date = coalesce($4::date, closing_date),
+         status = $5,
+         phase = coalesce($6, phase),
+         updated_at = now()
+     where id = $1`,
+    [
+      input.transactionId,
+      input.propertyAddress ?? null,
+      input.effectiveDate ?? null,
+      input.closingDate ?? null,
+      input.status,
+      input.phase ?? null
+    ]
+  );
+}
+
 export async function saveExtractedContractFacts(input: {
   transactionId: string;
   contractVersion: string;
@@ -337,6 +365,18 @@ export async function createDocumentRecord(input: {
   );
 
   return result.rows[0];
+}
+
+export async function updateDocumentStatus(input: {
+  id: string;
+  status: string;
+}) {
+  await query(
+    `update documents
+     set status = $2
+     where id = $1`,
+    [input.id, input.status]
+  );
 }
 
 export async function findAtRiskMilestones(daysAhead = 2) {
