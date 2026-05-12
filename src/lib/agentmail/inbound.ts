@@ -71,7 +71,10 @@ export function normalizeAgentMailInbound(
       }
 
       const record = attachment as Record<string, unknown>;
-      const id = asString(record.id) ?? asString(record.attachmentId);
+      const id =
+        asString(record.id) ??
+        asString(record.attachmentId) ??
+        asString(record.attachment_id);
 
       if (!id) {
         return [];
@@ -81,7 +84,10 @@ export function normalizeAgentMailInbound(
         {
           id,
           filename: asString(record.filename) ?? "attachment",
-          contentType: asString(record.contentType) ?? "application/octet-stream"
+          contentType:
+            asString(record.contentType) ??
+            asString(record.content_type) ??
+            "application/octet-stream"
         }
       ];
     })
