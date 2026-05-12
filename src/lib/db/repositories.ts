@@ -367,6 +367,295 @@ export async function createDocumentRecord(input: {
   return result.rows[0];
 }
 
+export async function findTransactionMatchCandidates(teamId: string) {
+  const result = await query<{
+    id: string;
+    property_address: string | null;
+    status: string;
+    phase: string | null;
+    effective_date: string | null;
+    closing_date: string | null;
+    updated_at: string;
+    party_emails: string[];
+    party_names: string[];
+    thread_ids: string[];
+    recent_subjects: string[];
+  }>(
+    `select
+       t.id,
+       t.property_address,
+       t.status,
+       t.phase,
+       t.effective_date::text,
+       t.closing_date::text,
+       t.updated_at::text,
+       coalesce(array_remove(array_agg(distinct lower(p.email)), null), '{}') as party_emails,
+       coalesce(array_remove(array_agg(distinct lower(p.name)), null), '{}') as party_names,
+       coalesce(array_remove(array_agg(distinct m.thread_id), null), '{}') as thread_ids,
+       coalesce(array_remove(array_agg(distinct lower(m.subject)), null), '{}') as recent_subjects
+     from transactions t
+     left join parties p on p.transaction_id = t.id
+     left join messages m on m.transaction_id = t.id
+     where t.team_id = $1
+       and t.status not in ('closed', 'terminated')
+     group by t.id
+     order by t.updated_at desc
+     limit 25`,
+    [teamId]
+  );
+
+  return result.rows;
+}
+
+export async function getTransactionContextData(transactionId: string) {
+  const [
+    transaction,
+    facts,
+    milestones,
+    tasks,
+    documents,
+    messages,
+    blockers,
+    memory,
+    recentDecisions
+  ] = await Promise.all([
+    query<{
+      id: string;
+      team_id: string;
+      property_address: string | null;
+      status: string;
+      phase: string | null;
+      current_risk: string;
+      effective_date: string | null;
+      closing_date: string | null;
+      updated_at: string;
+    }>(
+      `select
+         id,
+         team_id,
+         property_address,
+         status,
+         phase,
+         current_risk,
+         effective_date::text,
+         closing_date::text,
+         updated_at::text
+       from transactions
+       where id = $1`,
+      [transactionId]
+    ),
+    query<{ contract_version: string; validation_status: string; facts: unknown; created_at: string }>(
+      `select contract_version, validation_status, facts, created_at::text
+       from extracted_contract_facts
+       where transaction_id = $1
+       order by created_at desc
+       limit 1`,
+      [transactionId]
+    ),
+    query<{
+      key: string;
+      title: string;
+      phase: string;
+      due_date: string | null;
+      source_reference: string | null;
+      risk_level: string;
+      completed_at: string | null;
+    }>(
+      `select key, title, phase, due_date::text, source_reference, risk_level, completed_at::text
+       from milestones
+       where transaction_id = $1
+       order by due_date nulls last, title`,
+      [transactionId]
+    ),
+    query<{ title: string; owner_role: string; status: string; due_date: string | null }>(
+      `select title, owner_role, status, due_date::text
+       from tasks
+       where transaction_id = $1
+       order by due_date nulls last, created_at`,
+      [transactionId]
+    ),
+    query<{ type: string; name: string; status: string; blob_key: string | null; created_at: string }>(
+      `select type, name, status, blob_key, created_at::text
+       from documents
+       where transaction_id = $1
+       order by created_at desc`,
+      [transactionId]
+    ),
+    query<{
+      from_address: string;
+      to_addresses: string[];
+      cc_addresses: string[];
+      subject: string;
+      thread_id: string | null;
+      received_at: string | null;
+      sent_at: string | null;
+      summary: string | null;
+    }>(
+      `select from_address, to_addresses, cc_addresses, subject, thread_id, received_at::text, sent_at::text, summary
+       from messages
+       where transaction_id = $1
+       order by coalesce(received_at, sent_at) desc nulls last
+       limit 25`,
+      [transactionId]
+    ),
+    query<{
+      id: string;
+      title: string;
+      details: string;
+      risk_level: string;
+      responsible_party_role: string | null;
+      created_at: string;
+    }>(
+      `select id, title, details, risk_level, responsible_party_role, created_at::text
+       from blockers
+       where transaction_id = $1
+         and resolved_at is null
+       order by created_at desc
+       limit 20`,
+      [transactionId]
+    ),
+    query<{
+      summary: string;
+      open_questions: unknown;
+      known_context: unknown;
+      last_inbound_at: string | null;
+      updated_at: string;
+    }>(
+      `select summary, open_questions, known_context, last_inbound_at::text, updated_at::text
+       from transaction_memory
+       where transaction_id = $1`,
+      [transactionId]
+    ),
+    query<{
+      intent: string;
+      action: string;
+      confidence: string;
+      policy_result: string;
+      rationale: string;
+      status: string;
+      created_at: string;
+    }>(
+      `select intent, action, confidence::text, policy_result, rationale, status, created_at::text
+       from agent_decisions
+       where transaction_id = $1
+       order by created_at desc
+       limit 10`,
+      [transactionId]
+    )
+  ]);
+
+  return {
+    transaction: transaction.rows[0] ?? null,
+    facts: facts.rows[0] ?? null,
+    milestones: milestones.rows,
+    tasks: tasks.rows,
+    documents: documents.rows,
+    messages: messages.rows,
+    blockers: blockers.rows,
+    memory: memory.rows[0] ?? null,
+    recentDecisions: recentDecisions.rows
+  };
+}
+
+export async function upsertTransactionMemory(input: {
+  transactionId: string;
+  summary: string;
+  openQuestions?: unknown[];
+  knownContext?: Record<string, unknown>;
+  lastInboundAt?: Date;
+}) {
+  await query(
+    `insert into transaction_memory (
+       transaction_id,
+       summary,
+       open_questions,
+       known_context,
+       last_inbound_at
+     )
+     values ($1, $2, $3, $4, $5)
+     on conflict (transaction_id) do update
+       set summary = excluded.summary,
+           open_questions = excluded.open_questions,
+           known_context = transaction_memory.known_context || excluded.known_context,
+           last_inbound_at = coalesce(excluded.last_inbound_at, transaction_memory.last_inbound_at),
+           updated_at = now()`,
+    [
+      input.transactionId,
+      input.summary,
+      input.openQuestions ?? [],
+      input.knownContext ?? {},
+      input.lastInboundAt ?? null
+    ]
+  );
+}
+
+export async function createAgentDecision(input: {
+  teamId: string;
+  transactionId?: string;
+  inboundMessageId?: string;
+  inboundThreadId?: string;
+  intent: string;
+  action: string;
+  confidence: number;
+  matchConfidence?: number;
+  requiresApproval: boolean;
+  rationale: string;
+  contextSummary?: Record<string, unknown>;
+  toolPlan?: unknown[];
+}) {
+  const result = await query<{ id: string }>(
+    `insert into agent_decisions (
+       team_id,
+       transaction_id,
+       inbound_message_id,
+       inbound_thread_id,
+       intent,
+       action,
+       confidence,
+       match_confidence,
+       requires_approval,
+       rationale,
+       context_summary,
+       tool_plan
+     )
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+     returning id`,
+    [
+      input.teamId,
+      input.transactionId ?? null,
+      input.inboundMessageId ?? null,
+      input.inboundThreadId ?? null,
+      input.intent,
+      input.action,
+      input.confidence,
+      input.matchConfidence ?? null,
+      input.requiresApproval,
+      input.rationale,
+      input.contextSummary ?? {},
+      input.toolPlan ?? []
+    ]
+  );
+
+  return result.rows[0];
+}
+
+export async function updateAgentDecisionExecution(input: {
+  decisionId: string;
+  policyResult: string;
+  toolResults: unknown[];
+  status: string;
+}) {
+  await query(
+    `update agent_decisions
+     set policy_result = $2,
+         tool_results = $3,
+         status = $4,
+         executed_at = now()
+     where id = $1`,
+    [input.decisionId, input.policyResult, input.toolResults, input.status]
+  );
+}
+
 export async function updateDocumentStatus(input: {
   id: string;
   status: string;
