@@ -25,6 +25,11 @@ export interface AgentActivityEvent {
   id: string;
   teamId: string;
   transactionId?: string;
+  transaction?: {
+    id: string;
+    propertyAddress?: string;
+    status?: string;
+  };
   agentDecisionId?: string;
   sourceType: AgentActivitySource;
   eventType: string;

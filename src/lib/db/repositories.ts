@@ -16,6 +16,8 @@ function toActivityEvent(row: {
   id: string;
   team_id: string;
   transaction_id: string | null;
+  property_address?: string | null;
+  transaction_status?: string | null;
   agent_decision_id: string | null;
   source_type: AgentActivityEvent["sourceType"];
   event_type: string;
@@ -29,6 +31,13 @@ function toActivityEvent(row: {
     id: row.id,
     teamId: row.team_id,
     transactionId: row.transaction_id ?? undefined,
+    transaction: row.transaction_id
+      ? {
+          id: row.transaction_id,
+          propertyAddress: row.property_address ?? undefined,
+          status: row.transaction_status ?? undefined
+        }
+      : undefined,
     agentDecisionId: row.agent_decision_id ?? undefined,
     sourceType: row.source_type,
     eventType: row.event_type,
@@ -155,6 +164,47 @@ export async function getTransactionActivityEvents(transactionId: string) {
      where transaction_id = $1
      order by occurred_at, id`,
     [transactionId]
+  );
+
+  return result.rows.map(toActivityEvent);
+}
+
+export async function getTeamActivityTimeline(teamId: string, limit = 100) {
+  const result = await query<{
+    id: string;
+    team_id: string;
+    transaction_id: string | null;
+    property_address: string | null;
+    transaction_status: string | null;
+    agent_decision_id: string | null;
+    source_type: AgentActivityEvent["sourceType"];
+    event_type: string;
+    title: string;
+    summary: string;
+    status: AgentActivityEvent["status"];
+    metadata: unknown;
+    occurred_at: string;
+  }>(
+    `select
+       e.id,
+       e.team_id,
+       e.transaction_id,
+       t.property_address,
+       t.status as transaction_status,
+       e.agent_decision_id,
+       e.source_type,
+       e.event_type,
+       e.title,
+       e.summary,
+       e.status,
+       e.metadata,
+       e.occurred_at::text
+     from agent_activity_events e
+     left join transactions t on t.id = e.transaction_id
+     where e.team_id = $1
+     order by e.occurred_at desc, e.id desc
+     limit $2`,
+    [teamId, limit]
   );
 
   return result.rows.map(toActivityEvent);
