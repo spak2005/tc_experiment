@@ -1,7 +1,42 @@
 import { query, type PoolClientLike } from "@/lib/db/client";
+import type {
+  AgentActivityEvent,
+  CreateAgentActivityEventInput
+} from "@/lib/agent/activity";
 
 function toJsonb(value: unknown) {
   return JSON.stringify(value ?? null);
+}
+
+function toActivityEvent(row: {
+  id: string;
+  team_id: string;
+  transaction_id: string | null;
+  agent_decision_id: string | null;
+  source_type: AgentActivityEvent["sourceType"];
+  event_type: string;
+  title: string;
+  summary: string;
+  status: AgentActivityEvent["status"];
+  metadata: unknown;
+  occurred_at: string;
+}): AgentActivityEvent {
+  return {
+    id: row.id,
+    teamId: row.team_id,
+    transactionId: row.transaction_id ?? undefined,
+    agentDecisionId: row.agent_decision_id ?? undefined,
+    sourceType: row.source_type,
+    eventType: row.event_type,
+    title: row.title,
+    summary: row.summary,
+    status: row.status,
+    metadata:
+      row.metadata && typeof row.metadata === "object"
+        ? (row.metadata as Record<string, unknown>)
+        : {},
+    occurredAt: row.occurred_at
+  };
 }
 
 export interface CreateTeamInput {
@@ -24,6 +59,101 @@ export interface CreateTcProfileInput {
   agentMailPodId?: string;
   agentMailInboxId?: string;
   escalationEmail: string;
+}
+
+export async function createAgentActivityEvent(
+  input: CreateAgentActivityEventInput,
+  client?: PoolClientLike
+) {
+  const db = client ?? { query };
+  const result = await db.query<{
+    id: string;
+    team_id: string;
+    transaction_id: string | null;
+    agent_decision_id: string | null;
+    source_type: AgentActivityEvent["sourceType"];
+    event_type: string;
+    title: string;
+    summary: string;
+    status: AgentActivityEvent["status"];
+    metadata: unknown;
+    occurred_at: string;
+  }>(
+    `insert into agent_activity_events (
+       team_id,
+       transaction_id,
+       agent_decision_id,
+       source_type,
+       event_type,
+       title,
+       summary,
+       status,
+       metadata,
+       occurred_at
+     )
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, coalesce($10, now()))
+     returning
+       id,
+       team_id,
+       transaction_id,
+       agent_decision_id,
+       source_type,
+       event_type,
+       title,
+       summary,
+       status,
+       metadata,
+       occurred_at::text`,
+    [
+      input.teamId,
+      input.transactionId ?? null,
+      input.agentDecisionId ?? null,
+      input.sourceType,
+      input.eventType,
+      input.title,
+      input.summary ?? "",
+      input.status,
+      toJsonb(input.metadata ?? {}),
+      input.occurredAt ?? null
+    ]
+  );
+
+  return toActivityEvent(result.rows[0]);
+}
+
+export async function getTransactionActivityEvents(transactionId: string) {
+  const result = await query<{
+    id: string;
+    team_id: string;
+    transaction_id: string | null;
+    agent_decision_id: string | null;
+    source_type: AgentActivityEvent["sourceType"];
+    event_type: string;
+    title: string;
+    summary: string;
+    status: AgentActivityEvent["status"];
+    metadata: unknown;
+    occurred_at: string;
+  }>(
+    `select
+       id,
+       team_id,
+       transaction_id,
+       agent_decision_id,
+       source_type,
+       event_type,
+       title,
+       summary,
+       status,
+       metadata,
+       occurred_at::text
+     from agent_activity_events
+     where transaction_id = $1
+     order by occurred_at, id`,
+    [transactionId]
+  );
+
+  return result.rows.map(toActivityEvent);
 }
 
 export async function createTeam(input: CreateTeamInput, client?: PoolClientLike) {
