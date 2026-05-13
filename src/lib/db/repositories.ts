@@ -391,6 +391,299 @@ export async function updateTransactionFromFacts(input: {
   );
 }
 
+export async function getTransactionCore(transactionId: string) {
+  const result = await query<{
+    id: string;
+    property_address: string | null;
+    side: string;
+    status: string;
+    phase: string | null;
+    current_risk: string;
+    effective_date: string | null;
+    closing_date: string | null;
+  }>(
+    `select
+       id,
+       property_address,
+       side,
+       status,
+       phase,
+       current_risk,
+       effective_date::text,
+       closing_date::text
+     from transactions
+     where id = $1`,
+    [transactionId]
+  );
+
+  return result.rows[0] ?? null;
+}
+
+export async function updateTransactionCoreFields(input: {
+  transactionId: string;
+  propertyAddress?: string;
+  side?: string;
+  status?: string;
+  phase?: string;
+  currentRisk?: string;
+  effectiveDate?: string;
+  closingDate?: string;
+}) {
+  const result = await query<{
+    id: string;
+    property_address: string | null;
+    side: string;
+    status: string;
+    phase: string | null;
+    current_risk: string;
+    effective_date: string | null;
+    closing_date: string | null;
+  }>(
+    `update transactions
+     set property_address = coalesce($2, property_address),
+         side = coalesce($3, side),
+         status = coalesce($4, status),
+         phase = coalesce($5, phase),
+         current_risk = coalesce($6, current_risk),
+         effective_date = coalesce($7::date, effective_date),
+         closing_date = coalesce($8::date, closing_date),
+         updated_at = now()
+     where id = $1
+     returning
+       id,
+       property_address,
+       side,
+       status,
+       phase,
+       current_risk,
+       effective_date::text,
+       closing_date::text`,
+    [
+      input.transactionId,
+      input.propertyAddress ?? null,
+      input.side ?? null,
+      input.status ?? null,
+      input.phase ?? null,
+      input.currentRisk ?? null,
+      input.effectiveDate ?? null,
+      input.closingDate ?? null
+    ]
+  );
+
+  return result.rows[0] ?? null;
+}
+
+export async function getTransactionFact(input: {
+  transactionId: string;
+  key: string;
+}) {
+  const result = await query<{
+    transaction_id: string;
+    key: string;
+    value: unknown;
+    confidence: string;
+    source_type: string;
+    source_reference: string | null;
+    needs_confirmation: boolean;
+    updated_at: string;
+  }>(
+    `select
+       transaction_id,
+       key,
+       value,
+       confidence::text,
+       source_type,
+       source_reference,
+       needs_confirmation,
+       updated_at::text
+     from transaction_facts
+     where transaction_id = $1 and key = $2`,
+    [input.transactionId, input.key]
+  );
+
+  return result.rows[0] ?? null;
+}
+
+export async function getTransactionFacts(transactionId: string) {
+  const result = await query<{
+    transaction_id: string;
+    key: string;
+    value: unknown;
+    confidence: string;
+    source_type: string;
+    source_reference: string | null;
+    needs_confirmation: boolean;
+    updated_at: string;
+  }>(
+    `select
+       transaction_id,
+       key,
+       value,
+       confidence::text,
+       source_type,
+       source_reference,
+       needs_confirmation,
+       updated_at::text
+     from transaction_facts
+     where transaction_id = $1
+     order by key`,
+    [transactionId]
+  );
+
+  return result.rows;
+}
+
+export async function upsertTransactionFact(input: {
+  transactionId: string;
+  key: string;
+  value: unknown;
+  confidence: number;
+  sourceType: string;
+  sourceReference?: string;
+  needsConfirmation?: boolean;
+}) {
+  const result = await query<{
+    transaction_id: string;
+    key: string;
+    value: unknown;
+    confidence: string;
+    source_type: string;
+    source_reference: string | null;
+    needs_confirmation: boolean;
+    updated_at: string;
+  }>(
+    `insert into transaction_facts (
+       transaction_id,
+       key,
+       value,
+       confidence,
+       source_type,
+       source_reference,
+       needs_confirmation
+     )
+     values ($1, $2, $3, $4, $5, $6, $7)
+     on conflict (transaction_id, key) do update
+       set value = excluded.value,
+           confidence = excluded.confidence,
+           source_type = excluded.source_type,
+           source_reference = excluded.source_reference,
+           needs_confirmation = excluded.needs_confirmation,
+           updated_at = now()
+     returning
+       transaction_id,
+       key,
+       value,
+       confidence::text,
+       source_type,
+       source_reference,
+       needs_confirmation,
+       updated_at::text`,
+    [
+      input.transactionId,
+      input.key,
+      toJsonb(input.value),
+      input.confidence,
+      input.sourceType,
+      input.sourceReference ?? null,
+      input.needsConfirmation ?? false
+    ]
+  );
+
+  return result.rows[0];
+}
+
+export async function createTransactionChangeEvent(input: {
+  transactionId: string;
+  agentDecisionId?: string;
+  changeType: string;
+  targetType: string;
+  targetId?: string;
+  fieldKey: string;
+  previousValue?: unknown;
+  newValue?: unknown;
+  sourceType: string;
+  sourceReference?: string;
+  confidence: number;
+  approvalStatus: string;
+}) {
+  const result = await query<{ id: string }>(
+    `insert into transaction_change_events (
+       transaction_id,
+       agent_decision_id,
+       change_type,
+       target_type,
+       target_id,
+       field_key,
+       previous_value,
+       new_value,
+       source_type,
+       source_reference,
+       confidence,
+       approval_status
+     )
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+     returning id`,
+    [
+      input.transactionId,
+      input.agentDecisionId ?? null,
+      input.changeType,
+      input.targetType,
+      input.targetId ?? null,
+      input.fieldKey,
+      toJsonb(input.previousValue),
+      toJsonb(input.newValue),
+      input.sourceType,
+      input.sourceReference ?? null,
+      input.confidence,
+      input.approvalStatus
+    ]
+  );
+
+  return result.rows[0];
+}
+
+export async function getRecentTransactionChangeEvents(transactionId: string, limit = 20) {
+  const result = await query<{
+    id: string;
+    transaction_id: string;
+    agent_decision_id: string | null;
+    change_type: string;
+    target_type: string;
+    target_id: string | null;
+    field_key: string;
+    previous_value: unknown;
+    new_value: unknown;
+    source_type: string;
+    source_reference: string | null;
+    confidence: string;
+    approval_status: string;
+    created_at: string;
+  }>(
+    `select
+       id,
+       transaction_id,
+       agent_decision_id,
+       change_type,
+       target_type,
+       target_id,
+       field_key,
+       previous_value,
+       new_value,
+       source_type,
+       source_reference,
+       confidence::text,
+       approval_status,
+       created_at::text
+     from transaction_change_events
+     where transaction_id = $1
+     order by created_at desc, id desc
+     limit $2`,
+    [transactionId, limit]
+  );
+
+  return result.rows;
+}
+
 export async function saveExtractedContractFacts(input: {
   transactionId: string;
   contractVersion: string;
