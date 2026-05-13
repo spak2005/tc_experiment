@@ -216,7 +216,49 @@ async function persistContractAssessment(input: {
     ];
 
     await insertMilestones(input.transactionId, milestones);
+    await logActivity(
+      { teamId: input.context.tcProfile.teamId, transactionId: input.transactionId },
+      {
+        sourceType: "system",
+        eventType: "milestones_generated",
+        title: "Generated milestones",
+        summary: `Generated ${milestones.length} transaction milestone(s).`,
+        status: "completed",
+        metadata: {
+          count: milestones.length,
+          effectiveDate,
+          closingDate,
+          milestones: milestones.map((milestone) => ({
+            key: milestone.key,
+            title: milestone.title,
+            dueDate: milestone.dueDate,
+            phase: milestone.phase,
+            riskLevel: milestone.riskLevel,
+            sourceReference: milestone.sourceReference
+          }))
+        }
+      }
+    );
     await insertTasks(input.transactionId, tasks);
+    await logActivity(
+      { teamId: input.context.tcProfile.teamId, transactionId: input.transactionId },
+      {
+        sourceType: "system",
+        eventType: "tasks_generated",
+        title: "Generated tasks",
+        summary: `Generated ${tasks.length} opening and milestone task(s).`,
+        status: "completed",
+        metadata: {
+          count: tasks.length,
+          tasks: tasks.map((task) => ({
+            title: task.title,
+            ownerRole: task.ownerRole,
+            dueDate: task.dueDate,
+            status: task.status
+          }))
+        }
+      }
+    );
   }
 
   await upsertTransactionMemory({
