@@ -74,6 +74,38 @@ export type RiskLevel = "normal" | "watch" | "urgent" | "critical";
 
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired";
 
+export type TransactionFactSourceType =
+  | "contract_extraction"
+  | "email"
+  | "agent"
+  | "system"
+  | "manual";
+
+export type TransactionChangeType =
+  | "created"
+  | "updated"
+  | "completed"
+  | "resolved"
+  | "skipped"
+  | "blocked"
+  | "approval_required";
+
+export type TransactionChangeTargetType =
+  | "transaction"
+  | "transaction_fact"
+  | "party"
+  | "milestone"
+  | "task"
+  | "document"
+  | "blocker"
+  | "memory";
+
+export type TransactionWriteApprovalStatus =
+  | "applied"
+  | "approval_required"
+  | "blocked"
+  | "skipped";
+
 export interface User {
   id: ID;
   teamId: ID;
@@ -212,5 +244,33 @@ export interface AuditEvent {
   actor: "system" | "tc_agent" | "agent" | "external_party";
   eventType: string;
   payload: Record<string, unknown>;
+  createdAt: Date;
+}
+
+export interface TransactionFact {
+  transactionId: ID;
+  key: string;
+  value: unknown;
+  confidence: number;
+  sourceType: TransactionFactSourceType;
+  sourceReference?: string;
+  needsConfirmation: boolean;
+  updatedAt: Date;
+}
+
+export interface TransactionChangeEvent {
+  id: ID;
+  transactionId: ID;
+  agentDecisionId?: ID;
+  changeType: TransactionChangeType;
+  targetType: TransactionChangeTargetType;
+  targetId?: string;
+  fieldKey: string;
+  previousValue?: unknown;
+  newValue?: unknown;
+  sourceType: TransactionFactSourceType;
+  sourceReference?: string;
+  confidence: number;
+  approvalStatus: TransactionWriteApprovalStatus;
   createdAt: Date;
 }
