@@ -1,5 +1,9 @@
 import { query, type PoolClientLike } from "@/lib/db/client";
 
+function toJsonb(value: unknown) {
+  return JSON.stringify(value ?? null);
+}
+
 export interface CreateTeamInput {
   name: string;
   market: "TX";
@@ -86,7 +90,7 @@ export async function recordWebhookEvent(input: {
      on conflict (provider, external_id) do update
        set payload = webhook_events.payload
      returning id, (xmax = 0) as inserted`,
-    [input.provider, input.externalId, input.payload]
+    [input.provider, input.externalId, toJsonb(input.payload)]
   );
 
   return result.rows[0];
@@ -116,7 +120,7 @@ export async function createAuditEvent(input: {
       input.transactionId ?? null,
       input.actor,
       input.eventType,
-      input.payload ?? {}
+      toJsonb(input.payload ?? {})
     ]
   );
 }
@@ -221,7 +225,7 @@ export async function saveExtractedContractFacts(input: {
     [
       input.transactionId,
       input.contractVersion,
-      input.facts,
+      toJsonb(input.facts),
       input.validationStatus
     ]
   );
@@ -582,8 +586,8 @@ export async function upsertTransactionMemory(input: {
     [
       input.transactionId,
       input.summary,
-      input.openQuestions ?? [],
-      input.knownContext ?? {},
+      toJsonb(input.openQuestions ?? []),
+      toJsonb(input.knownContext ?? {}),
       input.lastInboundAt ?? null
     ]
   );
@@ -631,8 +635,8 @@ export async function createAgentDecision(input: {
       input.matchConfidence ?? null,
       input.requiresApproval,
       input.rationale,
-      input.contextSummary ?? {},
-      input.toolPlan ?? []
+      toJsonb(input.contextSummary ?? {}),
+      toJsonb(input.toolPlan ?? [])
     ]
   );
 
@@ -652,7 +656,7 @@ export async function updateAgentDecisionExecution(input: {
          status = $4,
          executed_at = now()
      where id = $1`,
-    [input.decisionId, input.policyResult, input.toolResults, input.status]
+    [input.decisionId, input.policyResult, toJsonb(input.toolResults), input.status]
   );
 }
 
