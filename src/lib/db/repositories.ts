@@ -919,7 +919,7 @@ export async function getTransactionStatusSummary(transactionId: string) {
 }
 
 export async function getTransactionDetail(transactionId: string) {
-  const [transaction, milestones, tasks, documents, messages, auditEvents, facts] =
+  const [transaction, milestones, tasks, documents, messages, auditEvents, facts, agentDecisions] =
     await Promise.all([
       query<{
         id: string;
@@ -1006,6 +1006,41 @@ export async function getTransactionDetail(transactionId: string) {
          order by created_at desc
          limit 1`,
         [transactionId]
+      ),
+      query<{
+        intent: string;
+        action: string;
+        confidence: string;
+        match_confidence: string | null;
+        requires_approval: boolean;
+        policy_result: string;
+        rationale: string;
+        context_summary: unknown;
+        tool_plan: unknown;
+        tool_results: unknown;
+        status: string;
+        created_at: string;
+        executed_at: string | null;
+      }>(
+        `select
+           intent,
+           action,
+           confidence::text,
+           match_confidence::text,
+           requires_approval,
+           policy_result,
+           rationale,
+           context_summary,
+           tool_plan,
+           tool_results,
+           status,
+           created_at::text,
+           executed_at::text
+         from agent_decisions
+         where transaction_id = $1
+         order by created_at desc
+         limit 50`,
+        [transactionId]
       )
     ]);
 
@@ -1016,6 +1051,7 @@ export async function getTransactionDetail(transactionId: string) {
     documents: documents.rows,
     messages: messages.rows,
     auditEvents: auditEvents.rows,
-    facts: facts.rows[0] ?? null
+    facts: facts.rows[0] ?? null,
+    agentDecisions: agentDecisions.rows
   };
 }

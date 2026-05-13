@@ -78,6 +78,34 @@ export default async function TransactionDetailPage({
           <pre>{JSON.stringify(detail.facts?.facts ?? {}, null, 2)}</pre>
         </Panel>
 
+        <Panel title="Agent Decisions">
+          {detail.agentDecisions.map((decision) => (
+            <article className="row" key={`${decision.intent}-${decision.created_at}`}>
+              <strong>
+                {decision.intent} → {decision.action}
+              </strong>
+              <span>
+                confidence {decision.confidence} · match{" "}
+                {decision.match_confidence ?? "n/a"} · {decision.policy_result} ·{" "}
+                {decision.status}
+              </span>
+              <small>{decision.rationale}</small>
+              <pre>
+                {JSON.stringify(
+                  {
+                    requiresApproval: decision.requires_approval,
+                    context: decision.context_summary,
+                    toolPlan: decision.tool_plan,
+                    toolResults: decision.tool_results
+                  },
+                  null,
+                  2
+                )}
+              </pre>
+            </article>
+          ))}
+        </Panel>
+
         <Panel title="Audit Trail">
           {detail.auditEvents.map((event) => (
             <article className="row" key={`${event.event_type}-${event.created_at}`}>
