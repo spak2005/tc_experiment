@@ -1,13 +1,21 @@
-# Agent Activity Debugger
+# Agent Observability
 
-The Agent Activity Debugger is internal developer tooling for understanding and
-testing the TC agent workflow. It is not meant to be customer-facing product UI.
+Agent Observability is internal developer tooling for understanding and testing
+the TC agent workflow. It is not meant to be customer-facing product UI.
+
+Use `/observability/[teamId]` as the main place to watch the agent work. It
+shows team-wide activity whether or not a transaction has been created yet.
+
+Use `/transactions/[transactionId]` when you want the same debugger filtered to
+one transaction file.
 
 ## How to read it
 
-Open a transaction detail page and look at the Agent Activity section. The
-timeline runs oldest to newest, so it should read like the agent's operating
-trail:
+Open the observability page from the dashboard. The team-wide timeline runs
+newest to oldest, so the latest agent behavior is always at the top.
+
+Transaction detail pages keep a filtered timeline that runs oldest to newest, so
+one file still reads like the agent's operating trail:
 
 - email received
 - transaction matched or opened
@@ -17,6 +25,11 @@ trail:
 - agent intent/action selected
 - policy evaluated
 - email sent, approval requested, blocker created, or escalation sent
+
+In observability, cards with a transaction show a link to the transaction page.
+Cards without a transaction are still useful: they show inbox-level behavior,
+matching attempts, ignored messages, status questions, and clarification replies
+before a file exists.
 
 Each card has a plain-language title and summary. Badges show source and status.
 Metadata chips show useful debug facts such as confidence, filename, recipient,
@@ -51,6 +64,9 @@ events over vague batch events. A good event answers:
 The transaction page also renders synthetic history from existing messages,
 documents, decisions, approvals, and audit events so older transactions still
 show context.
+
+The observability page reads real activity events by `team_id`, including rows
+where `transaction_id` is null. That makes pre-file inbox behavior visible.
 
 ## Logging rules
 
