@@ -3,8 +3,10 @@ import {
   mapLegacyDecisionToActivity,
   mapLegacyDocumentToActivity,
   mapLegacyMessageToActivity,
-  mapLegacyRecordsToActivity
+  mapLegacyRecordsToActivity,
+  sortActivityTimeline
 } from "@/lib/agent/activity-timeline";
+import type { AgentActivityEvent } from "@/lib/agent/activity";
 
 describe("activity timeline legacy mappers", () => {
   it("maps inbound messages to readable activity without raw JSON summaries", () => {
@@ -120,5 +122,62 @@ describe("activity timeline legacy mappers", () => {
       "agent_decision",
       "audit_event"
     ]);
+  });
+
+  it("sorts mixed real and synthetic activity by timestamp", () => {
+    const base = {
+      teamId: "team-1",
+      sourceType: "system",
+      eventType: "test_event",
+      title: "Test",
+      summary: "Test event.",
+      status: "completed",
+      metadata: {}
+    } satisfies Omit<AgentActivityEvent, "id" | "occurredAt">;
+
+    const events = sortActivityTimeline([
+      {
+        ...base,
+        id: "later",
+        occurredAt: "2026-05-12T10:05:00Z"
+      },
+      {
+        ...base,
+        id: "earlier",
+        occurredAt: "2026-05-12T10:01:00Z",
+        isSynthetic: true
+      }
+    ]);
+
+    expect(events.map((event) => event.id)).toEqual(["earlier", "later"]);
+  });
+
+  it("keeps raw metadata available separately from primary copy", () => {
+    const event = mapLegacyDecisionToActivity(
+      {
+        intent: "new_contract",
+        action: "process_contract",
+        confidence: "0.800",
+        match_confidence: "0.700",
+        requires_approval: false,
+        policy_result: "allowed",
+        rationale: "Document assessment completed.",
+        context_summary: { nested: { raw: true } },
+        tool_plan: [{ name: "sendResponse", input: { subject: "Map" } }],
+        tool_results: [{ tool: "sendResponse", result: "sent" }],
+        status: "executed",
+        created_at: "2026-05-12T10:02:00Z",
+        executed_at: "2026-05-12T10:03:00Z"
+      },
+      0
+    );
+
+    expect(event.summary).toBe("Document assessment completed.");
+    expect(event.summary).not.toContain("tool_results");
+    expect(event.metadata).toMatchObject({
+      context: { nested: { raw: true } },
+      toolPlan: [{ name: "sendResponse", input: { subject: "Map" } }],
+      toolResults: [{ tool: "sendResponse", result: "sent" }]
+    });
   });
 });
