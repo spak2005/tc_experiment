@@ -1,5 +1,6 @@
 import { getTcAttachment } from "@/lib/agentmail/service";
 import {
+  createAgentActivityEvent,
   createDocumentRecord,
   updateDocumentStatus
 } from "@/lib/db/repositories";
@@ -55,6 +56,22 @@ export async function storeIncomingAttachment(input: {
     messageId: input.messageId,
     attachmentId: input.attachment.id
   });
+  await createAgentActivityEvent({
+    teamId: input.teamId,
+    transactionId: input.transactionId,
+    sourceType: "document",
+    eventType: "attachment_fetched",
+    title: "Fetched attachment",
+    summary: `Fetched ${input.attachment.filename} from AgentMail.`,
+    status: "completed",
+    metadata: {
+      inboxId: input.inboxId,
+      messageId: input.messageId,
+      attachmentId: input.attachment.id,
+      filename: input.attachment.filename,
+      contentType: input.attachment.contentType
+    }
+  });
   const body = await binaryResponseToBuffer(remoteAttachment);
   const stored = await storePrivateDocument({
     teamId: input.teamId,
@@ -63,6 +80,20 @@ export async function storeIncomingAttachment(input: {
     contentType: input.attachment.contentType,
     body
   });
+  await createAgentActivityEvent({
+    teamId: input.teamId,
+    transactionId: input.transactionId,
+    sourceType: "storage",
+    eventType: "document_stored",
+    title: "Stored document privately",
+    summary: `Stored ${input.attachment.filename} in private Blob storage.`,
+    status: "completed",
+    metadata: {
+      filename: input.attachment.filename,
+      contentType: input.attachment.contentType,
+      blobKey: stored.key
+    }
+  });
   const document = await createDocumentRecord({
     transactionId: input.transactionId,
     type: isPdfAttachment(input.attachment) ? "contract" : "attachment",
@@ -70,6 +101,24 @@ export async function storeIncomingAttachment(input: {
     status: "under_review",
     blobKey: stored.key,
     sourceMessageId: input.messageId
+  });
+  await createAgentActivityEvent({
+    teamId: input.teamId,
+    transactionId: input.transactionId,
+    sourceType: "document",
+    eventType: "document_record_created",
+    title: "Created document record",
+    summary: `Started tracking ${input.attachment.filename} as ${
+      isPdfAttachment(input.attachment) ? "contract" : "attachment"
+    }.`,
+    status: "completed",
+    metadata: {
+      documentId: document.id,
+      filename: input.attachment.filename,
+      type: isPdfAttachment(input.attachment) ? "contract" : "attachment",
+      status: "under_review",
+      blobKey: stored.key
+    }
   });
 
   return {
@@ -83,10 +132,36 @@ export async function storeIncomingAttachment(input: {
 
 export async function markStoredAttachmentProcessed(
   attachment: StoredAttachment,
-  status: "approved" | "needs_correction" | "rejected"
+  status: "approved" | "needs_correction" | "rejected",
+  context?: {
+    teamId: string;
+    transactionId: string;
+  }
 ) {
   await updateDocumentStatus({
     id: attachment.documentId,
     status
   });
+
+  if (context) {
+    await createAgentActivityEvent({
+      teamId: context.teamId,
+      transactionId: context.transactionId,
+      sourceType: "document",
+      eventType: "document_status_updated",
+      title: "Updated document status",
+      summary: `${attachment.filename} is now ${status}.`,
+      status:
+        status === "approved"
+          ? "completed"
+          : status === "rejected"
+            ? "blocked"
+            : "waiting",
+      metadata: {
+        documentId: attachment.documentId,
+        filename: attachment.filename,
+        status
+      }
+    });
+  }
 }

@@ -111,7 +111,11 @@ async function persistContractAssessment(input: {
 
   await markStoredAttachmentProcessed(
     input.attachment,
-    documentStatusForUsability(input.assessment.usability)
+    documentStatusForUsability(input.assessment.usability),
+    {
+      teamId: input.context.tcProfile.teamId,
+      transactionId: input.transactionId
+    }
   );
   await updateTransactionFromFacts({
     transactionId: input.transactionId,
@@ -335,10 +339,38 @@ export async function processAgentMailInbound(input: {
   let documentAssessment: Awaited<ReturnType<typeof assessContractDocument>> | undefined;
 
   if (transactionId && inbound.attachments.length > 0) {
+    for (const attachment of inbound.attachments) {
+      await logActivity(activityContext, {
+        sourceType: "document",
+        eventType: "inbound_attachment_found",
+        title: "Found inbound attachment",
+        summary: `Found ${attachment.filename} on the inbound email.`,
+        status: "received",
+        metadata: {
+          attachmentId: attachment.id,
+          filename: attachment.filename,
+          contentType: attachment.contentType,
+          isPdf: isPdfAttachment(attachment)
+        }
+      });
+    }
     const storedAttachments = await storeInboundAttachments({ context, transactionId });
     const pdfAttachment = storedAttachments.find((attachment) => isPdfAttachment(attachment));
 
     if (pdfAttachment) {
+      await logActivity(activityContext, {
+        sourceType: "document",
+        eventType: "contract_pdf_selected",
+        title: "Selected contract PDF",
+        summary: `Selected ${pdfAttachment.filename} for contract assessment.`,
+        status: "completed",
+        metadata: {
+          documentId: pdfAttachment.documentId,
+          filename: pdfAttachment.filename,
+          contentType: pdfAttachment.contentType,
+          blobKey: pdfAttachment.blobKey
+        }
+      });
       await createAuditEvent({
         teamId: context.tcProfile.teamId,
         transactionId,
@@ -366,6 +398,17 @@ export async function processAgentMailInbound(input: {
         reasons: [...context.match.reasons, "contract document assessed"]
       });
     } else {
+      await logActivity(activityContext, {
+        sourceType: "document",
+        eventType: "contract_pdf_missing",
+        title: "No contract PDF found",
+        summary: "The inbound email had attachments, but none looked like a PDF contract.",
+        status: "blocked",
+        metadata: {
+          attachmentCount: inbound.attachments.length,
+          attachmentNames: inbound.attachments.map((attachment) => attachment.filename)
+        }
+      });
       await createAuditEvent({
         teamId: context.tcProfile.teamId,
         transactionId,
