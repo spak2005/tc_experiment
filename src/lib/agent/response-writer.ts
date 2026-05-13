@@ -4,6 +4,7 @@ import type { DocumentAssessment } from "@/lib/agent/document-assessment";
 import { getAnthropicClient, getAnthropicModel } from "@/lib/llm/anthropic";
 import { getFirstTextBlock, parseJsonObject } from "@/lib/llm/json";
 import { formatTemporalContextLine } from "@/lib/time/clock";
+import type { TransactionWriteResult } from "@/lib/transaction-writes/schemas";
 
 export interface AgentResponseDraft {
   subject?: string;
@@ -26,6 +27,7 @@ function compactResponseContext(input: {
   decision: AgentDecision;
   documentAssessment?: DocumentAssessment;
   statusContext?: string;
+  writeResults?: TransactionWriteResult[];
 }) {
   return {
     inbound: {
@@ -70,7 +72,8 @@ function compactResponseContext(input: {
           signatureStatus: input.documentAssessment.signatureStatus
         }
       : undefined,
-    statusContext: input.statusContext
+    statusContext: input.statusContext,
+    writeResults: input.writeResults
   };
 }
 
@@ -102,6 +105,7 @@ export async function composeAgentResponse(input: {
   decision: AgentDecision;
   documentAssessment?: DocumentAssessment;
   statusContext?: string;
+  writeResults?: TransactionWriteResult[];
 }): Promise<AgentResponseDraft | undefined> {
   const client = getAnthropicClient();
   const response = await client.messages.create({

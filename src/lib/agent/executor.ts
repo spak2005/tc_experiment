@@ -12,6 +12,8 @@ import { approvalRequestEmail } from "@/lib/email/templates";
 import { getEnv } from "@/lib/config/env";
 import { buildStatusAnswerForTransaction } from "@/lib/workflow/status-responder";
 import { composeAgentResponse } from "@/lib/agent/response-writer";
+import { executeTransactionWrites } from "@/lib/transaction-writes/executor";
+import type { TransactionWriteResult } from "@/lib/transaction-writes/schemas";
 
 async function sendDecisionResponse(input: {
   context: AgentContextPack;
@@ -68,6 +70,7 @@ async function responseForDecision(input: {
   context: AgentContextPack;
   decision: AgentDecision;
   documentAssessment?: DocumentAssessment;
+  writeResults?: TransactionWriteResult[];
 }) {
   const { context, decision } = input;
 
@@ -91,7 +94,8 @@ async function responseForDecision(input: {
     const response = await composeAgentResponse({
       context,
       decision,
-      documentAssessment: input.documentAssessment
+      documentAssessment: input.documentAssessment,
+      writeResults: input.writeResults
     });
 
     if (response) {
@@ -110,7 +114,8 @@ async function responseForDecision(input: {
     const response = await composeAgentResponse({
       context,
       decision,
-      statusContext: answer.text
+      statusContext: answer.text,
+      writeResults: input.writeResults
     });
 
     return {
@@ -140,10 +145,23 @@ export async function executeAgentDecision(input: {
     status = "blocked";
     toolResults.push({ tool: "policy", result: "blocked", reasons: input.policy.reasons });
   } else {
+    const writeResults =
+      input.decision.transactionWrites.length > 0
+        ? await executeTransactionWrites({
+            teamId: input.context.tcProfile.teamId,
+            agentDecisionId: input.decisionId,
+            writes: input.decision.transactionWrites
+          })
+        : [];
+    if (writeResults.length > 0) {
+      toolResults.push({ tool: "transactionWrites", result: writeResults });
+    }
+
     const response = await responseForDecision({
       context: input.context,
       decision: input.decision,
-      documentAssessment: input.documentAssessment
+      documentAssessment: input.documentAssessment,
+      writeResults
     });
     if (response) {
       await createAgentActivityEvent({
