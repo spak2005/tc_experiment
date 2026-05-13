@@ -20,6 +20,12 @@ export interface StoredAttachment {
   blobKey: string;
 }
 
+export interface FetchedAttachment {
+  filename: string;
+  contentType: string;
+  body: Buffer;
+}
+
 async function binaryResponseToBuffer(response: unknown): Promise<Buffer> {
   const binary = response as {
     arrayBuffer?: () => Promise<ArrayBuffer>;
@@ -44,13 +50,13 @@ export function isPdfAttachment(attachment: Pick<IncomingAttachment, "contentTyp
   );
 }
 
-export async function storeIncomingAttachment(input: {
+export async function fetchIncomingAttachment(input: {
   teamId: string;
-  transactionId: string;
+  transactionId?: string;
   inboxId: string;
   messageId: string;
   attachment: IncomingAttachment;
-}): Promise<StoredAttachment> {
+}): Promise<FetchedAttachment> {
   const remoteAttachment = await getTcAttachment({
     inboxId: input.inboxId,
     messageId: input.messageId,
@@ -73,12 +79,37 @@ export async function storeIncomingAttachment(input: {
     }
   });
   const body = await binaryResponseToBuffer(remoteAttachment);
-  const stored = await storePrivateDocument({
-    teamId: input.teamId,
-    transactionId: input.transactionId,
+
+  return {
     filename: input.attachment.filename,
     contentType: input.attachment.contentType,
     body
+  };
+}
+
+export async function storeIncomingAttachment(input: {
+  teamId: string;
+  transactionId: string;
+  inboxId: string;
+  messageId: string;
+  attachment: IncomingAttachment;
+  fetched?: FetchedAttachment;
+}): Promise<StoredAttachment> {
+  const fetched =
+    input.fetched ??
+    (await fetchIncomingAttachment({
+      teamId: input.teamId,
+      transactionId: input.transactionId,
+      inboxId: input.inboxId,
+      messageId: input.messageId,
+      attachment: input.attachment
+    }));
+  const stored = await storePrivateDocument({
+    teamId: input.teamId,
+    transactionId: input.transactionId,
+    filename: fetched.filename,
+    contentType: fetched.contentType,
+    body: fetched.body
   });
   await createAgentActivityEvent({
     teamId: input.teamId,
@@ -123,9 +154,9 @@ export async function storeIncomingAttachment(input: {
 
   return {
     documentId: document.id,
-    filename: input.attachment.filename,
-    contentType: input.attachment.contentType,
-    body,
+    filename: fetched.filename,
+    contentType: fetched.contentType,
+    body: fetched.body,
     blobKey: stored.key
   };
 }
