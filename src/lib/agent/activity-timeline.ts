@@ -250,3 +250,16 @@ export function mapLegacyRecordsToActivity(input: {
     ...input.auditEvents.map(mapLegacyAuditToActivity)
   ];
 }
+
+export function sortActivityTimeline(events: AgentActivityEvent[]) {
+  return [...events].sort((left, right) => {
+    const timeComparison =
+      new Date(left.occurredAt).getTime() - new Date(right.occurredAt).getTime();
+
+    if (timeComparison !== 0) {
+      return timeComparison;
+    }
+
+    return left.id.localeCompare(right.id);
+  });
+}

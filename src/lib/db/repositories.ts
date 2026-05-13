@@ -3,6 +3,10 @@ import type {
   AgentActivityEvent,
   CreateAgentActivityEventInput
 } from "@/lib/agent/activity";
+import {
+  mapLegacyRecordsToActivity,
+  sortActivityTimeline
+} from "@/lib/agent/activity-timeline";
 
 function toJsonb(value: unknown) {
   return JSON.stringify(value ?? null);
@@ -1053,8 +1057,18 @@ export async function getTransactionStatusSummary(transactionId: string) {
 }
 
 export async function getTransactionDetail(transactionId: string) {
-  const [transaction, milestones, tasks, documents, messages, auditEvents, facts, agentDecisions] =
-    await Promise.all([
+  const [
+    transaction,
+    milestones,
+    tasks,
+    documents,
+    messages,
+    auditEvents,
+    facts,
+    agentDecisions,
+    approvals,
+    activityEvents
+  ] = await Promise.all([
       query<{
         id: string;
         team_id: string;
@@ -1104,8 +1118,14 @@ export async function getTransactionDetail(transactionId: string) {
          order by due_date nulls last, created_at`,
         [transactionId]
       ),
-      query<{ type: string; name: string; status: string; blob_key: string | null }>(
-        `select type, name, status, blob_key
+      query<{
+        type: string;
+        name: string;
+        status: string;
+        blob_key: string | null;
+        created_at: string;
+      }>(
+        `select type, name, status, blob_key, created_at::text
          from documents
          where transaction_id = $1
          order by created_at desc`,
@@ -1175,8 +1195,63 @@ export async function getTransactionDetail(transactionId: string) {
          order by created_at desc
          limit 50`,
         [transactionId]
+      ),
+      query<{
+        id: string;
+        proposed_subject: string;
+        status: string;
+        created_at: string;
+      }>(
+        `select id, proposed_subject, status, created_at::text
+         from approvals
+         where transaction_id = $1
+         order by created_at desc
+         limit 50`,
+        [transactionId]
+      ),
+      query<{
+        id: string;
+        team_id: string;
+        transaction_id: string | null;
+        agent_decision_id: string | null;
+        source_type: AgentActivityEvent["sourceType"];
+        event_type: string;
+        title: string;
+        summary: string;
+        status: AgentActivityEvent["status"];
+        metadata: unknown;
+        occurred_at: string;
+      }>(
+        `select
+           id,
+           team_id,
+           transaction_id,
+           agent_decision_id,
+           source_type,
+           event_type,
+           title,
+           summary,
+           status,
+           metadata,
+           occurred_at::text
+         from agent_activity_events
+         where transaction_id = $1
+         order by occurred_at, id`,
+        [transactionId]
       )
     ]);
+
+  const syntheticActivity = mapLegacyRecordsToActivity({
+    messages: messages.rows,
+    documents: documents.rows,
+    agentDecisions: agentDecisions.rows,
+    approvals: approvals.rows,
+    auditEvents: auditEvents.rows
+  });
+  const activityTimeline = sortActivityTimeline([
+    ...activityEvents.rows.map(toActivityEvent),
+    ...syntheticActivity
+  ]);
 
   return {
     transaction: transaction.rows[0] ?? null,
@@ -1186,6 +1261,8 @@ export async function getTransactionDetail(transactionId: string) {
     messages: messages.rows,
     auditEvents: auditEvents.rows,
     facts: facts.rows[0] ?? null,
-    agentDecisions: agentDecisions.rows
+    agentDecisions: agentDecisions.rows,
+    approvals: approvals.rows,
+    activityTimeline
   };
 }
