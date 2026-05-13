@@ -340,6 +340,22 @@ export async function processAgentMailInbound(input: {
       inboxId: tcProfile.agentmail_inbox_id
     })
   ) {
+    await createAgentActivityEvent({
+      teamId: tcProfile.team_id,
+      sourceType: "email",
+      eventType: "self_authored_email_ignored",
+      title: "Ignored self-authored email",
+      summary: `Ignored "${inbound.subject}" because it was sent by the TC inbox.`,
+      status: "ignored",
+      metadata: {
+        webhookEventId: input.webhookEventId,
+        inboxId: inbound.inboxId,
+        messageId: inbound.messageId,
+        threadId: inbound.threadId,
+        from: inbound.from,
+        subject: inbound.subject
+      }
+    });
     await markWebhookEventProcessed(input.webhookEventId);
 
     return { status: "ignored", reason: "self_authored_email" };
