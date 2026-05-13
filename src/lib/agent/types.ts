@@ -30,6 +30,7 @@ export interface TransactionMatchCandidate {
   effective_date: string | null;
   closing_date: string | null;
   updated_at: string;
+  latest_facts?: unknown;
   party_emails: string[];
   party_names: string[];
   thread_ids: string[];
