@@ -781,6 +781,122 @@ export async function insertTasks(
   }
 }
 
+export async function upsertMilestoneRecord(input: {
+  transactionId: string;
+  key: string;
+  title: string;
+  phase: string;
+  dueDate?: string | null;
+  sourceType: string;
+  sourceReference?: string;
+  riskLevel: string;
+  completedAt?: string | null;
+}) {
+  const result = await query<{ id: string }>(
+    `insert into milestones (
+       transaction_id,
+       key,
+       title,
+       phase,
+       due_date,
+       source_type,
+       source_reference,
+       risk_level,
+       completed_at
+     )
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     on conflict (transaction_id, key) do update
+       set title = excluded.title,
+           phase = excluded.phase,
+           due_date = excluded.due_date,
+           source_type = excluded.source_type,
+           source_reference = excluded.source_reference,
+           risk_level = excluded.risk_level,
+           completed_at = excluded.completed_at
+     returning id`,
+    [
+      input.transactionId,
+      input.key,
+      input.title,
+      input.phase,
+      input.dueDate ?? null,
+      input.sourceType,
+      input.sourceReference ?? null,
+      input.riskLevel,
+      input.completedAt ?? null
+    ]
+  );
+
+  return result.rows[0];
+}
+
+export async function upsertTaskRecord(input: {
+  transactionId: string;
+  id?: string;
+  title?: string;
+  ownerRole?: string;
+  status?: string;
+  dueDate?: string | null;
+}) {
+  const existing = await query<{ id: string }>(
+    `select id
+     from tasks
+     where transaction_id = $1
+       and (
+         ($2::uuid is not null and id = $2::uuid) or
+         ($3::text is not null and $4::text is not null and title = $3::text and owner_role = $4::text)
+       )
+     order by id
+     limit 1`,
+    [
+      input.transactionId,
+      input.id ?? null,
+      input.title ?? null,
+      input.ownerRole ?? null
+    ]
+  );
+
+  if (existing.rows[0]) {
+    const result = await query<{ id: string }>(
+      `update tasks
+       set title = coalesce($2, title),
+           owner_role = coalesce($3, owner_role),
+           status = coalesce($4, status),
+           due_date = coalesce($5::date, due_date)
+       where id = $1
+       returning id`,
+      [
+        existing.rows[0].id,
+        input.title ?? null,
+        input.ownerRole ?? null,
+        input.status ?? null,
+        input.dueDate ?? null
+      ]
+    );
+
+    return { id: result.rows[0].id, inserted: false };
+  }
+
+  if (!input.title || !input.ownerRole) {
+    return null;
+  }
+
+  const result = await query<{ id: string }>(
+    `insert into tasks (transaction_id, title, owner_role, status, due_date)
+     values ($1, $2, $3, $4, $5)
+     returning id`,
+    [
+      input.transactionId,
+      input.title,
+      input.ownerRole,
+      input.status ?? "not_started",
+      input.dueDate ?? null
+    ]
+  );
+
+  return { id: result.rows[0].id, inserted: true };
+}
+
 export async function createMessage(input: {
   transactionId?: string;
   agentMailMessageId: string;
@@ -1345,6 +1461,80 @@ export async function createBlocker(input: {
   );
 
   return result.rows[0];
+}
+
+export async function upsertBlockerRecord(input: {
+  transactionId: string;
+  id?: string;
+  title: string;
+  details: string;
+  riskLevel: string;
+  responsiblePartyRole?: string;
+  deadlineId?: string;
+  resolved?: boolean;
+}) {
+  const existing = await query<{ id: string }>(
+    `select id
+     from blockers
+     where transaction_id = $1
+       and (
+         ($2::uuid is not null and id = $2::uuid) or
+         ($3::text is not null and title = $3::text)
+       )
+     order by created_at desc
+     limit 1`,
+    [input.transactionId, input.id ?? null, input.title]
+  );
+
+  if (existing.rows[0]) {
+    const result = await query<{ id: string }>(
+      `update blockers
+       set title = $2,
+           details = $3,
+           risk_level = $4,
+           responsible_party_role = coalesce($5, responsible_party_role),
+           deadline_id = coalesce($6::uuid, deadline_id),
+           resolved_at = case when $7 then coalesce(resolved_at, now()) else resolved_at end
+       where id = $1
+       returning id`,
+      [
+        existing.rows[0].id,
+        input.title,
+        input.details,
+        input.riskLevel,
+        input.responsiblePartyRole ?? null,
+        input.deadlineId ?? null,
+        input.resolved ?? false
+      ]
+    );
+
+    return { id: result.rows[0].id, inserted: false };
+  }
+
+  const result = await query<{ id: string }>(
+    `insert into blockers (
+       transaction_id,
+       title,
+       details,
+       risk_level,
+       responsible_party_role,
+       deadline_id,
+       resolved_at
+     )
+     values ($1, $2, $3, $4, $5, $6, case when $7 then now() else null end)
+     returning id`,
+    [
+      input.transactionId,
+      input.title,
+      input.details,
+      input.riskLevel,
+      input.responsiblePartyRole ?? null,
+      input.deadlineId ?? null,
+      input.resolved ?? false
+    ]
+  );
+
+  return { id: result.rows[0].id, inserted: true };
 }
 
 export async function createApproval(input: {

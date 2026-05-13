@@ -5,7 +5,10 @@ import {
   getTransactionFact,
   updateTransactionCoreFields,
   updateDocumentRecord,
+  upsertBlockerRecord,
+  upsertMilestoneRecord,
   upsertParty,
+  upsertTaskRecord,
   upsertTransactionFact
 } from "@/lib/db/repositories";
 import {
@@ -348,6 +351,124 @@ async function executeDocumentsWrite(input: {
   return results;
 }
 
+async function executeMilestonesWrite(input: {
+  teamId: string;
+  agentDecisionId?: string;
+  write: Extract<TransactionWrite, { name: "upsertMilestones" }>;
+}) {
+  const { transactionId, milestones } = input.write.input;
+  const results: TransactionWriteResult[] = [];
+
+  for (const milestone of milestones) {
+    const saved = await upsertMilestoneRecord({
+      transactionId,
+      key: milestone.key,
+      title: milestone.title,
+      phase: milestone.phase,
+      dueDate: milestone.dueDate,
+      sourceType: milestone.sourceType,
+      sourceReference: milestone.sourceReference,
+      riskLevel: milestone.riskLevel,
+      completedAt: milestone.completedAt
+    });
+    const applied = result({
+      name: input.write.name,
+      status: "applied",
+      targetType: "milestone",
+      targetId: saved.id,
+      fieldKey: milestone.key,
+      newValue: milestone,
+      message: `Upserted milestone ${milestone.title}.`
+    });
+    await recordWriteResult({ ...input, transactionId, result: applied });
+    results.push(applied);
+  }
+
+  return results;
+}
+
+async function executeTasksWrite(input: {
+  teamId: string;
+  agentDecisionId?: string;
+  write: Extract<TransactionWrite, { name: "updateTasks" }>;
+}) {
+  const { transactionId, tasks } = input.write.input;
+  const results: TransactionWriteResult[] = [];
+
+  for (const task of tasks) {
+    const saved = await upsertTaskRecord({
+      transactionId,
+      id: task.id,
+      title: task.title,
+      ownerRole: task.ownerRole,
+      status: task.status,
+      dueDate: task.dueDate
+    });
+
+    if (!saved) {
+      const blocked = result({
+        name: input.write.name,
+        status: "blocked",
+        targetType: "task",
+        targetId: task.id,
+        fieldKey: task.title ?? "task",
+        newValue: task,
+        message: "Task update could not identify or create a task."
+      });
+      await recordWriteResult({ ...input, transactionId, result: blocked });
+      results.push(blocked);
+      continue;
+    }
+
+    const applied = result({
+      name: input.write.name,
+      status: "applied",
+      targetType: "task",
+      targetId: saved.id,
+      fieldKey: task.title ?? task.id ?? "task",
+      newValue: task,
+      message: `${saved.inserted ? "Created" : "Updated"} task ${task.title ?? saved.id}.`
+    });
+    await recordWriteResult({ ...input, transactionId, result: applied });
+    results.push(applied);
+  }
+
+  return results;
+}
+
+async function executeBlockerWrite(input: {
+  teamId: string;
+  agentDecisionId?: string;
+  write: Extract<TransactionWrite, { name: "upsertBlocker" }>;
+}) {
+  const saved = await upsertBlockerRecord({
+    transactionId: input.write.input.transactionId,
+    id: input.write.input.id,
+    title: input.write.input.title,
+    details: input.write.input.details,
+    riskLevel: input.write.input.riskLevel,
+    responsiblePartyRole: input.write.input.responsiblePartyRole,
+    deadlineId: input.write.input.deadlineId,
+    resolved: input.write.input.resolved
+  });
+  const applied = result({
+    name: input.write.name,
+    status: "applied",
+    targetType: "blocker",
+    targetId: saved.id,
+    fieldKey: input.write.input.title,
+    newValue: input.write.input,
+    message: `${saved.inserted ? "Created" : "Updated"} blocker ${input.write.input.title}.`
+  });
+  await recordWriteResult({
+    ...input,
+    transactionId: input.write.input.transactionId,
+    result: applied
+  });
+
+  return [applied];
+}
+
 export async function executeTransactionWrites(input: {
   teamId: string;
   agentDecisionId?: string;
@@ -379,6 +500,12 @@ export async function executeTransactionWrites(input: {
       results.push(...(await executePartiesWrite({ ...input, write })));
     } else if (write.name === "updateDocuments") {
       results.push(...(await executeDocumentsWrite({ ...input, write })));
+    } else if (write.name === "upsertMilestones") {
+      results.push(...(await executeMilestonesWrite({ ...input, write })));
+    } else if (write.name === "updateTasks") {
+      results.push(...(await executeTasksWrite({ ...input, write })));
+    } else if (write.name === "upsertBlocker") {
+      results.push(...(await executeBlockerWrite({ ...input, write })));
     } else {
       results.push(...(await executeUnsupportedWrite({ ...input, write })));
     }
