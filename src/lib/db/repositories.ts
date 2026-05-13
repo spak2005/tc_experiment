@@ -1148,7 +1148,9 @@ export async function getTransactionContextData(transactionId: string) {
     messages,
     blockers,
     memory,
-    recentDecisions
+    recentDecisions,
+    canonicalFacts,
+    recentChanges
   ] = await Promise.all([
     query<{
       id: string;
@@ -1272,6 +1274,59 @@ export async function getTransactionContextData(transactionId: string) {
        order by created_at desc
        limit 10`,
       [transactionId]
+    ),
+    query<{
+      key: string;
+      value: unknown;
+      confidence: string;
+      source_type: string;
+      source_reference: string | null;
+      needs_confirmation: boolean;
+      updated_at: string;
+    }>(
+      `select
+         key,
+         value,
+         confidence::text,
+         source_type,
+         source_reference,
+         needs_confirmation,
+         updated_at::text
+       from transaction_facts
+       where transaction_id = $1
+       order by key`,
+      [transactionId]
+    ),
+    query<{
+      change_type: string;
+      target_type: string;
+      target_id: string | null;
+      field_key: string;
+      previous_value: unknown;
+      new_value: unknown;
+      source_type: string;
+      source_reference: string | null;
+      confidence: string;
+      approval_status: string;
+      created_at: string;
+    }>(
+      `select
+         change_type,
+         target_type,
+         target_id,
+         field_key,
+         previous_value,
+         new_value,
+         source_type,
+         source_reference,
+         confidence::text,
+         approval_status,
+         created_at::text
+       from transaction_change_events
+       where transaction_id = $1
+       order by created_at desc, id desc
+       limit 20`,
+      [transactionId]
     )
   ]);
 
@@ -1284,7 +1339,9 @@ export async function getTransactionContextData(transactionId: string) {
     messages: messages.rows,
     blockers: blockers.rows,
     memory: memory.rows[0] ?? null,
-    recentDecisions: recentDecisions.rows
+    recentDecisions: recentDecisions.rows,
+    canonicalFacts: canonicalFacts.rows,
+    recentChanges: recentChanges.rows
   };
 }
 

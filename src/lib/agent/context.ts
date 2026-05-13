@@ -63,6 +63,8 @@ export async function getTransactionContext(
   return {
     transaction: data.transaction,
     facts: data.facts ? { ...data.facts } : undefined,
+    canonicalFacts: data.canonicalFacts,
+    recentChanges: data.recentChanges,
     milestones: data.milestones,
     tasks: data.tasks,
     documents: data.documents,

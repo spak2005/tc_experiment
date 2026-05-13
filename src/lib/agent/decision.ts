@@ -72,6 +72,8 @@ function compactContext(context: AgentContextPack, assessment?: DocumentAssessme
     transactionContext: context.transactionContext
       ? {
           transaction: context.transactionContext.transaction,
+          canonicalFacts: context.transactionContext.canonicalFacts,
+          recentChanges: context.transactionContext.recentChanges.slice(0, 10),
           missingItems: context.transactionContext.missingItems,
           nextMilestone: context.transactionContext.nextMilestone,
           blockers: context.transactionContext.blockers,

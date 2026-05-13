@@ -54,6 +54,8 @@ function compactResponseContext(input: {
     transaction: input.context.transactionContext
       ? {
           facts: input.context.transactionContext.facts,
+          canonicalFacts: input.context.transactionContext.canonicalFacts,
+          recentChanges: input.context.transactionContext.recentChanges.slice(0, 10),
           transaction: input.context.transactionContext.transaction,
           missingItems: input.context.transactionContext.missingItems,
           nextMilestone: input.context.transactionContext.nextMilestone,

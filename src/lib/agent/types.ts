@@ -55,6 +55,8 @@ export interface DealMatchResult {
 export interface TransactionContext {
   transaction: Record<string, unknown>;
   facts?: Record<string, unknown>;
+  canonicalFacts: Array<Record<string, unknown>>;
+  recentChanges: Array<Record<string, unknown>>;
   milestones: Array<Record<string, unknown>>;
   tasks: Array<Record<string, unknown>>;
   documents: Array<Record<string, unknown>>;
