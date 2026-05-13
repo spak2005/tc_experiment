@@ -9,6 +9,7 @@ import { decideNextAction } from "@/lib/agent/decision";
 import { executeAgentDecision } from "@/lib/agent/executor";
 import { evaluateActionPolicy } from "@/lib/agent/policy";
 import { normalizeAgentMailInbound } from "@/lib/agentmail/inbound";
+import { executeApprovalReply } from "@/lib/approvals/executor";
 import { getStringFact, type ContractFacts, type ExtractedValue } from "@/lib/contracts/facts";
 import {
   createAgentActivityEvent,
@@ -16,6 +17,7 @@ import {
   createAuditEvent,
   createMessage,
   createTransaction,
+  findPendingApprovalByReply,
   findTransactionMatchCandidates,
   findTcProfileByInbox,
   insertMilestones,
@@ -476,6 +478,80 @@ export async function processAgentMailInbound(input: {
     await markWebhookEventProcessed(input.webhookEventId);
 
     return { status: "ignored", reason: "self_authored_email" };
+  }
+
+  const pendingApproval = await findPendingApprovalByReply({
+    teamId: tcProfile.team_id,
+    realtorEmail: inbound.from,
+    threadId: inbound.threadId,
+    messageId: inbound.messageId
+  });
+
+  if (pendingApproval) {
+    await createAgentActivityEvent({
+      teamId: tcProfile.team_id,
+      transactionId: pendingApproval.transaction_id,
+      agentDecisionId: pendingApproval.agent_decision_id ?? undefined,
+      sourceType: "approval",
+      eventType: "approval_reply_received",
+      title: "Received approval reply",
+      summary: `Received realtor reply for "${pendingApproval.proposed_subject}".`,
+      status: "received",
+      metadata: {
+        webhookEventId: input.webhookEventId,
+        approvalId: pendingApproval.id,
+        inboxId: inbound.inboxId,
+        messageId: inbound.messageId,
+        threadId: inbound.threadId,
+        from: inbound.from,
+        subject: inbound.subject
+      }
+    });
+    await createMessage({
+      transactionId: pendingApproval.transaction_id,
+      agentMailMessageId: inbound.messageId || inbound.eventId,
+      threadId: inbound.threadId,
+      from: inbound.from,
+      to: inbound.to,
+      cc: inbound.cc,
+      subject: inbound.subject,
+      receivedAt: new Date(),
+      summary: "Inbound realtor reply to a pending approval request."
+    });
+    const approvalExecution = await executeApprovalReply({
+      approval: pendingApproval,
+      inbound
+    });
+    await createAgentActivityEvent({
+      teamId: tcProfile.team_id,
+      transactionId: pendingApproval.transaction_id,
+      agentDecisionId: pendingApproval.agent_decision_id ?? undefined,
+      sourceType: "approval",
+      eventType: "approval_reply_completed",
+      title: "Processed approval reply",
+      summary: `Approval reply finished with status ${approvalExecution.status}.`,
+      status:
+        approvalExecution.status === "sent"
+          ? "sent"
+          : approvalExecution.status === "rejected"
+            ? "blocked"
+            : approvalExecution.status === "ignored"
+              ? "ignored"
+              : "waiting",
+      metadata: {
+        approvalId: pendingApproval.id,
+        action: approvalExecution.action,
+        status: approvalExecution.status
+      }
+    });
+    await markWebhookEventProcessed(input.webhookEventId);
+
+    return {
+      status: approvalExecution.status,
+      transactionId: pendingApproval.transaction_id,
+      approvalId: pendingApproval.id,
+      action: approvalExecution.action
+    };
   }
 
   let context = await buildAgentContextPack({ inbound, tcProfile });
