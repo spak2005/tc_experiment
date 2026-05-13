@@ -1,0 +1,50 @@
+---
+description: The files that change most often in this codebase, with a one-liner each
+alwaysApply: true
+---
+
+# Active surfaces
+
+Most behavior changes in `tc-experiment` land in one of these files.
+When a task is unclear, start by checking whether the change belongs in
+one of them before searching elsewhere.
+
+## Hot files
+
+- [src/lib/workflow/intake.ts](mdc:src/lib/workflow/intake.ts) — main inbound-email orchestrator (~800 lines; ~60% activity logging). Sequences match -> assess -> decide -> policy -> execute. Step-by-step: [docs/pipelines/intake.md](mdc:docs/pipelines/intake.md).
+- [src/lib/db/repositories.ts](mdc:src/lib/db/repositories.ts) — every SQL statement the app runs (~1336 lines). Aggregate-to-line-range map: [src/lib/db/README.md](mdc:src/lib/db/README.md).
+- [src/lib/agent/decision.ts](mdc:src/lib/agent/decision.ts) — LLM call that picks `AgentIntent` + `AgentAction` from a closed enum. System prompt lives here. Fallback decision lives here too.
+- [src/lib/agent/executor.ts](mdc:src/lib/agent/executor.ts) — acts on the decision: sends emails, creates approval requests, records `agent_decisions` outcomes, emits audit events.
+- [src/lib/agent/activity.ts](mdc:src/lib/agent/activity.ts) — activity event types, source / status enums, body-preview + status-mapping helpers. Observability only.
+- [src/lib/agent/activity-timeline.ts](mdc:src/lib/agent/activity-timeline.ts) — adapters that turn legacy records (messages, documents, decisions, approvals, audit) into synthetic activity events for older transactions. Pure mapping.
+- [src/lib/documents/attachments.ts](mdc:src/lib/documents/attachments.ts) — fetch attachments from AgentMail, store in Vercel Blob, write `documents` rows, log document-related activity.
+
+## Stable surfaces (read only if directly relevant)
+
+- Matching: [src/lib/agent/matching.ts](mdc:src/lib/agent/matching.ts)
+- Policy: [src/lib/agent/policy.ts](mdc:src/lib/agent/policy.ts)
+- Response writer: [src/lib/agent/response-writer.ts](mdc:src/lib/agent/response-writer.ts)
+- Document assessment: [src/lib/agent/document-assessment.ts](mdc:src/lib/agent/document-assessment.ts)
+- Contract extraction: [src/lib/contracts/anthropic-extract.ts](mdc:src/lib/contracts/anthropic-extract.ts), [src/lib/contracts/extract.ts](mdc:src/lib/contracts/extract.ts), [src/lib/contracts/facts.ts](mdc:src/lib/contracts/facts.ts), [src/lib/contracts/validate.ts](mdc:src/lib/contracts/validate.ts)
+- Milestones: [src/lib/milestones/engine.ts](mdc:src/lib/milestones/engine.ts), [src/lib/milestones/date-rules.ts](mdc:src/lib/milestones/date-rules.ts)
+- AgentMail: [src/lib/agentmail/service.ts](mdc:src/lib/agentmail/service.ts), [src/lib/agentmail/inbound.ts](mdc:src/lib/agentmail/inbound.ts), [src/lib/agentmail/client.ts](mdc:src/lib/agentmail/client.ts)
+- Inngest: [src/lib/inngest/functions.ts](mdc:src/lib/inngest/functions.ts) (function registry + cron)
+- Onboarding / signup: [src/lib/onboarding/service.ts](mdc:src/lib/onboarding/service.ts)
+- Other workflows: [src/lib/workflow/contract-routing.ts](mdc:src/lib/workflow/contract-routing.ts), [src/lib/workflow/deadline-monitor.ts](mdc:src/lib/workflow/deadline-monitor.ts), [src/lib/workflow/status-responder.ts](mdc:src/lib/workflow/status-responder.ts), [src/lib/workflow/tasks.ts](mdc:src/lib/workflow/tasks.ts)
+- Outbound templates: [src/lib/email/templates.ts](mdc:src/lib/email/templates.ts)
+- LLM client: [src/lib/llm/anthropic.ts](mdc:src/lib/llm/anthropic.ts), [src/lib/llm/json.ts](mdc:src/lib/llm/json.ts)
+- Clock / temporal context: [src/lib/time/clock.ts](mdc:src/lib/time/clock.ts)
+- Env config: [src/lib/config/env.ts](mdc:src/lib/config/env.ts)
+- Storage: [src/lib/storage/blob.ts](mdc:src/lib/storage/blob.ts)
+- Shared domain types: [src/lib/domain/types.ts](mdc:src/lib/domain/types.ts), [src/lib/agent/types.ts](mdc:src/lib/agent/types.ts)
+
+## Tests
+
+Tests live next to their source as `*.test.ts`. The fastest way to
+learn behavior for matching, policy, contract routing, milestones,
+status responder, deadline monitor, activity, activity-timeline,
+context, document assessment, validation, clock, and inbound
+normalization is to read the corresponding `*.test.ts` first.
+
+There is no end-to-end test for `intake.ts`; rely on the smaller unit
+tests of the modules it composes.
