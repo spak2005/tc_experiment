@@ -201,6 +201,183 @@ button:disabled {
   margin-top: 36px;
 }
 
+.detail-grid-full {
+  grid-column: 1 / -1;
+}
+
+.activity-debugger {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.activity-debugger-header {
+  align-items: end;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.activity-debugger-header h2 {
+  font-size: 1.6rem;
+  margin: 0;
+}
+
+.activity-debugger-header span,
+.empty-state {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.activity-timeline {
+  display: grid;
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.activity-item {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 18px minmax(0, 1fr);
+  position: relative;
+}
+
+.activity-item::before {
+  background: var(--border);
+  bottom: 0;
+  content: "";
+  left: 8px;
+  position: absolute;
+  top: 0;
+  width: 2px;
+}
+
+.activity-item:first-child::before {
+  top: 9px;
+}
+
+.activity-item:last-child::before {
+  bottom: calc(100% - 9px);
+}
+
+.activity-dot {
+  background: #6f756c;
+  border: 3px solid var(--panel);
+  border-radius: 999px;
+  height: 18px;
+  margin-top: 18px;
+  position: relative;
+  width: 18px;
+  z-index: 1;
+}
+
+.status-completed .activity-dot,
+.status-sent .activity-dot,
+.status-received .activity-dot {
+  background: var(--accent);
+}
+
+.status-started .activity-dot {
+  background: #7b5f1d;
+}
+
+.status-waiting .activity-dot {
+  background: #b05d2a;
+}
+
+.status-blocked .activity-dot,
+.status-failed .activity-dot {
+  background: #a23b2a;
+}
+
+.activity-card {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 10px;
+  padding: 16px 0 18px;
+}
+
+.activity-card-topline {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.activity-card time {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.activity-card h3 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.activity-card p {
+  color: var(--muted);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.activity-badges,
+.activity-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.activity-badge,
+.activity-chips span {
+  background: #f7f5ef;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 4px 8px;
+}
+
+.status-badge.status-blocked,
+.status-badge.status-failed {
+  background: #f8e9e5;
+  border-color: #e2b6ad;
+  color: #8d2d1f;
+}
+
+.status-badge.status-waiting {
+  background: #fbefe5;
+  border-color: #ecc7a9;
+  color: #874617;
+}
+
+.status-badge.status-sent,
+.status-badge.status-completed {
+  background: #eef5f0;
+  border-color: #c9dfd4;
+  color: var(--accent);
+}
+
+.synthetic-badge {
+  opacity: 0.72;
+}
+
+.activity-debug-details {
+  margin-top: 2px;
+}
+
+.activity-debug-details summary {
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
 pre {
   background: #f7f5ef;
   border: 1px solid var(--border);
@@ -218,5 +395,11 @@ pre {
   .dashboard-grid,
   .detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .activity-debugger-header,
+  .activity-card-topline {
+    align-items: start;
+    flex-direction: column;
   }
 }
