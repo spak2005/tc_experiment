@@ -4,6 +4,8 @@ import {
   getTransactionCore,
   getTransactionFact,
   updateTransactionCoreFields,
+  updateDocumentRecord,
+  upsertParty,
   upsertTransactionFact
 } from "@/lib/db/repositories";
 import {
@@ -263,6 +265,89 @@ async function executeUnsupportedWrite(input: {
   return [skipped];
 }
 
+async function executePartiesWrite(input: {
+  teamId: string;
+  agentDecisionId?: string;
+  write: Extract<TransactionWrite, { name: "upsertParties" }>;
+}) {
+  const { transactionId, parties } = input.write.input;
+  const results: TransactionWriteResult[] = [];
+
+  for (const party of parties) {
+    const saved = await upsertParty({
+      transactionId,
+      role: party.role,
+      name: party.name,
+      email: party.email,
+      phone: party.phone,
+      organization: party.organization,
+      confidence: party.confidence ?? input.write.source.confidence,
+      source: party.source ?? input.write.source.sourceType
+    });
+    const applied = result({
+      name: input.write.name,
+      status: "applied",
+      targetType: "party",
+      targetId: saved.id,
+      fieldKey: party.role,
+      newValue: party,
+      message: `${saved.inserted ? "Added" : "Updated"} ${party.role} party.`
+    });
+    await recordWriteResult({ ...input, transactionId, result: applied });
+    results.push(applied);
+  }
+
+  return results;
+}
+
+async function executeDocumentsWrite(input: {
+  teamId: string;
+  agentDecisionId?: string;
+  write: Extract<TransactionWrite, { name: "updateDocuments" }>;
+}) {
+  const { transactionId, documents } = input.write.input;
+  const results: TransactionWriteResult[] = [];
+
+  for (const document of documents) {
+    const updated = await updateDocumentRecord({
+      transactionId,
+      id: document.id,
+      name: document.name,
+      type: document.type,
+      status: document.status
+    });
+
+    if (!updated) {
+      const blocked = result({
+        name: input.write.name,
+        status: "blocked",
+        targetType: "document",
+        targetId: document.id ?? document.name,
+        fieldKey: "status",
+        newValue: document.status,
+        message: "Document was not found on this transaction."
+      });
+      await recordWriteResult({ ...input, transactionId, result: blocked });
+      results.push(blocked);
+      continue;
+    }
+
+    const applied = result({
+      name: input.write.name,
+      status: "applied",
+      targetType: "document",
+      targetId: updated.id,
+      fieldKey: "status",
+      newValue: document.status,
+      message: `Updated document ${updated.name} to ${document.status}.`
+    });
+    await recordWriteResult({ ...input, transactionId, result: applied });
+    results.push(applied);
+  }
+
+  return results;
+}
+
 export async function executeTransactionWrites(input: {
   teamId: string;
   agentDecisionId?: string;
@@ -290,6 +375,10 @@ export async function executeTransactionWrites(input: {
       results.push(...(await executeCoreWrite({ ...input, write })));
     } else if (write.name === "upsertTransactionFact") {
       results.push(...(await executeFactWrite({ ...input, write })));
+    } else if (write.name === "upsertParties") {
+      results.push(...(await executePartiesWrite({ ...input, write })));
+    } else if (write.name === "updateDocuments") {
+      results.push(...(await executeDocumentsWrite({ ...input, write })));
     } else {
       results.push(...(await executeUnsupportedWrite({ ...input, write })));
     }

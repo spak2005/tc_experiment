@@ -855,6 +855,124 @@ export async function createDocumentRecord(input: {
   return result.rows[0];
 }
 
+export async function upsertParty(input: {
+  transactionId: string;
+  role: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  organization?: string;
+  confidence?: number;
+  source?: string;
+}) {
+  const existing = await query<{ id: string }>(
+    `select id
+     from parties
+     where transaction_id = $1
+       and role = $2
+       and (
+         ($3::text is not null and lower(email) = lower($3::text)) or
+         ($4::text is not null and lower(name) = lower($4::text)) or
+         ($5::text is not null and lower(organization) = lower($5::text))
+       )
+     order by id
+     limit 1`,
+    [
+      input.transactionId,
+      input.role,
+      input.email ?? null,
+      input.name ?? null,
+      input.organization ?? null
+    ]
+  );
+
+  if (existing.rows[0]) {
+    const result = await query<{ id: string }>(
+      `update parties
+       set name = coalesce($2, name),
+           email = coalesce($3, email),
+           phone = coalesce($4, phone),
+           organization = coalesce($5, organization),
+           confidence = coalesce($6, confidence),
+           source = coalesce($7, source)
+       where id = $1
+       returning id`,
+      [
+        existing.rows[0].id,
+        input.name ?? null,
+        input.email ?? null,
+        input.phone ?? null,
+        input.organization ?? null,
+        input.confidence ?? null,
+        input.source ?? null
+      ]
+    );
+
+    return { id: result.rows[0].id, inserted: false };
+  }
+
+  const result = await query<{ id: string }>(
+    `insert into parties (
+       transaction_id,
+       role,
+       name,
+       email,
+       phone,
+       organization,
+       confidence,
+       source
+     )
+     values ($1, $2, $3, $4, $5, $6, $7, $8)
+     returning id`,
+    [
+      input.transactionId,
+      input.role,
+      input.name ?? null,
+      input.email ?? null,
+      input.phone ?? null,
+      input.organization ?? null,
+      input.confidence ?? null,
+      input.source ?? null
+    ]
+  );
+
+  return { id: result.rows[0].id, inserted: true };
+}
+
+export async function updateDocumentRecord(input: {
+  transactionId: string;
+  id?: string;
+  name?: string;
+  type?: string;
+  status: string;
+}) {
+  const result = await query<{
+    id: string;
+    type: string;
+    name: string;
+    status: string;
+  }>(
+    `update documents
+     set type = coalesce($4, type),
+         status = $5
+     where transaction_id = $1
+       and (
+         ($2::uuid is not null and id = $2::uuid) or
+         ($3::text is not null and name = $3::text)
+       )
+     returning id, type, name, status`,
+    [
+      input.transactionId,
+      input.id ?? null,
+      input.name ?? null,
+      input.type ?? null,
+      input.status
+    ]
+  );
+
+  return result.rows[0] ?? null;
+}
+
 export async function findTransactionMatchCandidates(teamId: string) {
   const result = await query<{
     id: string;
