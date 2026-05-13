@@ -3,6 +3,7 @@ import type { AgentContextPack, AgentDecision } from "@/lib/agent/types";
 import type { DocumentAssessment } from "@/lib/agent/document-assessment";
 import { getAnthropicClient, getAnthropicModel } from "@/lib/llm/anthropic";
 import { getFirstTextBlock, parseJsonObject } from "@/lib/llm/json";
+import { formatTemporalContextLine } from "@/lib/time/clock";
 
 const agentDecisionSchema = z.object({
   intent: z.enum([
@@ -175,6 +176,8 @@ export async function decideNextAction(input: {
             {
               type: "text",
               text: `Choose the next action for this inbound TC email.
+
+${formatTemporalContextLine(input.context.temporalContext)}
 
 Output JSON:
 {

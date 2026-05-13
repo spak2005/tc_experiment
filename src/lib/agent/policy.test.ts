@@ -12,6 +12,12 @@ const context = {
     escalationEmail: "agent@example.com"
   },
   match: { confidence: 0, reasons: [], ambiguous: false, candidates: [] },
+  temporalContext: {
+    now: "2026-05-13T20:18:00-05:00",
+    today: "2026-05-13",
+    timezone: "America/Chicago",
+    businessDay: true
+  },
   inbound: {
     eventId: "event-1",
     inboxId: "tc@agentmail.to",

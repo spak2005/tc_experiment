@@ -4,6 +4,7 @@ import type { ContractFacts } from "@/lib/contracts/facts";
 import { getStringFact } from "@/lib/contracts/facts";
 import { validateContractFacts } from "@/lib/contracts/validate";
 import type { StoredAttachment } from "@/lib/documents/attachments";
+import type { TemporalContext } from "@/lib/time/clock";
 
 export type DocumentKind =
   | "executed_contract"
@@ -117,6 +118,7 @@ function classifyDocument(input: {
 export async function assessContractDocument(input: {
   attachment: Pick<StoredAttachment, "filename" | "body"> & Partial<StoredAttachment>;
   emailText: string;
+  temporalContext?: TemporalContext;
 }): Promise<DocumentAssessment> {
   let facts = extractTexasContractFacts(input.emailText);
   let extractionMode: DocumentAssessment["extractionMode"] = "email_fallback";
@@ -126,7 +128,8 @@ export async function assessContractDocument(input: {
     facts = await extractContractFactsFromPdf({
       filename: input.attachment.filename,
       pdf: input.attachment.body,
-      emailContext: input.emailText
+      emailContext: input.emailText,
+      temporalContext: input.temporalContext
     });
     extractionMode = "anthropic_pdf";
   } catch {

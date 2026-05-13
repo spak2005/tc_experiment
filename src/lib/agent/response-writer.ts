@@ -3,6 +3,7 @@ import type { AgentContextPack, AgentDecision } from "@/lib/agent/types";
 import type { DocumentAssessment } from "@/lib/agent/document-assessment";
 import { getAnthropicClient, getAnthropicModel } from "@/lib/llm/anthropic";
 import { getFirstTextBlock, parseJsonObject } from "@/lib/llm/json";
+import { formatTemporalContextLine } from "@/lib/time/clock";
 
 export interface AgentResponseDraft {
   subject?: string;
@@ -115,6 +116,8 @@ export async function composeAgentResponse(input: {
           {
             type: "text",
             text: `Write the email response for the TC to send.
+
+${formatTemporalContextLine(input.context.temporalContext)}
 
 Output JSON:
 {

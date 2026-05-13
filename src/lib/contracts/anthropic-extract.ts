@@ -2,11 +2,17 @@ import type { ContractFacts } from "@/lib/contracts/facts";
 import { contractFactsSchema } from "@/lib/contracts/facts";
 import { getAnthropicClient, getAnthropicModel } from "@/lib/llm/anthropic";
 import { getFirstTextBlock, parseJsonObject } from "@/lib/llm/json";
+import {
+  formatTemporalContextLine,
+  getTemporalContext,
+  type TemporalContext
+} from "@/lib/time/clock";
 
 export interface ExtractPdfFactsInput {
   filename: string;
   pdf: Buffer;
   emailContext?: string;
+  temporalContext?: TemporalContext;
 }
 
 const SYSTEM_PROMPT = `You are an expert Texas residential real estate transaction coordinator.
@@ -58,6 +64,7 @@ export async function extractContractFactsFromPdf(
   input: ExtractPdfFactsInput
 ): Promise<ContractFacts> {
   const client = getAnthropicClient();
+  const temporalContext = input.temporalContext ?? getTemporalContext();
   const response = await client.messages.create({
     model: getAnthropicModel(),
     max_tokens: 4000,
@@ -78,7 +85,9 @@ export async function extractContractFactsFromPdf(
           },
           {
             type: "text",
-            text: `${USER_PROMPT}\n\nEmail context:\n${input.emailContext ?? "None"}`
+            text: `${USER_PROMPT}\n\n${formatTemporalContextLine(
+              temporalContext
+            )}\n\nEmail context:\n${input.emailContext ?? "None"}`
           }
         ]
       }

@@ -479,7 +479,8 @@ export async function processAgentMailInbound(input: {
       });
       documentAssessment = await assessContractDocument({
         attachment: fetchedPdf,
-        emailText: context.emailText
+        emailText: context.emailText,
+        temporalContext: context.temporalContext
       });
       await logActivity(activityContext, {
         sourceType: "extraction",

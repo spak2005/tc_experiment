@@ -5,6 +5,7 @@ import {
   getTransactionContextData
 } from "@/lib/db/repositories";
 import { matchInboundToTransaction } from "@/lib/agent/matching";
+import { getTemporalContext } from "@/lib/time/clock";
 
 export function buildInboundEmailText(inbound: Pick<NormalizedInboundEmail, "subject" | "text" | "html">) {
   return [inbound.subject, inbound.text, inbound.html].filter(Boolean).join("\n\n");
@@ -103,6 +104,7 @@ export async function buildAgentContextPack(input: {
   return {
     inbound: input.inbound,
     emailText,
+    temporalContext: getTemporalContext(),
     tcProfile: {
       id: input.tcProfile.id,
       teamId: input.tcProfile.team_id,

@@ -1,4 +1,5 @@
 import type { NormalizedInboundEmail } from "@/lib/agentmail/inbound";
+import type { TemporalContext } from "@/lib/time/clock";
 
 export type AgentIntent =
   | "new_contract"
@@ -67,6 +68,7 @@ export interface TransactionContext {
 export interface AgentContextPack {
   inbound: NormalizedInboundEmail;
   emailText: string;
+  temporalContext: TemporalContext;
   tcProfile: {
     id: string;
     teamId: string;
