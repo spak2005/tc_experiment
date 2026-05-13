@@ -1630,6 +1630,7 @@ export async function upsertBlockerRecord(input: {
 
 export async function createApproval(input: {
   transactionId: string;
+  agentDecisionId?: string;
   proposedSubject: string;
   proposedBody: string;
   proposedTo: string[];
@@ -1639,16 +1640,18 @@ export async function createApproval(input: {
   const result = await query<{ id: string }>(
     `insert into approvals (
        transaction_id,
+       agent_decision_id,
        proposed_subject,
        proposed_body,
        proposed_to,
        proposed_cc,
        expires_at
      )
-     values ($1, $2, $3, $4, $5, $6)
+     values ($1, $2, $3, $4, $5, $6, $7)
      returning id`,
     [
       input.transactionId,
+      input.agentDecisionId ?? null,
       input.proposedSubject,
       input.proposedBody,
       input.proposedTo,
@@ -1660,33 +1663,154 @@ export async function createApproval(input: {
   return result.rows[0];
 }
 
-export async function updateApprovalStatus(id: string, status: string) {
-  const result = await query<{
-    id: string;
-    transaction_id: string;
-    team_id: string;
-    proposed_subject: string;
-    proposed_body: string;
-    proposed_to: string[];
-    proposed_cc: string[];
-    inbox_id: string;
-  }>(
+export interface ApprovalExecutionRow {
+  id: string;
+  transaction_id: string;
+  team_id: string;
+  agent_decision_id: string | null;
+  proposed_subject: string;
+  proposed_body: string;
+  proposed_to: string[];
+  proposed_cc: string[];
+  inbox_id: string;
+  escalation_email: string;
+  request_message_id: string | null;
+  request_thread_id: string | null;
+}
+
+const approvalExecutionSelect = `
+  a.id,
+  a.transaction_id,
+  t.team_id,
+  a.agent_decision_id,
+  a.proposed_subject,
+  a.proposed_body,
+  a.proposed_to,
+  a.proposed_cc,
+  coalesce(p.agentmail_inbox_id, p.inbox_address) as inbox_id,
+  p.escalation_email,
+  a.request_message_id,
+  a.request_thread_id
+`;
+
+export async function updateApprovalRequestMetadata(input: {
+  id: string;
+  requestMessageId?: string;
+  requestThreadId?: string;
+}) {
+  await query(
+    `update approvals
+     set request_message_id = coalesce($2, request_message_id),
+         request_thread_id = coalesce($3, request_thread_id),
+         updated_at = now()
+     where id = $1`,
+    [
+      input.id,
+      input.requestMessageId ?? null,
+      input.requestThreadId ?? null
+    ]
+  );
+}
+
+export async function updateApprovalDraft(input: {
+  id: string;
+  proposedSubject?: string;
+  proposedBody: string;
+  proposedTo?: string[];
+  proposedCc?: string[];
+}) {
+  const result = await query<ApprovalExecutionRow>(
     `update approvals a
-     set status = $2
+     set proposed_subject = coalesce($2, proposed_subject),
+         proposed_body = $3,
+         proposed_to = coalesce($4, proposed_to),
+         proposed_cc = coalesce($5, proposed_cc),
+         updated_at = now()
      from transactions t
      join tc_profiles p on p.id = t.tc_profile_id
      where a.id = $1
        and a.transaction_id = t.id
        and a.status = 'pending'
-     returning
-       a.id,
-       a.transaction_id,
-       t.team_id,
-       a.proposed_subject,
-       a.proposed_body,
-       a.proposed_to,
-       a.proposed_cc,
-       coalesce(p.agentmail_inbox_id, p.inbox_address) as inbox_id`,
+     returning ${approvalExecutionSelect}`,
+    [
+      input.id,
+      input.proposedSubject ?? null,
+      input.proposedBody,
+      input.proposedTo ?? null,
+      input.proposedCc ?? null
+    ]
+  );
+
+  return result.rows[0] ?? null;
+}
+
+export async function findPendingApprovalByReply(input: {
+  teamId: string;
+  realtorEmail: string;
+  threadId?: string;
+  messageId?: string;
+}) {
+  if (!input.threadId && !input.messageId) {
+    return null;
+  }
+
+  const result = await query<ApprovalExecutionRow>(
+    `select ${approvalExecutionSelect}
+     from approvals a
+     join transactions t on t.id = a.transaction_id
+     join tc_profiles p on p.id = t.tc_profile_id
+     where t.team_id = $1
+       and a.status = 'pending'
+       and lower(p.escalation_email) = lower($2)
+       and (
+         ($3::text is not null and a.request_thread_id = $3::text) or
+         ($4::text is not null and a.request_message_id = $4::text)
+       )
+     order by a.created_at desc
+     limit 1`,
+    [
+      input.teamId,
+      input.realtorEmail,
+      input.threadId ?? null,
+      input.messageId ?? null
+    ]
+  );
+
+  return result.rows[0] ?? null;
+}
+
+export async function updateApprovalSentMetadata(input: {
+  id: string;
+  sentMessageId?: string;
+  sentThreadId?: string;
+}) {
+  await query(
+    `update approvals
+     set sent_message_id = coalesce($2, sent_message_id),
+         sent_thread_id = coalesce($3, sent_thread_id),
+         updated_at = now()
+     where id = $1`,
+    [
+      input.id,
+      input.sentMessageId ?? null,
+      input.sentThreadId ?? null
+    ]
+  );
+}
+
+export async function updateApprovalStatus(id: string, status: string) {
+  const result = await query<ApprovalExecutionRow>(
+    `update approvals a
+     set status = $2,
+         approved_at = case when $2 = 'approved' then coalesce(approved_at, now()) else approved_at end,
+         rejected_at = case when $2 = 'rejected' then coalesce(rejected_at, now()) else rejected_at end,
+         updated_at = now()
+     from transactions t
+     join tc_profiles p on p.id = t.tc_profile_id
+     where a.id = $1
+       and a.transaction_id = t.id
+       and a.status = 'pending'
+     returning ${approvalExecutionSelect}`,
     [id, status]
   );
 
