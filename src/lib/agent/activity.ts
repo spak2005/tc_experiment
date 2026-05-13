@@ -59,3 +59,15 @@ export function safeBodyPreview(value: string, maxLength = 500) {
 
   return `${normalized.slice(0, maxLength - 3)}...`;
 }
+
+export function activityStatusForPolicyResult(result: string): AgentActivityStatus {
+  if (result === "blocked") return "blocked";
+  if (result === "approval_required") return "waiting";
+  return "completed";
+}
+
+export function activityStatusForExecutionStatus(status: string): AgentActivityStatus {
+  if (status === "blocked") return "blocked";
+  if (status === "waiting_approval") return "waiting";
+  return "completed";
+}

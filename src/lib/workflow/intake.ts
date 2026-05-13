@@ -1,4 +1,8 @@
 import type { AgentContextPack } from "@/lib/agent/types";
+import {
+  activityStatusForExecutionStatus,
+  activityStatusForPolicyResult
+} from "@/lib/agent/activity";
 import { buildAgentContextPack, getTransactionContext } from "@/lib/agent/context";
 import { assessContractDocument } from "@/lib/agent/document-assessment";
 import { decideNextAction } from "@/lib/agent/decision";
@@ -647,12 +651,7 @@ export async function processAgentMailInbound(input: {
     eventType: "policy_evaluated",
     title: `Policy ${policy.result}`,
     summary: policy.reasons.join(" "),
-    status:
-      policy.result === "blocked"
-        ? "blocked"
-        : policy.result === "approval_required"
-          ? "waiting"
-          : "completed",
+    status: activityStatusForPolicyResult(policy.result),
     metadata: {
       decisionId: decisionRecord.id,
       result: policy.result,
@@ -686,12 +685,7 @@ export async function processAgentMailInbound(input: {
     eventType: "decision_execution_completed",
     title: "Finished decision execution",
     summary: `Decision execution finished with status ${execution.status}.`,
-    status:
-      execution.status === "blocked"
-        ? "blocked"
-        : execution.status === "waiting_approval"
-          ? "waiting"
-          : "completed",
+    status: activityStatusForExecutionStatus(execution.status),
     metadata: {
       decisionId: decisionRecord.id,
       executionStatus: execution.status,
