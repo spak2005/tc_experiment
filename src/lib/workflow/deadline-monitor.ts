@@ -6,9 +6,11 @@ import {
 } from "@/lib/db/repositories";
 import { agentEscalationEmail } from "@/lib/email/templates";
 import { sendTcEmail } from "@/lib/agentmail/service";
+import { getTemporalContext } from "@/lib/time/clock";
 
 export async function checkDeadlineRisk() {
-  const atRisk = await findAtRiskMilestones(2);
+  const temporalContext = getTemporalContext();
+  const atRisk = await findAtRiskMilestones(2, temporalContext.today);
   const results: Array<{ transactionId: string; blockerId: string }> = [];
 
   for (const milestone of atRisk) {

@@ -872,7 +872,7 @@ export async function updateDocumentStatus(input: {
   );
 }
 
-export async function findAtRiskMilestones(daysAhead = 2) {
+export async function findAtRiskMilestones(daysAhead: number, today: string) {
   const result = await query<{
     transaction_id: string;
     team_id: string;
@@ -899,9 +899,9 @@ export async function findAtRiskMilestones(daysAhead = 2) {
      join tc_profiles p on p.id = t.tc_profile_id
      where m.completed_at is null
        and m.due_date is not null
-       and m.due_date <= current_date + ($1::int * interval '1 day')
+       and m.due_date <= $2::date + ($1::int * interval '1 day')
        and t.status not in ('closed', 'terminated')`,
-    [daysAhead]
+    [daysAhead, today]
   );
 
   return result.rows;
