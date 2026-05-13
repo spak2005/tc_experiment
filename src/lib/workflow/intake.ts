@@ -315,7 +315,8 @@ export async function processAgentMailInbound(input: {
     context,
     decision,
     decisionId: decisionRecord.id,
-    policy
+    policy,
+    documentAssessment
   });
 
   await markWebhookEventProcessed(input.webhookEventId);

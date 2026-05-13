@@ -1,4 +1,5 @@
 import type { AgentContextPack, AgentDecision, PolicyResult } from "@/lib/agent/types";
+import type { DocumentAssessment } from "@/lib/agent/document-assessment";
 import { replyTcEmail, sendTcEmail } from "@/lib/agentmail/service";
 import {
   createApproval,
@@ -8,6 +9,7 @@ import {
 import { approvalRequestEmail } from "@/lib/email/templates";
 import { getEnv } from "@/lib/config/env";
 import { buildStatusAnswerForTransaction } from "@/lib/workflow/status-responder";
+import { composeAgentResponse } from "@/lib/agent/response-writer";
 
 async function sendDecisionResponse(input: {
   context: AgentContextPack;
@@ -47,7 +49,26 @@ function defaultRecipients(context: AgentContextPack, decision: AgentDecision) {
   return decision.response?.to ?? [context.tcProfile.escalationEmail];
 }
 
-async function responseForDecision(context: AgentContextPack, decision: AgentDecision) {
+function normalizeEmail(value?: string) {
+  return (value ?? "").toLowerCase().trim();
+}
+
+function responseIsRealtorOnly(input: { context: AgentContextPack; to: string[] }) {
+  const realtorEmail = normalizeEmail(input.context.tcProfile.escalationEmail);
+
+  return (
+    input.to.length > 0 &&
+    input.to.every((recipient) => normalizeEmail(recipient) === realtorEmail)
+  );
+}
+
+async function responseForDecision(input: {
+  context: AgentContextPack;
+  decision: AgentDecision;
+  documentAssessment?: DocumentAssessment;
+}) {
+  const { context, decision } = input;
+
   if (decision.response) {
     return {
       subject: defaultSubject(context, decision),
@@ -58,14 +79,44 @@ async function responseForDecision(context: AgentContextPack, decision: AgentDec
     };
   }
 
+  if (
+    decision.action === "ask_for_info" ||
+    decision.action === "ask_which_transaction" ||
+    decision.action === "process_contract" ||
+    decision.action === "record_update" ||
+    decision.action === "escalate_to_realtor"
+  ) {
+    const response = await composeAgentResponse({
+      context,
+      decision,
+      documentAssessment: input.documentAssessment
+    });
+
+    if (response) {
+      return {
+        subject: response.subject ?? defaultSubject(context, decision),
+        body: response.body,
+        to: response.to,
+        cc: response.cc,
+        labels: response.labels
+      };
+    }
+  }
+
   if (decision.action === "answer_status" && decision.transactionId) {
     const answer = await buildStatusAnswerForTransaction(decision.transactionId);
+    const response = await composeAgentResponse({
+      context,
+      decision,
+      statusContext: answer.text
+    });
 
     return {
-      subject: defaultSubject(context, decision),
-      body: answer.text,
-      to: [context.tcProfile.escalationEmail],
-      labels: ["status_answer"]
+      subject: response?.subject ?? defaultSubject(context, decision),
+      body: response?.body ?? answer.text,
+      to: response?.to ?? [context.tcProfile.escalationEmail],
+      cc: response?.cc,
+      labels: response?.labels ?? ["status_answer"]
     };
   }
 
@@ -77,6 +128,7 @@ export async function executeAgentDecision(input: {
   decision: AgentDecision;
   decisionId: string;
   policy: PolicyResult;
+  documentAssessment?: DocumentAssessment;
 }) {
   const transactionId = input.decision.transactionId ?? input.context.match.transactionId;
   const toolResults: unknown[] = [];
@@ -86,9 +138,18 @@ export async function executeAgentDecision(input: {
     status = "blocked";
     toolResults.push({ tool: "policy", result: "blocked", reasons: input.policy.reasons });
   } else {
-    const response = await responseForDecision(input.context, input.decision);
+    const response = await responseForDecision({
+      context: input.context,
+      decision: input.decision,
+      documentAssessment: input.documentAssessment
+    });
 
-    if (response && input.policy.result === "approval_required") {
+    const responseNeedsApproval =
+      response &&
+      (input.policy.result === "approval_required" ||
+        !responseIsRealtorOnly({ context: input.context, to: response.to }));
+
+    if (response && responseNeedsApproval) {
       if (!transactionId) {
         status = "blocked";
         toolResults.push({

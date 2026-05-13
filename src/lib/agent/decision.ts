@@ -99,30 +99,12 @@ function fallbackDecision(context: AgentContextPack, assessment?: DocumentAssess
       matchConfidence: context.match.confidence,
       requiresApproval: false,
       rationale: "The inbound email could belong to more than one active transaction.",
-      response: {
-        body:
-          "Hi there,\n\nI see this may relate to more than one active transaction. Which property or client should I attach this update to?\n\nBest,\nYour TC",
-        labels: ["clarification", "ambiguous_transaction"]
-      },
       toolCalls: []
     };
   }
 
   if (assessment) {
-    const missing = assessment.missingItems.map((item) => `- ${item}`).join("\n");
     const finding = assessment.findings.join(" ");
-    const transaction = context.transactionContext?.transaction;
-    const property = String(transaction?.property_address ?? "this transaction");
-    const effectiveDate = String(transaction?.effective_date ?? "Needs confirmation");
-    const closingDate = String(transaction?.closing_date ?? "Needs confirmation");
-    const milestones = context.transactionContext?.milestones
-      .slice(0, 8)
-      .map((milestone) => {
-        const title = String(milestone.title ?? "Milestone");
-        const due = milestone.due_date ? String(milestone.due_date) : "event-triggered";
-        return `- ${title}: ${due}`;
-      })
-      .join("\n");
 
     return {
       intent: "new_contract",
@@ -132,17 +114,6 @@ function fallbackDecision(context: AgentContextPack, assessment?: DocumentAssess
       matchConfidence: context.match.confidence,
       requiresApproval: false,
       rationale: `Document assessment completed. ${finding}`,
-      response:
-        assessment.usability === "usable"
-          ? {
-              subject: `Transaction map: ${property}`,
-              body: `Hi there,\n\nI reviewed the contract and opened the file.\n\nProperty: ${property}\nEffective Date: ${effectiveDate}\nClosing Date: ${closingDate}\n\nKey milestones:\n${milestones || "- No milestones could be generated yet."}\n\nI will keep monitoring the timeline and will escalate if a deadline is at risk.\n\nBest,\nYour TC`,
-              labels: ["transaction_map", assessment.validationStatus, assessment.extractionMode]
-            }
-          : {
-              body: `Hi there,\n\nI received the contract document, but I need a little more before I can fully open and monitor the file.\n\n${finding}${missing ? `\n\nI still need:\n${missing}` : ""}\n\nOnce I have that, I can build the transaction map and start tracking the deadlines.\n\nBest,\nYour TC`,
-              labels: ["intake", "missing_info", assessment.kind]
-            },
       toolCalls: []
     };
   }
@@ -167,11 +138,6 @@ function fallbackDecision(context: AgentContextPack, assessment?: DocumentAssess
     matchConfidence: context.match.confidence,
     requiresApproval: false,
     rationale: "Fallback decision used because no confident transaction context was available.",
-    response: {
-      body:
-        "Hi there,\n\nI can help with that. Right now I do not have enough detail to attach this conversation to a specific transaction file.\n\nIf this is for a new deal, please send the executed contract PDF. If this is for an existing deal, send me the property address or client name so I can pull up the right file.\n\nOnce I have the right file, the main items I usually need to confirm are the Effective Date, Closing Date, cash vs. financing, earnest money, option period, title company or escrow officer, and any missing signatures or addenda.\n\nBest,\nYour TC",
-      labels: ["clarification", "missing_context"]
-    },
     toolCalls: []
   };
 }
