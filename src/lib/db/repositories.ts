@@ -475,7 +475,14 @@ export async function insertTasks(
   for (const task of tasks) {
     await query(
       `insert into tasks (transaction_id, title, owner_role, status, due_date)
-       values ($1, $2, $3, $4, $5)`,
+       select $1, $2, $3, $4, $5
+       where not exists (
+         select 1
+         from tasks
+         where transaction_id = $1
+           and title = $2
+           and owner_role = $3
+       )`,
       [transactionId, task.title, task.ownerRole, task.status, task.dueDate ?? null]
     );
   }
