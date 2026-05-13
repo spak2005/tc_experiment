@@ -570,6 +570,18 @@ export async function processAgentMailInbound(input: {
     }
   }
 
+  await logActivity(activityContext, {
+    sourceType: "decision",
+    eventType: "decision_requested",
+    title: "Requested agent decision",
+    summary: "Asked the agent to choose the next operational action.",
+    status: "started",
+    metadata: {
+      hasTransactionContext: Boolean(context.transactionContext),
+      hasDocumentAssessment: Boolean(documentAssessment),
+      match: context.match
+    }
+  });
   let decision = await decideNextAction({ context, documentAssessment });
   if (transactionId && !decision.transactionId) {
     decision = {
@@ -602,13 +614,89 @@ export async function processAgentMailInbound(input: {
     },
     toolPlan: decision.toolCalls
   });
+  await logActivity(activityContext, {
+    agentDecisionId: decisionRecord.id,
+    sourceType: "decision",
+    eventType: "decision_created",
+    title: `Selected ${decision.intent} -> ${decision.action}`,
+    summary: decision.rationale || `Selected ${decision.action} for ${decision.intent}.`,
+    status: "completed",
+    metadata: {
+      decisionId: decisionRecord.id,
+      intent: decision.intent,
+      action: decision.action,
+      confidence: decision.confidence,
+      matchConfidence: decision.matchConfidence ?? context.match.confidence,
+      requiresApproval: decision.requiresApproval,
+      rationale: decision.rationale,
+      response: decision.response
+        ? {
+            subject: decision.response.subject,
+            to: decision.response.to,
+            cc: decision.response.cc,
+            labels: decision.response.labels
+          }
+        : undefined,
+      toolPlan: decision.toolCalls
+    }
+  });
   const policy = evaluateActionPolicy(decision, context);
+  await logActivity(activityContext, {
+    agentDecisionId: decisionRecord.id,
+    sourceType: "policy",
+    eventType: "policy_evaluated",
+    title: `Policy ${policy.result}`,
+    summary: policy.reasons.join(" "),
+    status:
+      policy.result === "blocked"
+        ? "blocked"
+        : policy.result === "approval_required"
+          ? "waiting"
+          : "completed",
+    metadata: {
+      decisionId: decisionRecord.id,
+      result: policy.result,
+      reasons: policy.reasons
+    }
+  });
+  await logActivity(activityContext, {
+    agentDecisionId: decisionRecord.id,
+    sourceType: "tool",
+    eventType: "decision_execution_started",
+    title: "Started decision execution",
+    summary: `Started executing ${decision.action}.`,
+    status: "started",
+    metadata: {
+      decisionId: decisionRecord.id,
+      intent: decision.intent,
+      action: decision.action,
+      policy: policy.result
+    }
+  });
   const execution = await executeAgentDecision({
     context,
     decision,
     decisionId: decisionRecord.id,
     policy,
     documentAssessment
+  });
+  await logActivity(activityContext, {
+    agentDecisionId: decisionRecord.id,
+    sourceType: "tool",
+    eventType: "decision_execution_completed",
+    title: "Finished decision execution",
+    summary: `Decision execution finished with status ${execution.status}.`,
+    status:
+      execution.status === "blocked"
+        ? "blocked"
+        : execution.status === "waiting_approval"
+          ? "waiting"
+          : "completed",
+    metadata: {
+      decisionId: decisionRecord.id,
+      executionStatus: execution.status,
+      toolResults: execution.toolResults
+    }
   });
 
   await markWebhookEventProcessed(input.webhookEventId);
