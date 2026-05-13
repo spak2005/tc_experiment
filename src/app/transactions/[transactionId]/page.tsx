@@ -1,4 +1,5 @@
 import { getTransactionDetail } from "@/lib/db/repositories";
+import { ActivityDebugger } from "@/app/transactions/[transactionId]/activity-debugger";
 
 export default async function TransactionDetailPage({
   params
@@ -28,6 +29,10 @@ export default async function TransactionDetailPage({
       </header>
 
       <section className="detail-grid">
+        <div className="detail-grid-full">
+          <ActivityDebugger events={detail.activityTimeline} />
+        </div>
+
         <Panel title="Milestones">
           {detail.milestones.map((milestone) => (
             <article className="row" key={milestone.key}>
@@ -76,34 +81,6 @@ export default async function TransactionDetailPage({
 
         <Panel title="Extracted Facts">
           <pre>{JSON.stringify(detail.facts?.facts ?? {}, null, 2)}</pre>
-        </Panel>
-
-        <Panel title="Agent Decisions">
-          {detail.agentDecisions.map((decision) => (
-            <article className="row" key={`${decision.intent}-${decision.created_at}`}>
-              <strong>
-                {decision.intent} → {decision.action}
-              </strong>
-              <span>
-                confidence {decision.confidence} · match{" "}
-                {decision.match_confidence ?? "n/a"} · {decision.policy_result} ·{" "}
-                {decision.status}
-              </span>
-              <small>{decision.rationale}</small>
-              <pre>
-                {JSON.stringify(
-                  {
-                    requiresApproval: decision.requires_approval,
-                    context: decision.context_summary,
-                    toolPlan: decision.tool_plan,
-                    toolResults: decision.tool_results
-                  },
-                  null,
-                  2
-                )}
-              </pre>
-            </article>
-          ))}
         </Panel>
 
         <Panel title="Audit Trail">
