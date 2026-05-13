@@ -14,6 +14,11 @@ export default async function DashboardPage({
       <header>
         <p className="eyebrow">TC control room</p>
         <h1>Active files, blockers, and approvals.</h1>
+        <p className="lede compact">
+          <Link className="utility-link" href={`/observability/${teamId}`}>
+            Open agent observability
+          </Link>
+        </p>
       </header>
 
       <section className="dashboard-grid">
