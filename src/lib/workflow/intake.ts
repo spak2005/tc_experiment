@@ -7,6 +7,7 @@ import { evaluateActionPolicy } from "@/lib/agent/policy";
 import { normalizeAgentMailInbound } from "@/lib/agentmail/inbound";
 import { getStringFact } from "@/lib/contracts/facts";
 import {
+  createAgentActivityEvent,
   createAgentDecision,
   createAuditEvent,
   createMessage,
@@ -47,6 +48,22 @@ function isFromTcInbox(input: {
     from.length > 0 &&
     (from === normalizeEmail(input.inboxAddress) || from === normalizeEmail(input.inboxId))
   );
+}
+
+type ActivityContext = {
+  teamId: string;
+  transactionId?: string;
+};
+
+async function logActivity(
+  context: ActivityContext,
+  input: Omit<Parameters<typeof createAgentActivityEvent>[0], "teamId">
+) {
+  await createAgentActivityEvent({
+    ...input,
+    teamId: context.teamId,
+    transactionId: input.transactionId ?? context.transactionId
+  });
 }
 
 async function withTransactionContext(input: {
@@ -204,6 +221,10 @@ export async function processAgentMailInbound(input: {
 
   let context = await buildAgentContextPack({ inbound, tcProfile });
   let transactionId = context.match.transactionId;
+  const activityContext: ActivityContext = {
+    teamId: tcProfile.team_id,
+    transactionId
+  };
 
   if (inbound.attachments.length > 0 && !transactionId && !context.match.ambiguous) {
     const transaction = await createTransaction({
@@ -212,13 +233,76 @@ export async function processAgentMailInbound(input: {
       status: "intake_processing"
     });
     transactionId = transaction.id;
+    activityContext.transactionId = transactionId;
     context = await withTransactionContext({
       context,
       transactionId,
       confidence: 0.7,
       reasons: ["new attachment intake opened a transaction file"]
     });
+    await logActivity(activityContext, {
+      sourceType: "system",
+      eventType: "transaction_created",
+      title: "Opened transaction file",
+      summary: "Created a new transaction file from an inbound attachment.",
+      status: "completed",
+      metadata: {
+        transactionId,
+        reason: "new attachment intake opened a transaction file"
+      }
+    });
   }
+
+  await logActivity(activityContext, {
+    sourceType: "email",
+    eventType: "inbound_email_received",
+    title: "Received inbound email",
+    summary: `Received "${inbound.subject}" from ${inbound.from || "unknown sender"}.`,
+    status: "received",
+    metadata: {
+      webhookEventId: input.webhookEventId,
+      inboxId: inbound.inboxId,
+      messageId: inbound.messageId,
+      threadId: inbound.threadId,
+      from: inbound.from,
+      to: inbound.to,
+      cc: inbound.cc,
+      subject: inbound.subject,
+      attachmentCount: inbound.attachments.length,
+      attachmentNames: inbound.attachments.map((attachment) => attachment.filename)
+    }
+  });
+
+  await logActivity(activityContext, {
+    sourceType: "system",
+    eventType: "tc_profile_resolved",
+    title: "Resolved TC inbox",
+    summary: `Matched inbound inbox to ${tcProfile.display_name}.`,
+    status: "completed",
+    metadata: {
+      tcProfileId: tcProfile.id,
+      inboxAddress: tcProfile.inbox_address,
+      inboxId: tcProfile.agentmail_inbox_id,
+      escalationEmail: tcProfile.escalation_email
+    }
+  });
+
+  await logActivity(activityContext, {
+    sourceType: "matching",
+    eventType: context.match.ambiguous
+      ? "transaction_match_ambiguous"
+      : "transaction_match_completed",
+    title: context.match.transactionId ? "Matched transaction" : "Checked transaction match",
+    summary: context.match.transactionId
+      ? `Matched this email to the transaction with confidence ${context.match.confidence}.`
+      : context.match.ambiguous
+        ? "Found multiple plausible transactions; the agent needs clarification."
+        : "No confident existing transaction match was found.",
+    status: context.match.ambiguous ? "waiting" : "completed",
+    metadata: {
+      match: context.match
+    }
+  });
 
   await createMessage({
     transactionId,
@@ -232,6 +316,20 @@ export async function processAgentMailInbound(input: {
     summary: transactionId
       ? "Inbound email attached to transaction context."
       : "Inbound email received without a confident transaction match."
+  });
+  await logActivity(activityContext, {
+    sourceType: "email",
+    eventType: "message_persisted",
+    title: "Saved inbound message",
+    summary: transactionId
+      ? "Saved the inbound email on this transaction."
+      : "Saved the inbound email without a confident transaction match.",
+    status: "completed",
+    metadata: {
+      agentMailMessageId: inbound.messageId || inbound.eventId,
+      threadId: inbound.threadId,
+      transactionId
+    }
   });
 
   let documentAssessment: Awaited<ReturnType<typeof assessContractDocument>> | undefined;
