@@ -1,4 +1,4 @@
-import { createAgentActivityEvent } from "@/lib/db/repositories";
+import { appendTransactionMemory, createAgentActivityEvent } from "@/lib/db/repositories";
 import {
   createTransactionChangeEvent,
   getTransactionCore,
@@ -469,6 +469,36 @@ async function executeBlockerWrite(input: {
   return [applied];
 }
 
+async function executeMemoryWrite(input: {
+  teamId: string;
+  agentDecisionId?: string;
+  write: Extract<TransactionWrite, { name: "appendTransactionMemory" }>;
+}) {
+  await appendTransactionMemory({
+    transactionId: input.write.input.transactionId,
+    summary: input.write.input.summary,
+    openQuestions: input.write.input.openQuestions,
+    knownContext: input.write.input.knownContext,
+    lastInboundAt: new Date()
+  });
+  const applied = result({
+    name: input.write.name,
+    status: "applied",
+    targetType: "memory",
+    targetId: input.write.input.transactionId,
+    fieldKey: "transaction_memory",
+    newValue: input.write.input,
+    message: "Updated transaction memory."
+  });
+  await recordWriteResult({
+    ...input,
+    transactionId: input.write.input.transactionId,
+    result: applied
+  });
+
+  return [applied];
+}
+
 export async function executeTransactionWrites(input: {
   teamId: string;
   agentDecisionId?: string;
@@ -506,6 +536,8 @@ export async function executeTransactionWrites(input: {
       results.push(...(await executeTasksWrite({ ...input, write })));
     } else if (write.name === "upsertBlocker") {
       results.push(...(await executeBlockerWrite({ ...input, write })));
+    } else if (write.name === "appendTransactionMemory") {
+      results.push(...(await executeMemoryWrite({ ...input, write })));
     } else {
       results.push(...(await executeUnsupportedWrite({ ...input, write })));
     }

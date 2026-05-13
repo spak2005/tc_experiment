@@ -1320,6 +1320,40 @@ export async function upsertTransactionMemory(input: {
   );
 }
 
+export async function appendTransactionMemory(input: {
+  transactionId: string;
+  summary?: string;
+  openQuestions?: string[];
+  knownContext?: Record<string, unknown>;
+  lastInboundAt?: Date;
+}) {
+  const current = await query<{
+    summary: string;
+    open_questions: unknown;
+  }>(
+    `select summary, open_questions
+     from transaction_memory
+     where transaction_id = $1`,
+    [input.transactionId]
+  );
+  const currentRow = current.rows[0];
+  const currentQuestions = Array.isArray(currentRow?.open_questions)
+    ? currentRow.open_questions.filter((question): question is string => typeof question === "string")
+    : [];
+  const openQuestions = [...new Set([...currentQuestions, ...(input.openQuestions ?? [])])];
+  const summary = [currentRow?.summary, input.summary]
+    .filter((value) => typeof value === "string" && value.trim().length > 0)
+    .join("\n\n");
+
+  await upsertTransactionMemory({
+    transactionId: input.transactionId,
+    summary,
+    openQuestions,
+    knownContext: input.knownContext,
+    lastInboundAt: input.lastInboundAt
+  });
+}
+
 export async function createAgentDecision(input: {
   teamId: string;
   transactionId?: string;
