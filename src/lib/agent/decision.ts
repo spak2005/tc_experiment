@@ -111,6 +111,19 @@ function fallbackDecision(context: AgentContextPack, assessment?: DocumentAssess
   if (assessment) {
     const missing = assessment.missingItems.map((item) => `- ${item}`).join("\n");
     const finding = assessment.findings.join(" ");
+    const transaction = context.transactionContext?.transaction;
+    const property = String(transaction?.property_address ?? "this transaction");
+    const effectiveDate = String(transaction?.effective_date ?? "Needs confirmation");
+    const closingDate = String(transaction?.closing_date ?? "Needs confirmation");
+    const milestones = context.transactionContext?.milestones
+      .slice(0, 8)
+      .map((milestone) => {
+        const title = String(milestone.title ?? "Milestone");
+        const due = milestone.due_date ? String(milestone.due_date) : "event-triggered";
+        return `- ${title}: ${due}`;
+      })
+      .join("\n");
+
     return {
       intent: "new_contract",
       action: assessment.usability === "usable" ? "process_contract" : "ask_for_info",
@@ -121,7 +134,11 @@ function fallbackDecision(context: AgentContextPack, assessment?: DocumentAssess
       rationale: `Document assessment completed. ${finding}`,
       response:
         assessment.usability === "usable"
-          ? undefined
+          ? {
+              subject: `Transaction map: ${property}`,
+              body: `Hi there,\n\nI reviewed the contract and opened the file.\n\nProperty: ${property}\nEffective Date: ${effectiveDate}\nClosing Date: ${closingDate}\n\nKey milestones:\n${milestones || "- No milestones could be generated yet."}\n\nI will keep monitoring the timeline and will escalate if a deadline is at risk.\n\nBest,\nYour TC`,
+              labels: ["transaction_map", assessment.validationStatus, assessment.extractionMode]
+            }
           : {
               body: `Hi there,\n\nI received the contract document, but I need a little more before I can fully open and monitor the file.\n\n${finding}${missing ? `\n\nI still need:\n${missing}` : ""}\n\nOnce I have that, I can build the transaction map and start tracking the deadlines.\n\nBest,\nYour TC`,
               labels: ["intake", "missing_info", assessment.kind]
