@@ -13,7 +13,9 @@ observability page, you want one of the activity files.
 The pipeline runs once per inbound email, orchestrated by
 [../workflow/intake.ts](../workflow/intake.ts). See
 [../../../docs/pipelines/intake.md](../../../docs/pipelines/intake.md)
-for line-level detail.
+for line-level detail. Realtor replies to pending approval requests are
+handled first by `src/lib/approvals` and do not enter the generic
+decision pipeline.
 
 | Step | File | What it does |
 | --- | --- | --- |
@@ -66,6 +68,10 @@ logging rules).
 
 - The orchestration (the order in which these files are called) lives
   in [../workflow/intake.ts](../workflow/intake.ts), not here.
+- Approval-by-reply classification and execution lives in
+  [../approvals](../approvals). It interprets realtor replies such as
+  "send", "hold off", "make this edit then send", and "make this edit
+  and let me see it".
 - The Anthropic client and JSON parsing helpers live in
   [../llm](../llm).
 - SQL reads / writes live in [../db/repositories.ts](../db/repositories.ts).

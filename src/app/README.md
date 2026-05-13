@@ -10,7 +10,7 @@ every UI surface lives here.
 | `POST /api/signup` | [api/signup/route.ts](api/signup/route.ts) | `onboardAgent` in [../lib/onboarding/service.ts](../lib/onboarding/service.ts) |
 | `POST /api/webhooks/agentmail` | [api/webhooks/agentmail/route.ts](api/webhooks/agentmail/route.ts) | Svix verify, `recordWebhookEvent`, then `inngest.send` to `agentmail/inbound.received` |
 | `GET/POST/PUT /api/inngest` | [api/inngest/route.ts](api/inngest/route.ts) | Mounts the Inngest functions in [../lib/inngest/functions.ts](../lib/inngest/functions.ts) |
-| `POST /api/approvals/[approvalId]` | [api/approvals/[approvalId]/route.ts](api/approvals/%5BapprovalId%5D/route.ts) | `updateApprovalStatus`, then on approve `sendTcEmail` and an `approved_email_sent` activity event |
+| `POST /api/approvals/[approvalId]` | [api/approvals/[approvalId]/route.ts](api/approvals/%5BapprovalId%5D/route.ts) | `updateApprovalStatus`, then on approve shared approval-send execution |
 
 ## Page routes
 
@@ -48,6 +48,6 @@ every UI surface lives here.
   [../lib/workflow/intake.ts](../lib/workflow/intake.ts).
 - The Inngest function registry (cron, event bindings):
   [../lib/inngest/functions.ts](../lib/inngest/functions.ts).
-- Approval execution detail (email sending, activity events) is
-  handled inside the route file itself plus
+- Approval execution detail (email sending, reply interpretation,
+  activity events) lives in [../lib/approvals](../lib/approvals) and
   [../lib/agentmail/service.ts](../lib/agentmail/service.ts).
