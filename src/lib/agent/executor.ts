@@ -1,7 +1,9 @@
 import type { AgentContextPack, AgentDecision, PolicyResult } from "@/lib/agent/types";
 import type { DocumentAssessment } from "@/lib/agent/document-assessment";
+import { safeBodyPreview } from "@/lib/agent/activity";
 import { replyTcEmail, sendTcEmail } from "@/lib/agentmail/service";
 import {
+  createAgentActivityEvent,
   createApproval,
   createAuditEvent,
   updateAgentDecisionExecution
@@ -143,6 +145,25 @@ export async function executeAgentDecision(input: {
       decision: input.decision,
       documentAssessment: input.documentAssessment
     });
+    if (response) {
+      await createAgentActivityEvent({
+        teamId: input.context.tcProfile.teamId,
+        transactionId,
+        agentDecisionId: input.decisionId,
+        sourceType: "email",
+        eventType: "response_composed",
+        title: "Composed response",
+        summary: `Composed "${response.subject}" for ${response.to.join(", ")}.`,
+        status: "completed",
+        metadata: {
+          subject: response.subject,
+          to: response.to,
+          cc: response.cc ?? [],
+          labels: response.labels,
+          bodyPreview: safeBodyPreview(response.body)
+        }
+      });
+    }
 
     const responseNeedsApproval =
       response &&
@@ -165,6 +186,23 @@ export async function executeAgentDecision(input: {
           proposedTo: response.to,
           proposedCc: response.cc ?? []
         });
+        await createAgentActivityEvent({
+          teamId: input.context.tcProfile.teamId,
+          transactionId,
+          agentDecisionId: input.decisionId,
+          sourceType: "approval",
+          eventType: "approval_created",
+          title: "Created approval request",
+          summary: `Created approval for "${response.subject}".`,
+          status: "waiting",
+          metadata: {
+            approvalId: approval.id,
+            subject: response.subject,
+            to: response.to,
+            cc: response.cc ?? [],
+            bodyPreview: safeBodyPreview(response.body)
+          }
+        });
         const baseUrl = getEnv().NEXT_PUBLIC_APP_URL ?? "";
         const request = approvalRequestEmail({
           proposedSubject: response.subject,
@@ -180,6 +218,23 @@ export async function executeAgentDecision(input: {
           text: request.text,
           labels: ["approval_request", input.decision.intent, input.decision.action]
         });
+        await createAgentActivityEvent({
+          teamId: input.context.tcProfile.teamId,
+          transactionId,
+          agentDecisionId: input.decisionId,
+          sourceType: "approval",
+          eventType: "approval_request_sent",
+          title: "Sent approval request",
+          summary: `Asked the realtor to approve "${response.subject}".`,
+          status: "sent",
+          metadata: {
+            approvalId: approval.id,
+            to: [input.context.tcProfile.escalationEmail],
+            subject: request.subject,
+            labels: ["approval_request", input.decision.intent, input.decision.action],
+            bodyPreview: safeBodyPreview(request.text)
+          }
+        });
         status = "waiting_approval";
         toolResults.push({ tool: "createApproval", result: "created", approvalId: approval.id });
       }
@@ -188,6 +243,23 @@ export async function executeAgentDecision(input: {
         context: input.context,
         decision: input.decision,
         ...response
+      });
+      await createAgentActivityEvent({
+        teamId: input.context.tcProfile.teamId,
+        transactionId,
+        agentDecisionId: input.decisionId,
+        sourceType: "email",
+        eventType: input.context.inbound.messageId ? "email_reply_sent" : "email_sent",
+        title: input.context.inbound.messageId ? "Sent email reply" : "Sent email",
+        summary: `Sent "${response.subject}" to ${response.to.join(", ")}.`,
+        status: "sent",
+        metadata: {
+          subject: response.subject,
+          to: response.to,
+          cc: response.cc ?? [],
+          labels: response.labels,
+          bodyPreview: safeBodyPreview(response.body)
+        }
       });
       toolResults.push({ tool: "sendResponse", result: "sent", labels: response.labels });
     } else {

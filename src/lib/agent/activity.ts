@@ -49,3 +49,13 @@ export interface CreateAgentActivityEventInput {
   metadata?: Record<string, unknown>;
   occurredAt?: Date;
 }
+
+export function safeBodyPreview(value: string, maxLength = 500) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, maxLength - 3)}...`;
+}

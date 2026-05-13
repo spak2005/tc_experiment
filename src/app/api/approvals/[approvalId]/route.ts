@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
+import { safeBodyPreview } from "@/lib/agent/activity";
 import { sendTcEmail } from "@/lib/agentmail/service";
-import { updateApprovalStatus } from "@/lib/db/repositories";
+import {
+  createAgentActivityEvent,
+  updateApprovalStatus
+} from "@/lib/db/repositories";
 
 export async function POST(
   request: Request,
@@ -22,6 +26,23 @@ export async function POST(
     return NextResponse.json({ error: "Approval not found" }, { status: 404 });
   }
 
+  await createAgentActivityEvent({
+    teamId: approval.team_id,
+    transactionId: approval.transaction_id,
+    sourceType: "approval",
+    eventType: body.action === "approve" ? "approval_approved" : "approval_rejected",
+    title: body.action === "approve" ? "Approval accepted" : "Approval rejected",
+    summary: `${approval.proposed_subject} was ${body.action === "approve" ? "approved" : "rejected"}.`,
+    status: body.action === "approve" ? "completed" : "blocked",
+    metadata: {
+      approvalId: approval.id,
+      subject: approval.proposed_subject,
+      to: approval.proposed_to,
+      cc: approval.proposed_cc,
+      bodyPreview: safeBodyPreview(approval.proposed_body)
+    }
+  });
+
   if (body.action === "approve") {
     await sendTcEmail({
       inboxId: approval.inbox_id,
@@ -30,6 +51,23 @@ export async function POST(
       subject: approval.proposed_subject,
       text: approval.proposed_body,
       labels: ["approved-send"]
+    });
+    await createAgentActivityEvent({
+      teamId: approval.team_id,
+      transactionId: approval.transaction_id,
+      sourceType: "email",
+      eventType: "approved_email_sent",
+      title: "Sent approved email",
+      summary: `Sent approved email "${approval.proposed_subject}" to ${approval.proposed_to.join(", ")}.`,
+      status: "sent",
+      metadata: {
+        approvalId: approval.id,
+        subject: approval.proposed_subject,
+        to: approval.proposed_to,
+        cc: approval.proposed_cc,
+        labels: ["approved-send"],
+        bodyPreview: safeBodyPreview(approval.proposed_body)
+      }
     });
   }
 

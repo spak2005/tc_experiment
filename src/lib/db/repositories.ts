@@ -906,6 +906,7 @@ export async function updateApprovalStatus(id: string, status: string) {
   const result = await query<{
     id: string;
     transaction_id: string;
+    team_id: string;
     proposed_subject: string;
     proposed_body: string;
     proposed_to: string[];
@@ -922,6 +923,7 @@ export async function updateApprovalStatus(id: string, status: string) {
      returning
        a.id,
        a.transaction_id,
+       t.team_id,
        a.proposed_subject,
        a.proposed_body,
        a.proposed_to,
