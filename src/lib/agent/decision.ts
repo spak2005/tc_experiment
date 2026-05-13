@@ -65,6 +65,7 @@ function compactContext(context: AgentContextPack, assessment?: DocumentAssessme
       realtorEmail: context.tcProfile.escalationEmail
     },
     match: context.match,
+    contractRouting: context.contractRouting,
     transactionContext: context.transactionContext
       ? {
           transaction: context.transactionContext.transaction,

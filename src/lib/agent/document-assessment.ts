@@ -115,7 +115,7 @@ function classifyDocument(input: {
 }
 
 export async function assessContractDocument(input: {
-  attachment: StoredAttachment;
+  attachment: Pick<StoredAttachment, "filename" | "body"> & Partial<StoredAttachment>;
   emailText: string;
 }): Promise<DocumentAssessment> {
   let facts = extractTexasContractFacts(input.emailText);
@@ -143,7 +143,7 @@ export async function assessContractDocument(input: {
   });
 
   return {
-    documentId: input.attachment.documentId,
+    documentId: input.attachment.documentId ?? "",
     filename: input.attachment.filename,
     ...classification,
     extractionMode,

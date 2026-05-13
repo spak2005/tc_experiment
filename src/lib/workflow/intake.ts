@@ -16,6 +16,7 @@ import {
   createAuditEvent,
   createMessage,
   createTransaction,
+  findTransactionMatchCandidates,
   findTcProfileByInbox,
   insertMilestones,
   insertTasks,
@@ -25,12 +26,15 @@ import {
   upsertTransactionMemory
 } from "@/lib/db/repositories";
 import {
+  fetchIncomingAttachment,
   isPdfAttachment,
   markStoredAttachmentProcessed,
   storeIncomingAttachment,
+  type FetchedAttachment,
   type StoredAttachment
 } from "@/lib/documents/attachments";
 import { generateTexasMilestones } from "@/lib/milestones/engine";
+import { routeContractIntake, type ContractRoutingDecision } from "@/lib/workflow/contract-routing";
 import { createOpeningTasks, createTasksForMilestone } from "@/lib/workflow/tasks";
 
 function isoDateOrUndefined(value?: string) {
@@ -305,6 +309,7 @@ async function persistContractAssessment(input: {
 async function storeInboundAttachments(input: {
   context: AgentContextPack;
   transactionId: string;
+  fetchedAttachments?: Record<string, FetchedAttachment>;
 }) {
   const storedAttachments: StoredAttachment[] = [];
 
@@ -314,7 +319,8 @@ async function storeInboundAttachments(input: {
       transactionId: input.transactionId,
       inboxId: input.context.inbound.inboxId,
       messageId: input.context.inbound.messageId,
-      attachment
+      attachment,
+      fetched: input.fetchedAttachments?.[attachment.id]
     });
     storedAttachments.push(storedAttachment);
   }
@@ -368,33 +374,6 @@ export async function processAgentMailInbound(input: {
     transactionId
   };
 
-  if (inbound.attachments.length > 0 && !transactionId && !context.match.ambiguous) {
-    const transaction = await createTransaction({
-      teamId: tcProfile.team_id,
-      tcProfileId: tcProfile.id,
-      status: "intake_processing"
-    });
-    transactionId = transaction.id;
-    activityContext.transactionId = transactionId;
-    context = await withTransactionContext({
-      context,
-      transactionId,
-      confidence: 0.7,
-      reasons: ["new attachment intake opened a transaction file"]
-    });
-    await logActivity(activityContext, {
-      sourceType: "system",
-      eventType: "transaction_created",
-      title: "Opened transaction file",
-      summary: "Created a new transaction file from an inbound attachment.",
-      status: "completed",
-      metadata: {
-        transactionId,
-        reason: "new attachment intake opened a transaction file"
-      }
-    });
-  }
-
   await logActivity(activityContext, {
     sourceType: "email",
     eventType: "inbound_email_received",
@@ -446,37 +425,11 @@ export async function processAgentMailInbound(input: {
     }
   });
 
-  await createMessage({
-    transactionId,
-    agentMailMessageId: inbound.messageId || inbound.eventId,
-    threadId: inbound.threadId,
-    from: inbound.from,
-    to: inbound.to,
-    cc: inbound.cc,
-    subject: inbound.subject,
-    receivedAt: new Date(),
-    summary: transactionId
-      ? "Inbound email attached to transaction context."
-      : "Inbound email received without a confident transaction match."
-  });
-  await logActivity(activityContext, {
-    sourceType: "email",
-    eventType: "message_persisted",
-    title: "Saved inbound message",
-    summary: transactionId
-      ? "Saved the inbound email on this transaction."
-      : "Saved the inbound email without a confident transaction match.",
-    status: "completed",
-    metadata: {
-      agentMailMessageId: inbound.messageId || inbound.eventId,
-      threadId: inbound.threadId,
-      transactionId
-    }
-  });
-
   let documentAssessment: Awaited<ReturnType<typeof assessContractDocument>> | undefined;
+  let contractRouting: ContractRoutingDecision | undefined;
+  const fetchedAttachments: Record<string, FetchedAttachment> = {};
 
-  if (transactionId && inbound.attachments.length > 0) {
+  if (inbound.attachments.length > 0) {
     for (const attachment of inbound.attachments) {
       await logActivity(activityContext, {
         sourceType: "document",
@@ -492,10 +445,17 @@ export async function processAgentMailInbound(input: {
         }
       });
     }
-    const storedAttachments = await storeInboundAttachments({ context, transactionId });
-    const pdfAttachment = storedAttachments.find((attachment) => isPdfAttachment(attachment));
+    const pdfAttachment = inbound.attachments.find((attachment) => isPdfAttachment(attachment));
 
     if (pdfAttachment) {
+      const fetchedPdf = await fetchIncomingAttachment({
+        teamId: context.tcProfile.teamId,
+        transactionId,
+        inboxId: context.inbound.inboxId,
+        messageId: context.inbound.messageId,
+        attachment: pdfAttachment
+      });
+      fetchedAttachments[pdfAttachment.id] = fetchedPdf;
       await logActivity(activityContext, {
         sourceType: "document",
         eventType: "contract_pdf_selected",
@@ -503,20 +463,8 @@ export async function processAgentMailInbound(input: {
         summary: `Selected ${pdfAttachment.filename} for contract assessment.`,
         status: "completed",
         metadata: {
-          documentId: pdfAttachment.documentId,
           filename: pdfAttachment.filename,
-          contentType: pdfAttachment.contentType,
-          blobKey: pdfAttachment.blobKey
-        }
-      });
-      await createAuditEvent({
-        teamId: context.tcProfile.teamId,
-        transactionId,
-        actor: "tc_agent",
-        eventType: "contract_pdf_received",
-        payload: {
-          filename: pdfAttachment.filename,
-          blobKey: pdfAttachment.blobKey
+          contentType: pdfAttachment.contentType
         }
       });
       await logActivity(activityContext, {
@@ -526,13 +474,11 @@ export async function processAgentMailInbound(input: {
         summary: `Started extracting contract facts from ${pdfAttachment.filename}.`,
         status: "started",
         metadata: {
-          documentId: pdfAttachment.documentId,
-          filename: pdfAttachment.filename,
-          blobKey: pdfAttachment.blobKey
+          filename: pdfAttachment.filename
         }
       });
       documentAssessment = await assessContractDocument({
-        attachment: pdfAttachment,
+        attachment: fetchedPdf,
         emailText: context.emailText
       });
       await logActivity(activityContext, {
@@ -556,18 +502,114 @@ export async function processAgentMailInbound(input: {
           findings: documentAssessment.findings
         }
       });
-      await persistContractAssessment({
-        context,
-        transactionId,
-        attachment: pdfAttachment,
-        assessment: documentAssessment
+
+      const candidates = await findTransactionMatchCandidates(context.tcProfile.teamId);
+      contractRouting = routeContractIntake({
+        facts: documentAssessment.facts,
+        candidates,
+        documentUsability: documentAssessment.usability
       });
-      context = await withTransactionContext({
-        context,
-        transactionId,
-        confidence: Math.max(context.match.confidence, 0.8),
-        reasons: [...context.match.reasons, "contract document assessed"]
+      context = {
+        ...context,
+        contractRouting
+      };
+      await logActivity(activityContext, {
+        sourceType: "matching",
+        eventType: `contract_routing_${contractRouting.action}`,
+        title: "Routed contract intake",
+        summary: contractRouting.reasons.join(" "),
+        status:
+          contractRouting.action === "create_transaction" ||
+          contractRouting.action === "update_transaction"
+            ? "completed"
+            : "waiting",
+        metadata: {
+          action: contractRouting.action,
+          confidence: contractRouting.confidence,
+          stableIdentity: contractRouting.stableIdentity,
+          candidates: contractRouting.candidates,
+          reasons: contractRouting.reasons
+        }
       });
+
+      if (contractRouting.action === "update_transaction") {
+        transactionId = contractRouting.transactionId;
+        activityContext.transactionId = transactionId;
+      } else if (contractRouting.action === "create_transaction") {
+        const transaction = await createTransaction({
+          teamId: tcProfile.team_id,
+          tcProfileId: tcProfile.id,
+          propertyAddress: getStringFact(documentAssessment.facts.propertyAddress),
+          effectiveDate: isoDateOrUndefined(getStringFact(documentAssessment.facts.effectiveDate)),
+          closingDate: isoDateOrUndefined(getStringFact(documentAssessment.facts.closingDate)),
+          status: "intake_processing"
+        });
+        transactionId = transaction.id;
+        activityContext.transactionId = transactionId;
+        await logActivity(activityContext, {
+          sourceType: "system",
+          eventType: "transaction_created",
+          title: "Opened transaction file",
+          summary: "Created a new transaction file for a unique contract.",
+          status: "completed",
+          metadata: {
+            transactionId,
+            routing: contractRouting
+          }
+        });
+      } else {
+        transactionId = undefined;
+        activityContext.transactionId = undefined;
+        context = {
+          ...context,
+          match: {
+            transactionId: undefined,
+            confidence: contractRouting.confidence,
+            reasons: contractRouting.reasons,
+            ambiguous: contractRouting.action === "ask_which_transaction",
+            candidates: contractRouting.candidates
+          }
+        };
+      }
+
+      if (transactionId) {
+        const storedAttachments = await storeInboundAttachments({
+          context,
+          transactionId,
+          fetchedAttachments
+        });
+        const storedPdfAttachment = storedAttachments.find(
+          (attachment) => attachment.filename === pdfAttachment.filename && isPdfAttachment(attachment)
+        );
+
+        if (storedPdfAttachment) {
+          await createAuditEvent({
+            teamId: context.tcProfile.teamId,
+            transactionId,
+            actor: "tc_agent",
+            eventType: "contract_pdf_received",
+            payload: {
+              filename: storedPdfAttachment.filename,
+              blobKey: storedPdfAttachment.blobKey
+            }
+          });
+          await persistContractAssessment({
+            context,
+            transactionId,
+            attachment: storedPdfAttachment,
+            assessment: documentAssessment
+          });
+        }
+      }
+
+      if (transactionId) {
+        context = await withTransactionContext({
+          context,
+          transactionId,
+          confidence: Math.max(context.match.confidence, contractRouting.confidence),
+          reasons: [...context.match.reasons, ...contractRouting.reasons]
+        });
+      }
     } else {
       await logActivity(activityContext, {
         sourceType: "document",
@@ -589,6 +631,34 @@ export async function processAgentMailInbound(input: {
       });
     }
   }
+
+  await createMessage({
+    transactionId,
+    agentMailMessageId: inbound.messageId || inbound.eventId,
+    threadId: inbound.threadId,
+    from: inbound.from,
+    to: inbound.to,
+    cc: inbound.cc,
+    subject: inbound.subject,
+    receivedAt: new Date(),
+    summary: transactionId
+      ? "Inbound email attached to transaction context."
+      : "Inbound email received without a transaction action."
+  });
+  await logActivity(activityContext, {
+    sourceType: "email",
+    eventType: "message_persisted",
+    title: "Saved inbound message",
+    summary: transactionId
+      ? "Saved the inbound email on this transaction."
+      : "Saved the inbound email without a transaction action.",
+    status: "completed",
+    metadata: {
+      agentMailMessageId: inbound.messageId || inbound.eventId,
+      threadId: inbound.threadId,
+      transactionId
+    }
+  });
 
   await logActivity(activityContext, {
     sourceType: "decision",

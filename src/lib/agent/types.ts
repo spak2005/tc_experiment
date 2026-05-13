@@ -77,6 +77,7 @@ export interface AgentContextPack {
   };
   match: DealMatchResult;
   transactionContext?: TransactionContext;
+  contractRouting?: unknown;
 }
 
 export interface AgentToolCall {

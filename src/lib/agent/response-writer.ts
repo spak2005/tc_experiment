@@ -47,6 +47,7 @@ function compactResponseContext(input: {
       confidence: input.decision.confidence
     },
     match: input.context.match,
+    contractRouting: input.context.contractRouting,
     transaction: input.context.transactionContext
       ? {
           facts: input.context.transactionContext.facts,
