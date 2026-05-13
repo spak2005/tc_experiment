@@ -87,6 +87,12 @@ Response rules:
 - If a document is incomplete or unusable, explain what you observed and what you need next.
 - If answering status, answer the actual question and include the next relevant deadline or blocker when known.
 
+Write like a person, not a document. This email is sent as plain text.
+- No Markdown. No **bold**, no _italics_, no backticks, no # headings.
+- No em-dashes (the "—" character). Use commas, colons, parentheses, or a new sentence instead.
+- If a short list helps, use simple lines like "1. Item" or "- item" with no bolded labels.
+- Use normal sentences.
+
 Return only valid JSON.`;
 
 export async function composeAgentResponse(input: {
