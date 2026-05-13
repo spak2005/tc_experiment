@@ -1,10 +1,13 @@
+import type { AgentContextPack } from "@/lib/agent/types";
+import { buildAgentContextPack, getTransactionContext } from "@/lib/agent/context";
+import { assessContractDocument } from "@/lib/agent/document-assessment";
+import { decideNextAction } from "@/lib/agent/decision";
+import { executeAgentDecision } from "@/lib/agent/executor";
+import { evaluateActionPolicy } from "@/lib/agent/policy";
 import { normalizeAgentMailInbound } from "@/lib/agentmail/inbound";
-import { replyTcEmail, sendTcEmail } from "@/lib/agentmail/service";
-import { extractContractFactsFromPdf } from "@/lib/contracts/anthropic-extract";
-import { extractTexasContractFacts } from "@/lib/contracts/extract";
 import { getStringFact } from "@/lib/contracts/facts";
-import { validateContractFacts } from "@/lib/contracts/validate";
 import {
+  createAgentDecision,
   createAuditEvent,
   createMessage,
   createTransaction,
@@ -13,50 +16,150 @@ import {
   insertTasks,
   markWebhookEventProcessed,
   saveExtractedContractFacts,
-  updateTransactionFromFacts
+  updateTransactionFromFacts,
+  upsertTransactionMemory
 } from "@/lib/db/repositories";
-import {
-  intakeConfirmationEmail,
-  transactionMapEmail
-} from "@/lib/email/templates";
 import {
   isPdfAttachment,
   markStoredAttachmentProcessed,
-  storeIncomingAttachment
+  storeIncomingAttachment,
+  type StoredAttachment
 } from "@/lib/documents/attachments";
 import { generateTexasMilestones } from "@/lib/milestones/engine";
-import { buildStatusAnswer, isStatusQuestion } from "@/lib/workflow/status-responder";
 import { createOpeningTasks, createTasksForMilestone } from "@/lib/workflow/tasks";
 
 function isoDateOrUndefined(value?: string) {
   return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
 }
 
-async function respondToInbound(input: {
-  inboxId: string;
-  messageId?: string;
-  to: string[];
-  subject: string;
-  text: string;
-  labels: string[];
+async function withTransactionContext(input: {
+  context: AgentContextPack;
+  transactionId: string;
+  confidence: number;
+  reasons: string[];
 }) {
-  if (input.messageId) {
-    return replyTcEmail({
-      inboxId: input.inboxId,
-      messageId: input.messageId,
-      to: input.to,
-      text: input.text,
-      labels: input.labels
-    });
+  const transactionContext = await getTransactionContext(input.transactionId);
+
+  return {
+    ...input.context,
+    match: {
+      transactionId: input.transactionId,
+      confidence: input.confidence,
+      reasons: input.reasons,
+      ambiguous: false,
+      candidates: input.context.match.candidates
+    },
+    transactionContext
+  } satisfies AgentContextPack;
+}
+
+function documentStatusForUsability(usability: string) {
+  if (usability === "usable") return "approved";
+  if (usability === "unusable") return "rejected";
+  return "needs_correction";
+}
+
+async function persistContractAssessment(input: {
+  context: AgentContextPack;
+  transactionId: string;
+  attachment: StoredAttachment;
+  assessment: Awaited<ReturnType<typeof assessContractDocument>>;
+}) {
+  const propertyAddress = getStringFact(input.assessment.facts.propertyAddress);
+  const effectiveDate = isoDateOrUndefined(getStringFact(input.assessment.facts.effectiveDate));
+  const closingDate = isoDateOrUndefined(getStringFact(input.assessment.facts.closingDate));
+  const transactionStatus =
+    input.assessment.usability === "unusable"
+      ? "blocked_invalid_contract"
+      : input.assessment.validationStatus === "ready_for_review"
+        ? "needs_agent_confirmation"
+        : "needs_info";
+
+  await markStoredAttachmentProcessed(
+    input.attachment,
+    documentStatusForUsability(input.assessment.usability)
+  );
+  await updateTransactionFromFacts({
+    transactionId: input.transactionId,
+    propertyAddress,
+    effectiveDate,
+    closingDate,
+    status: transactionStatus,
+    phase: "opening_file"
+  });
+  await saveExtractedContractFacts({
+    transactionId: input.transactionId,
+    contractVersion: input.assessment.facts.contractVersion,
+    facts: input.assessment.facts,
+    validationStatus: input.assessment.validationStatus
+  });
+
+  if (input.assessment.usability !== "unusable") {
+    const milestones = generateTexasMilestones(input.assessment.facts);
+    const tasks = [
+      ...createOpeningTasks(),
+      ...milestones.flatMap((milestone) => createTasksForMilestone(milestone))
+    ];
+
+    await insertMilestones(input.transactionId, milestones);
+    await insertTasks(input.transactionId, tasks);
   }
 
-  return sendTcEmail({
-    inboxId: input.inboxId,
-    to: input.to,
-    subject: input.subject,
-    text: input.text,
-    labels: input.labels
+  await upsertTransactionMemory({
+    transactionId: input.transactionId,
+    summary: [
+      propertyAddress ? `Property: ${propertyAddress}` : "Property not confirmed",
+      `Document: ${input.assessment.kind}`,
+      `Status: ${transactionStatus}`,
+      input.assessment.missingItems.length > 0
+        ? `Open questions: ${input.assessment.missingItems.join(" ")}`
+        : "No critical opening questions."
+    ].join("\n"),
+    openQuestions: input.assessment.intakeGaps,
+    knownContext: {
+      documentAssessment: {
+        filename: input.assessment.filename,
+        kind: input.assessment.kind,
+        usability: input.assessment.usability,
+        findings: input.assessment.findings
+      }
+    },
+    lastInboundAt: new Date()
   });
+  await createAuditEvent({
+    teamId: input.context.tcProfile.teamId,
+    transactionId: input.transactionId,
+    actor: "tc_agent",
+    eventType: "contract_document_assessed",
+    payload: {
+      filename: input.assessment.filename,
+      kind: input.assessment.kind,
+      usability: input.assessment.usability,
+      validationStatus: input.assessment.validationStatus,
+      missingItems: input.assessment.missingItems,
+      extractionMode: input.assessment.extractionMode
+    }
+  });
+}
+
+async function storeInboundAttachments(input: {
+  context: AgentContextPack;
+  transactionId: string;
+}) {
+  const storedAttachments: StoredAttachment[] = [];
+
+  for (const attachment of input.context.inbound.attachments) {
+    const storedAttachment = await storeIncomingAttachment({
+      teamId: input.context.tcProfile.teamId,
+      transactionId: input.transactionId,
+      inboxId: input.context.inbound.inboxId,
+      messageId: input.context.inbound.messageId,
+      attachment
+    });
+    storedAttachments.push(storedAttachment);
+  }
+
+  return storedAttachments;
 }
 
 export async function processAgentMailInbound(input: {
@@ -70,53 +173,26 @@ export async function processAgentMailInbound(input: {
     return { status: "ignored", reason: "unknown_inbox" };
   }
 
-  const emailText = [inbound.subject, inbound.text, inbound.html].filter(Boolean).join("\n\n");
+  let context = await buildAgentContextPack({ inbound, tcProfile });
+  let transactionId = context.match.transactionId;
 
-  if (inbound.attachments.length === 0 && isStatusQuestion(emailText)) {
-    const answer = await buildStatusAnswer(tcProfile.team_id);
-
-    await createMessage({
-      transactionId: answer.transactionId,
-      agentMailMessageId: inbound.messageId || inbound.eventId,
-      threadId: inbound.threadId,
-      from: inbound.from,
-      to: inbound.to,
-      cc: inbound.cc,
-      subject: inbound.subject,
-      receivedAt: new Date(),
-      summary: "Inbound status question received by TC inbox."
-    });
-    await respondToInbound({
-      inboxId: inbound.inboxId,
-      messageId: inbound.messageId,
-      to: [tcProfile.escalation_email],
-      subject: `Re: ${inbound.subject}`,
-      text: answer.text,
-      labels: ["status_answer"]
-    });
-    await createAuditEvent({
+  if (inbound.attachments.length > 0 && !transactionId && !context.match.ambiguous) {
+    const transaction = await createTransaction({
       teamId: tcProfile.team_id,
-      transactionId: answer.transactionId,
-      actor: "tc_agent",
-      eventType: "status_question_answered",
-      payload: { subject: inbound.subject }
+      tcProfileId: tcProfile.id,
+      status: "intake_processing"
     });
-    await markWebhookEventProcessed(input.webhookEventId);
-
-    return {
-      status: "status_answered",
-      transactionId: answer.transactionId
-    };
+    transactionId = transaction.id;
+    context = await withTransactionContext({
+      context,
+      transactionId,
+      confidence: 0.7,
+      reasons: ["new attachment intake opened a transaction file"]
+    });
   }
 
-  const transaction = await createTransaction({
-    teamId: tcProfile.team_id,
-    tcProfileId: tcProfile.id,
-    status: "intake_processing"
-  });
-
   await createMessage({
-    transactionId: transaction.id,
+    transactionId,
     agentMailMessageId: inbound.messageId || inbound.eventId,
     threadId: inbound.threadId,
     from: inbound.from,
@@ -124,173 +200,102 @@ export async function processAgentMailInbound(input: {
     cc: inbound.cc,
     subject: inbound.subject,
     receivedAt: new Date(),
-    summary: "Inbound intake email received by TC inbox."
+    summary: transactionId
+      ? "Inbound email attached to transaction context."
+      : "Inbound email received without a confident transaction match."
   });
 
-  const storedAttachments = [];
+  let documentAssessment: Awaited<ReturnType<typeof assessContractDocument>> | undefined;
 
-  for (const attachment of inbound.attachments) {
-    const storedAttachment = await storeIncomingAttachment({
-      teamId: tcProfile.team_id,
-      transactionId: transaction.id,
-      inboxId: inbound.inboxId,
-      messageId: inbound.messageId,
-      attachment
-    });
-    storedAttachments.push(storedAttachment);
+  if (transactionId && inbound.attachments.length > 0) {
+    const storedAttachments = await storeInboundAttachments({ context, transactionId });
+    const pdfAttachment = storedAttachments.find((attachment) => isPdfAttachment(attachment));
+
+    if (pdfAttachment) {
+      await createAuditEvent({
+        teamId: context.tcProfile.teamId,
+        transactionId,
+        actor: "tc_agent",
+        eventType: "contract_pdf_received",
+        payload: {
+          filename: pdfAttachment.filename,
+          blobKey: pdfAttachment.blobKey
+        }
+      });
+      documentAssessment = await assessContractDocument({
+        attachment: pdfAttachment,
+        emailText: context.emailText
+      });
+      await persistContractAssessment({
+        context,
+        transactionId,
+        attachment: pdfAttachment,
+        assessment: documentAssessment
+      });
+      context = await withTransactionContext({
+        context,
+        transactionId,
+        confidence: Math.max(context.match.confidence, 0.8),
+        reasons: [...context.match.reasons, "contract document assessed"]
+      });
+    } else {
+      await createAuditEvent({
+        teamId: context.tcProfile.teamId,
+        transactionId,
+        actor: "tc_agent",
+        eventType: "contract_pdf_missing",
+        payload: { attachmentCount: inbound.attachments.length }
+      });
+    }
   }
 
-  const pdfAttachment = storedAttachments.find((attachment) =>
-    isPdfAttachment(attachment)
-  );
-
-  if (!pdfAttachment) {
-    const confirmation = intakeConfirmationEmail({
-      agentName: "there",
-      missingItems: ["Forward the executed contract PDF."]
-    });
-
-    await respondToInbound({
-      inboxId: inbound.inboxId,
-      messageId: inbound.messageId,
-      to: [tcProfile.escalation_email],
-      subject: confirmation.subject,
-      text: confirmation.text,
-      labels: ["intake", "missing_pdf"]
-    });
-    await createAuditEvent({
-      teamId: tcProfile.team_id,
-      transactionId: transaction.id,
-      actor: "tc_agent",
-      eventType: "contract_pdf_missing",
-      payload: { attachmentCount: inbound.attachments.length }
-    });
-    await markWebhookEventProcessed(input.webhookEventId);
-
-    return {
-      status: "needs_pdf",
-      transactionId: transaction.id
+  let decision = await decideNextAction({ context, documentAssessment });
+  if (transactionId && !decision.transactionId) {
+    decision = {
+      ...decision,
+      transactionId,
+      matchConfidence: context.match.confidence
     };
   }
-
-  await createAuditEvent({
-    teamId: tcProfile.team_id,
-    transactionId: transaction.id,
-    actor: "tc_agent",
-    eventType: "contract_pdf_received",
-    payload: {
-      filename: pdfAttachment.filename,
-      blobKey: pdfAttachment.blobKey
-    }
+  const decisionRecord = await createAgentDecision({
+    teamId: context.tcProfile.teamId,
+    transactionId: decision.transactionId,
+    inboundMessageId: inbound.messageId || inbound.eventId,
+    inboundThreadId: inbound.threadId,
+    intent: decision.intent,
+    action: decision.action,
+    confidence: decision.confidence,
+    matchConfidence: decision.matchConfidence ?? context.match.confidence,
+    requiresApproval: decision.requiresApproval,
+    rationale: decision.rationale,
+    contextSummary: {
+      match: context.match,
+      hasTransactionContext: Boolean(context.transactionContext),
+      documentAssessment: documentAssessment
+        ? {
+            kind: documentAssessment.kind,
+            usability: documentAssessment.usability,
+            missingItems: documentAssessment.missingItems
+          }
+        : undefined
+    },
+    toolPlan: decision.toolCalls
   });
-
-  let facts = extractTexasContractFacts(emailText);
-  let extractionMode: "anthropic_pdf" | "email_fallback" = "email_fallback";
-
-  await createAuditEvent({
-    teamId: tcProfile.team_id,
-    transactionId: transaction.id,
-    actor: "tc_agent",
-    eventType: "contract_pdf_extraction_started",
-    payload: {
-      filename: pdfAttachment.filename
-    }
-  });
-
-  try {
-    facts = await extractContractFactsFromPdf({
-      filename: pdfAttachment.filename,
-      pdf: pdfAttachment.body,
-      emailContext: emailText
-    });
-    extractionMode = "anthropic_pdf";
-    await markStoredAttachmentProcessed(pdfAttachment, "approved");
-    await createAuditEvent({
-      teamId: tcProfile.team_id,
-      transactionId: transaction.id,
-      actor: "tc_agent",
-      eventType: "contract_pdf_extraction_completed",
-      payload: {
-        filename: pdfAttachment.filename,
-        contractVersion: facts.contractVersion
-      }
-    });
-  } catch (error) {
-    await markStoredAttachmentProcessed(pdfAttachment, "needs_correction");
-    await createAuditEvent({
-      teamId: tcProfile.team_id,
-      transactionId: transaction.id,
-      actor: "tc_agent",
-      eventType: "contract_pdf_extraction_failed",
-      payload: {
-        error: error instanceof Error ? error.message : "Unknown extraction error"
-      }
-    });
-  }
-
-  const validation = validateContractFacts(facts);
-  const transactionStatus =
-    validation.status === "ready_for_review" ? "needs_agent_confirmation" : "needs_info";
-  const propertyAddress = getStringFact(facts.propertyAddress);
-  const effectiveDate = isoDateOrUndefined(getStringFact(facts.effectiveDate));
-  const closingDate = isoDateOrUndefined(getStringFact(facts.closingDate));
-  const milestones = generateTexasMilestones(facts);
-  const tasks = [
-    ...createOpeningTasks(),
-    ...milestones.flatMap((milestone) => createTasksForMilestone(milestone))
-  ];
-
-  await updateTransactionFromFacts({
-    transactionId: transaction.id,
-    propertyAddress,
-    effectiveDate,
-    closingDate,
-    status: transactionStatus,
-    phase: "opening_file"
-  });
-  await saveExtractedContractFacts({
-    transactionId: transaction.id,
-    contractVersion: facts.contractVersion,
-    facts,
-    validationStatus: validation.status
-  });
-  await insertMilestones(transaction.id, milestones);
-  await insertTasks(transaction.id, tasks);
-
-  await createAuditEvent({
-    teamId: tcProfile.team_id,
-    transactionId: transaction.id,
-    actor: "tc_agent",
-    eventType: "transaction_intake_processed",
-    payload: {
-      validationStatus: validation.status,
-      missingItems: validation.requiredClarifications,
-      extractionMode
-    }
-  });
-
-  const transactionMap = transactionMapEmail({
-    propertyAddress,
-    effectiveDate,
-    closingDate,
-    milestones,
-    missingItems: validation.requiredClarifications
-  });
-
-  await respondToInbound({
-    inboxId: inbound.inboxId,
-    messageId: inbound.messageId,
-    to: [tcProfile.escalation_email],
-    subject: transactionMap.subject,
-    text: transactionMap.text,
-    labels: ["transaction_map", validation.status, extractionMode]
+  const policy = evaluateActionPolicy(decision, context);
+  const execution = await executeAgentDecision({
+    context,
+    decision,
+    decisionId: decisionRecord.id,
+    policy
   });
 
   await markWebhookEventProcessed(input.webhookEventId);
 
   return {
-    status: "processed",
-    transactionId: transaction.id,
-    validationStatus: validation.status
+    status: execution.status,
+    transactionId: decision.transactionId,
+    intent: decision.intent,
+    action: decision.action,
+    policy: policy.result
   };
 }
