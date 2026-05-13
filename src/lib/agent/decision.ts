@@ -147,6 +147,13 @@ You decide the next operational action for the TC inbox.
 Use the provided deal context and document assessment. Do not invent facts.
 Do not provide legal advice or commit any party to changed contract terms.
 For V1, emails to the realtor can be sent directly. Emails to external parties should require approval.
+
+If you populate response.body, write like a person, not a document. The email is sent as plain text.
+- No Markdown. No **bold**, no _italics_, no backticks, no # headings.
+- No em-dashes (the "—" character). Use commas, colons, parentheses, or a new sentence instead.
+- If a short list helps, use simple lines like "1. Item" or "- item" with no bolded labels.
+- Use normal sentences.
+
 Return only valid JSON matching the schema.`;
 
 export async function decideNextAction(input: {
