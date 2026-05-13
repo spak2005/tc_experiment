@@ -1,5 +1,5 @@
 import { getTransactionDetail } from "@/lib/db/repositories";
-import { ActivityDebugger } from "@/app/transactions/[transactionId]/activity-debugger";
+import { ActivityDebugger } from "@/app/components/activity-debugger";
 
 export default async function TransactionDetailPage({
   params

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { AgentActivityEvent } from "@/lib/agent/activity";
 
 function formatTimestamp(value: string) {
@@ -43,25 +44,39 @@ function metadataChips(event: AgentActivityEvent) {
   return chips.slice(0, 6);
 }
 
+function transactionLabel(event: AgentActivityEvent) {
+  if (!event.transactionId) {
+    return "No transaction yet";
+  }
+
+  return event.transaction?.propertyAddress ?? "View transaction";
+}
+
 export function ActivityDebugger({
-  events
+  events,
+  emptyText = "No agent activity has been recorded yet.",
+  showTransactionLinks = false,
+  title = "Agent Activity",
+  eyebrow = "Developer debugger"
 }: {
   events: AgentActivityEvent[];
+  emptyText?: string;
+  showTransactionLinks?: boolean;
+  title?: string;
+  eyebrow?: string;
 }) {
   return (
     <section className="activity-debugger">
       <header className="activity-debugger-header">
         <div>
-          <p className="eyebrow">Developer debugger</p>
-          <h2>Agent Activity</h2>
+          <p className="eyebrow">{eyebrow}</p>
+          <h2>{title}</h2>
         </div>
         <span>{events.length} events</span>
       </header>
 
       {events.length === 0 ? (
-        <p className="empty-state">
-          No agent activity has been recorded for this transaction yet.
-        </p>
+        <p className="empty-state">{emptyText}</p>
       ) : (
         <ol className="activity-timeline">
           {events.map((event) => {
@@ -91,6 +106,21 @@ export function ActivityDebugger({
                   <h3>{event.title}</h3>
                   <p>{event.summary}</p>
 
+                  {showTransactionLinks ? (
+                    <div className="activity-transaction-link">
+                      {event.transactionId ? (
+                        <Link href={`/transactions/${event.transactionId}`}>
+                          {transactionLabel(event)}
+                        </Link>
+                      ) : (
+                        <span>No transaction yet</span>
+                      )}
+                      {event.transaction?.status ? (
+                        <small>{event.transaction.status}</small>
+                      ) : null}
+                    </div>
+                  ) : null}
+
                   {chips.length > 0 ? (
                     <div className="activity-chips">
                       {chips.map((chip) => (
@@ -108,6 +138,8 @@ export function ActivityDebugger({
                           eventType: event.eventType,
                           sourceType: event.sourceType,
                           status: event.status,
+                          transactionId: event.transactionId,
+                          transaction: event.transaction,
                           agentDecisionId: event.agentDecisionId,
                           debugSource: event.debugSource,
                           metadata: event.metadata
