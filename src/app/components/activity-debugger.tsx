@@ -54,6 +54,19 @@ function transactionLabel(event: AgentActivityEvent) {
   return event.transaction?.propertyAddress ?? "View transaction";
 }
 
+function newestFirst(events: AgentActivityEvent[]) {
+  return [...events].sort((left, right) => {
+    const timeComparison =
+      new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime();
+
+    if (timeComparison !== 0) {
+      return timeComparison;
+    }
+
+    return right.id.localeCompare(left.id);
+  });
+}
+
 export function ActivityDebugger({
   events,
   emptyText = "No agent activity has been recorded yet.",
@@ -67,6 +80,8 @@ export function ActivityDebugger({
   title?: string;
   eyebrow?: string;
 }) {
+  const renderedEvents = newestFirst(events);
+
   return (
     <section className="activity-debugger">
       <header className="activity-debugger-header">
@@ -74,14 +89,14 @@ export function ActivityDebugger({
           <p className="eyebrow">{eyebrow}</p>
           <h2>{title}</h2>
         </div>
-        <span>{events.length} events</span>
+        <span>{renderedEvents.length} events · newest first</span>
       </header>
 
-      {events.length === 0 ? (
+      {renderedEvents.length === 0 ? (
         <p className="empty-state">{emptyText}</p>
       ) : (
         <ol className="activity-timeline">
-          {events.map((event) => {
+          {renderedEvents.map((event) => {
             const chips = metadataChips(event);
 
             return (
