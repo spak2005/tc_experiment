@@ -1,0 +1,41 @@
+---
+description: How to navigate this codebase efficiently without burning context
+alwaysApply: true
+---
+
+# Navigating this codebase
+
+This repository (`tc-experiment`) has a curated set of docs that exist
+specifically so coding agents do not have to read the whole codebase
+to make a targeted change. Use them.
+
+## Read in this order
+
+1. [AGENTS.md](mdc:AGENTS.md) — system spine, entry points, mermaid of the inbound pipeline.
+2. The README of the subsystem you are about to touch:
+   - [src/lib/agent/README.md](mdc:src/lib/agent/README.md) — the 8-step decision pipeline.
+   - [src/lib/workflow/README.md](mdc:src/lib/workflow/README.md) — orchestrators (intake, deadline monitor, contract routing, status responder, tasks).
+   - [src/lib/db/README.md](mdc:src/lib/db/README.md) — Postgres layer; contains an aggregate-to-line-range map for the ~1336-line [src/lib/db/repositories.ts](mdc:src/lib/db/repositories.ts).
+   - [src/lib/agentmail/README.md](mdc:src/lib/agentmail/README.md) — AgentMail inbound, outbound, provisioning.
+   - [src/app/README.md](mdc:src/app/README.md) — API and page routes.
+3. For deep changes inside the two long pipeline files, read the step-by-step doc first:
+   - [docs/pipelines/intake.md](mdc:docs/pipelines/intake.md) for [src/lib/workflow/intake.ts](mdc:src/lib/workflow/intake.ts) (~800 lines, ~60% activity-logging boilerplate).
+   - [docs/pipelines/deadline-monitor.md](mdc:docs/pipelines/deadline-monitor.md) for [src/lib/workflow/deadline-monitor.ts](mdc:src/lib/workflow/deadline-monitor.ts).
+4. For higher-level navigation, see [docs/architecture.md](mdc:docs/architecture.md). It marks each module "active" or "stable" and has a "where do I change X?" cheat sheet.
+
+## Do not do this
+
+- Do not load the whole `src/` tree to "understand the codebase" before making a change. The repo is ~7,900 LOC but two files account for most of it.
+- Do not read `src/lib/db/repositories.ts` end-to-end. Use the line-range map in its README.
+- Do not read `src/lib/workflow/intake.ts` end-to-end. Use the step table in [docs/pipelines/intake.md](mdc:docs/pipelines/intake.md).
+- Do not confuse the decision pipeline with the observability layer. `src/lib/agent/activity*.ts` is observability and is not part of behavior. See [src/lib/agent/README.md](mdc:src/lib/agent/README.md).
+- Do not skip the activity-event logging when changing the inbound pipeline. The observability surfaces depend on it; see [docs/activity-debugger.md](mdc:docs/activity-debugger.md).
+
+## What this repo is
+
+Autonomous AI Transaction Coordinator prototype for Texas residential
+real estate. Stack: Next.js (App Router) + Inngest (webhooks + cron) +
+Neon Postgres + Vercel Blob + AgentMail + Anthropic. Pipeline is
+inbound email -> match transaction -> assess contract PDF -> persist
+facts/milestones/tasks -> agent decision -> policy -> execute (send,
+approve, escalate).
