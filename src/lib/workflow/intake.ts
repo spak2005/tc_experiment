@@ -9,7 +9,7 @@ import { decideNextAction } from "@/lib/agent/decision";
 import { executeAgentDecision } from "@/lib/agent/executor";
 import { evaluateActionPolicy } from "@/lib/agent/policy";
 import { normalizeAgentMailInbound } from "@/lib/agentmail/inbound";
-import { getStringFact } from "@/lib/contracts/facts";
+import { getStringFact, type ContractFacts, type ExtractedValue } from "@/lib/contracts/facts";
 import {
   createAgentActivityEvent,
   createAgentDecision,
@@ -34,6 +34,8 @@ import {
   type StoredAttachment
 } from "@/lib/documents/attachments";
 import { generateTexasMilestones } from "@/lib/milestones/engine";
+import { executeTransactionWrites } from "@/lib/transaction-writes/executor";
+import type { TransactionWrite } from "@/lib/transaction-writes/schemas";
 import { routeContractIntake, type ContractRoutingDecision } from "@/lib/workflow/contract-routing";
 import { createOpeningTasks, createTasksForMilestone } from "@/lib/workflow/tasks";
 
@@ -101,6 +103,107 @@ function documentStatusForUsability(usability: string) {
   return "needs_correction";
 }
 
+const contractFactKeys = [
+  "propertyAddress",
+  "buyerNames",
+  "sellerNames",
+  "salesPrice",
+  "cashOrFinanced",
+  "titleCompany",
+  "earnestMoneyAmount",
+  "optionFeeAmount",
+  "optionPeriodDays",
+  "effectiveDate",
+  "closingDate",
+  "surveySelection",
+  "surveyDeadlineDays",
+  "sellerDisclosureDeadlineDays",
+  "titleObjectionDays",
+  "hoaRequired"
+] as const;
+
+function canonicalFactWrites(input: {
+  transactionId: string;
+  facts: ContractFacts;
+  filename: string;
+}): TransactionWrite[] {
+  const writes: TransactionWrite[] = [];
+
+  for (const key of contractFactKeys) {
+    const fact = input.facts[key] as ExtractedValue | undefined;
+
+    if (!fact) continue;
+
+    writes.push({
+      name: "upsertTransactionFact",
+      input: {
+        transactionId: input.transactionId,
+        key,
+        value: fact.value,
+        needsConfirmation: fact.needsConfirmation
+      },
+      source: {
+        sourceType: "contract_extraction",
+        sourceReference: fact.sourceReference ?? input.filename,
+        confidence: fact.confidence,
+        rationale: fact.evidence
+      }
+    });
+  }
+
+  writes.push(
+    {
+      name: "upsertTransactionFact",
+      input: {
+        transactionId: input.transactionId,
+        key: "contractVersion",
+        value: input.facts.contractVersion
+      },
+      source: {
+        sourceType: "contract_extraction",
+        sourceReference: input.filename,
+        confidence: 0.9,
+        rationale: "Contract version identified during document assessment."
+      }
+    },
+    {
+      name: "upsertTransactionFact",
+      input: {
+        transactionId: input.transactionId,
+        key: "signatureStatus",
+        value: input.facts.signatureStatus,
+        needsConfirmation: input.facts.signatureStatus !== "appears_executed"
+      },
+      source: {
+        sourceType: "contract_extraction",
+        sourceReference: input.filename,
+        confidence: 0.85,
+        rationale: "Signature status identified during document assessment."
+      }
+    }
+  );
+
+  if (input.facts.addenda.length > 0) {
+    writes.push({
+      name: "upsertTransactionFact",
+      input: {
+        transactionId: input.transactionId,
+        key: "addenda",
+        value: input.facts.addenda.map((item) => item.value),
+        needsConfirmation: input.facts.addenda.some((item) => item.needsConfirmation)
+      },
+      source: {
+        sourceType: "contract_extraction",
+        sourceReference: input.filename,
+        confidence: Math.min(...input.facts.addenda.map((item) => item.confidence)),
+        rationale: "Addenda identified during document assessment."
+      }
+    });
+  }
+
+  return writes;
+}
+
 async function persistContractAssessment(input: {
   context: AgentContextPack;
   transactionId: string;
@@ -155,6 +258,14 @@ async function persistContractAssessment(input: {
     contractVersion: input.assessment.facts.contractVersion,
     facts: input.assessment.facts,
     validationStatus: input.assessment.validationStatus
+  });
+  await executeTransactionWrites({
+    teamId: input.context.tcProfile.teamId,
+    writes: canonicalFactWrites({
+      transactionId: input.transactionId,
+      facts: input.assessment.facts,
+      filename: input.assessment.filename
+    })
   });
   await logActivity(
     { teamId: input.context.tcProfile.teamId, transactionId: input.transactionId },
