@@ -125,12 +125,88 @@ async function persistContractAssessment(input: {
     status: transactionStatus,
     phase: "opening_file"
   });
+  await logActivity(
+    { teamId: input.context.tcProfile.teamId, transactionId: input.transactionId },
+    {
+      sourceType: "system",
+      eventType: "transaction_updated_from_facts",
+      title: "Updated transaction from contract facts",
+      summary: `Updated the transaction status to ${transactionStatus}.`,
+      status: "completed",
+      metadata: {
+        propertyAddress,
+        effectiveDate,
+        closingDate,
+        transactionStatus,
+        phase: "opening_file"
+      }
+    }
+  );
   await saveExtractedContractFacts({
     transactionId: input.transactionId,
     contractVersion: input.assessment.facts.contractVersion,
     facts: input.assessment.facts,
     validationStatus: input.assessment.validationStatus
   });
+  await logActivity(
+    { teamId: input.context.tcProfile.teamId, transactionId: input.transactionId },
+    {
+      sourceType: "extraction",
+      eventType: "contract_facts_saved",
+      title: "Saved extracted facts",
+      summary: `Saved ${input.assessment.facts.contractVersion} facts with ${input.assessment.validationStatus} validation.`,
+      status: "completed",
+      metadata: {
+        contractVersion: input.assessment.facts.contractVersion,
+        validationStatus: input.assessment.validationStatus,
+        missingItems: input.assessment.missingItems
+      }
+    }
+  );
+
+  await logActivity(
+    { teamId: input.context.tcProfile.teamId, transactionId: input.transactionId },
+    {
+      sourceType: "extraction",
+      eventType: "contract_validation_completed",
+      title: "Validated contract facts",
+      summary:
+        input.assessment.missingItems.length > 0
+          ? `Validation needs ${input.assessment.missingItems.length} clarification item(s).`
+          : "Validation found enough information for review.",
+      status:
+        input.assessment.validationStatus === "ready_for_review" ? "completed" : "waiting",
+      metadata: {
+        validationStatus: input.assessment.validationStatus,
+        missingItems: input.assessment.missingItems,
+        intakeGaps: input.assessment.intakeGaps
+      }
+    }
+  );
+
+  await logActivity(
+    { teamId: input.context.tcProfile.teamId, transactionId: input.transactionId },
+    {
+      sourceType: "extraction",
+      eventType: "document_classified",
+      title: "Classified contract document",
+      summary: `${input.assessment.filename} was classified as ${input.assessment.kind} and ${input.assessment.usability}.`,
+      status:
+        input.assessment.usability === "usable"
+          ? "completed"
+          : input.assessment.usability === "unusable"
+            ? "blocked"
+            : "waiting",
+      metadata: {
+        filename: input.assessment.filename,
+        kind: input.assessment.kind,
+        usability: input.assessment.usability,
+        findings: input.assessment.findings,
+        signatureStatus: input.assessment.signatureStatus,
+        extractionMode: input.assessment.extractionMode
+      }
+    }
+  );
 
   if (input.assessment.usability !== "unusable") {
     const milestones = generateTexasMilestones(input.assessment.facts);
@@ -381,9 +457,42 @@ export async function processAgentMailInbound(input: {
           blobKey: pdfAttachment.blobKey
         }
       });
+      await logActivity(activityContext, {
+        sourceType: "extraction",
+        eventType: "contract_extraction_started",
+        title: "Started contract extraction",
+        summary: `Started extracting contract facts from ${pdfAttachment.filename}.`,
+        status: "started",
+        metadata: {
+          documentId: pdfAttachment.documentId,
+          filename: pdfAttachment.filename,
+          blobKey: pdfAttachment.blobKey
+        }
+      });
       documentAssessment = await assessContractDocument({
         attachment: pdfAttachment,
         emailText: context.emailText
+      });
+      await logActivity(activityContext, {
+        sourceType: "extraction",
+        eventType: "contract_extraction_completed",
+        title:
+          documentAssessment.extractionMode === "anthropic_pdf"
+            ? "Extracted contract facts from PDF"
+            : "Used fallback contract extraction",
+        summary:
+          documentAssessment.extractionMode === "anthropic_pdf"
+            ? `Extracted facts from ${pdfAttachment.filename} with Anthropic PDF mode.`
+            : `Could not use PDF extraction for ${pdfAttachment.filename}; used fallback assessment.`,
+        status:
+          documentAssessment.extractionMode === "anthropic_pdf" ? "completed" : "failed",
+        metadata: {
+          filename: pdfAttachment.filename,
+          extractionMode: documentAssessment.extractionMode,
+          contractVersion: documentAssessment.facts.contractVersion,
+          missingItems: documentAssessment.missingItems,
+          findings: documentAssessment.findings
+        }
       });
       await persistContractAssessment({
         context,
