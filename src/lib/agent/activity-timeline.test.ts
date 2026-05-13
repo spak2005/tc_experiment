@@ -180,4 +180,44 @@ describe("activity timeline legacy mappers", () => {
       toolResults: [{ tool: "sendResponse", result: "sent" }]
     });
   });
+
+  it("sorts team observability events newest first when requested", () => {
+    const base = {
+      teamId: "team-1",
+      sourceType: "email",
+      eventType: "inbound_email_received",
+      title: "Received inbound email",
+      summary: "Received an email.",
+      status: "received",
+      metadata: {}
+    } satisfies Omit<AgentActivityEvent, "id" | "occurredAt">;
+
+    const oldestFirst = sortActivityTimeline([
+      {
+        ...base,
+        id: "old",
+        occurredAt: "2026-05-12T10:00:00Z"
+      },
+      {
+        ...base,
+        id: "new",
+        occurredAt: "2026-05-12T11:00:00Z",
+        transactionId: "tx-1",
+        transaction: {
+          id: "tx-1",
+          propertyAddress: "123 Main Street",
+          status: "needs_info"
+        }
+      }
+    ]);
+
+    const newestFirst = [...oldestFirst].reverse();
+
+    expect(newestFirst.map((event) => event.id)).toEqual(["new", "old"]);
+    expect(newestFirst[0].transaction).toMatchObject({
+      propertyAddress: "123 Main Street",
+      status: "needs_info"
+    });
+    expect(newestFirst[1].transactionId).toBeUndefined();
+  });
 });
