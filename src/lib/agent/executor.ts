@@ -1,11 +1,16 @@
 import type { AgentContextPack, AgentDecision, PolicyResult } from "@/lib/agent/types";
 import type { DocumentAssessment } from "@/lib/agent/document-assessment";
 import { safeBodyPreview } from "@/lib/agent/activity";
-import { replyTcEmail, sendTcEmail } from "@/lib/agentmail/service";
+import {
+  extractAgentMailMessageMetadata,
+  replyTcEmail,
+  sendTcEmail
+} from "@/lib/agentmail/service";
 import {
   createAgentActivityEvent,
   createApproval,
   createAuditEvent,
+  updateApprovalRequestMetadata,
   updateAgentDecisionExecution
 } from "@/lib/db/repositories";
 import { approvalRequestEmail } from "@/lib/email/templates";
@@ -199,6 +204,7 @@ export async function executeAgentDecision(input: {
       } else {
         const approval = await createApproval({
           transactionId,
+          agentDecisionId: input.decisionId,
           proposedSubject: response.subject,
           proposedBody: response.body,
           proposedTo: response.to,
@@ -229,12 +235,18 @@ export async function executeAgentDecision(input: {
           rejectUrl: `${baseUrl}/api/approvals/${approval.id}`
         });
 
-        await sendTcEmail({
+        const requestMessage = await sendTcEmail({
           inboxId: input.context.tcProfile.inboxId,
           to: [input.context.tcProfile.escalationEmail],
           subject: request.subject,
           text: request.text,
           labels: ["approval_request", input.decision.intent, input.decision.action]
+        });
+        const requestMetadata = extractAgentMailMessageMetadata(requestMessage);
+        await updateApprovalRequestMetadata({
+          id: approval.id,
+          requestMessageId: requestMetadata.messageId,
+          requestThreadId: requestMetadata.threadId
         });
         await createAgentActivityEvent({
           teamId: input.context.tcProfile.teamId,
@@ -249,6 +261,8 @@ export async function executeAgentDecision(input: {
             approvalId: approval.id,
             to: [input.context.tcProfile.escalationEmail],
             subject: request.subject,
+            requestMessageId: requestMetadata.messageId,
+            requestThreadId: requestMetadata.threadId,
             labels: ["approval_request", input.decision.intent, input.decision.action],
             bodyPreview: safeBodyPreview(request.text)
           }

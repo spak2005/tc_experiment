@@ -39,6 +39,37 @@ export interface CreateTcDraftInput extends SendTcEmailInput {
   transactionId?: string;
 }
 
+export interface AgentMailMessageMetadata {
+  messageId?: string;
+  threadId?: string;
+}
+
+function asString(value: unknown) {
+  return typeof value === "string" ? value : undefined;
+}
+
+export function extractAgentMailMessageMetadata(value: unknown): AgentMailMessageMetadata {
+  const record = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const message =
+    record.message && typeof record.message === "object"
+      ? (record.message as Record<string, unknown>)
+      : record;
+
+  return {
+    messageId:
+      asString(message.id) ??
+      asString(message.messageId) ??
+      asString(message.message_id) ??
+      asString(record.messageId) ??
+      asString(record.message_id),
+    threadId:
+      asString(message.threadId) ??
+      asString(message.thread_id) ??
+      asString(record.threadId) ??
+      asString(record.thread_id)
+  };
+}
+
 function toInboxUsername(agentName: string, teamId: string): string {
   const base = agentName
     .toLowerCase()
