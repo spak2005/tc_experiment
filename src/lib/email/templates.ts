@@ -49,14 +49,12 @@ export function agentEscalationEmail(input: AgentEscalationEmailInput) {
 export interface ApprovalRequestEmailInput {
   proposedSubject: string;
   proposedBody: string;
-  approveUrl: string;
-  rejectUrl: string;
 }
 
 export function approvalRequestEmail(input: ApprovalRequestEmailInput) {
   return {
     subject: `Approve email: ${input.proposedSubject}`,
-    text: `I drafted the email below and need your approval before sending.\n\nReply "send" to approve it, reply "hold" if I should not send it, or reply with edits if you want changes first.\n\nSubject: ${input.proposedSubject}\n\n${input.proposedBody}\n\nYou can also use these links:\nApprove: ${input.approveUrl}\nReject: ${input.rejectUrl}`
+    text: `I drafted the email below and need your approval before sending.\n\nReply "send" to approve it, reply "hold" if I should not send it, or reply with edits if you want changes first.\n\nSubject: ${input.proposedSubject}\n\n${input.proposedBody}`
   };
 }
 

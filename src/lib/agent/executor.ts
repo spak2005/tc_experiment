@@ -14,7 +14,6 @@ import {
   updateAgentDecisionExecution
 } from "@/lib/db/repositories";
 import { approvalRequestEmail } from "@/lib/email/templates";
-import { getEnv } from "@/lib/config/env";
 import { buildStatusAnswerForTransaction } from "@/lib/workflow/status-responder";
 import { composeAgentResponse } from "@/lib/agent/response-writer";
 import { executeTransactionWrites } from "@/lib/transaction-writes/executor";
@@ -227,12 +226,9 @@ export async function executeAgentDecision(input: {
             bodyPreview: safeBodyPreview(response.body)
           }
         });
-        const baseUrl = getEnv().NEXT_PUBLIC_APP_URL ?? "";
         const request = approvalRequestEmail({
           proposedSubject: response.subject,
-          proposedBody: response.body,
-          approveUrl: `${baseUrl}/api/approvals/${approval.id}`,
-          rejectUrl: `${baseUrl}/api/approvals/${approval.id}`
+          proposedBody: response.body
         });
 
         const requestMessage = await sendTcEmail({

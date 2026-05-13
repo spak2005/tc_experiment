@@ -15,7 +15,6 @@ import {
   type ApprovalExecutionRow
 } from "@/lib/db/repositories";
 import { approvalRequestEmail } from "@/lib/email/templates";
-import { getEnv } from "@/lib/config/env";
 import {
   classifyApprovalReply,
   type ApprovalReplyDecision
@@ -167,12 +166,9 @@ async function sendRevisedApprovalRequest(input: {
   approval: ApprovalExecutionRow;
   inbound: NormalizedInboundEmail;
 }) {
-  const baseUrl = getEnv().NEXT_PUBLIC_APP_URL ?? "";
   const request = approvalRequestEmail({
     proposedSubject: input.approval.proposed_subject,
-    proposedBody: input.approval.proposed_body,
-    approveUrl: `${baseUrl}/api/approvals/${input.approval.id}`,
-    rejectUrl: `${baseUrl}/api/approvals/${input.approval.id}`
+    proposedBody: input.approval.proposed_body
   });
   const response = await replyToRealtor({
     approval: input.approval,

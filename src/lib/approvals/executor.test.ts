@@ -37,10 +37,6 @@ vi.mock("@/lib/db/repositories", () => ({
   updateApprovalStatus: mocks.updateApprovalStatus
 }));
 
-vi.mock("@/lib/config/env", () => ({
-  getEnv: () => ({ NEXT_PUBLIC_APP_URL: "https://app.example.com" })
-}));
-
 const approval: ApprovalExecutionRow = {
   id: "approval-1",
   transaction_id: "tx-1",
