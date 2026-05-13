@@ -4,6 +4,7 @@ import type { DocumentAssessment } from "@/lib/agent/document-assessment";
 import { getAnthropicClient, getAnthropicModel } from "@/lib/llm/anthropic";
 import { getFirstTextBlock, parseJsonObject } from "@/lib/llm/json";
 import { formatTemporalContextLine } from "@/lib/time/clock";
+import { transactionWritesSchema } from "@/lib/transaction-writes/schemas";
 
 const agentDecisionSchema = z.object({
   intent: z.enum([
@@ -47,7 +48,8 @@ const agentDecisionSchema = z.object({
       name: z.string(),
       input: z.record(z.unknown())
     })
-  )
+  ),
+  transactionWrites: transactionWritesSchema
 });
 
 function compactContext(context: AgentContextPack, assessment?: DocumentAssessment) {
@@ -101,7 +103,8 @@ function fallbackDecision(context: AgentContextPack, assessment?: DocumentAssess
       matchConfidence: context.match.confidence,
       requiresApproval: false,
       rationale: "The inbound email could belong to more than one active transaction.",
-      toolCalls: []
+      toolCalls: [],
+      transactionWrites: []
     };
   }
 
@@ -116,7 +119,8 @@ function fallbackDecision(context: AgentContextPack, assessment?: DocumentAssess
       matchConfidence: context.match.confidence,
       requiresApproval: false,
       rationale: `Document assessment completed. ${finding}`,
-      toolCalls: []
+      toolCalls: [],
+      transactionWrites: []
     };
   }
 
@@ -129,7 +133,8 @@ function fallbackDecision(context: AgentContextPack, assessment?: DocumentAssess
       matchConfidence: context.match.confidence,
       requiresApproval: false,
       rationale: "Inbound email matched an active transaction without attachments.",
-      toolCalls: []
+      toolCalls: [],
+      transactionWrites: []
     };
   }
 
@@ -140,7 +145,8 @@ function fallbackDecision(context: AgentContextPack, assessment?: DocumentAssess
     matchConfidence: context.match.confidence,
     requiresApproval: false,
     rationale: "Fallback decision used because no confident transaction context was available.",
-    toolCalls: []
+    toolCalls: [],
+    transactionWrites: []
   };
 }
 
@@ -149,6 +155,10 @@ You decide the next operational action for the TC inbox.
 Use the provided deal context and document assessment. Do not invent facts.
 Do not provide legal advice or commit any party to changed contract terms.
 For V1, emails to the realtor can be sent directly. Emails to external parties should require approval.
+Use transactionWrites for any structured update to the transaction file. Do not describe a database write only in prose.
+Only use the listed transactionWrites tools. Never invent table names, SQL, or unsupported tools.
+If no transaction is confidently identified, leave transactionWrites empty and ask for clarification.
+High-impact changes such as termination, closed status, cancellation, or conflicting facts can be proposed, but the app may require approval.
 
 If you populate response.body, write like a person, not a document. The email is sent as plain text.
 - No Markdown. No **bold**, no _italics_, no backticks, no # headings.
@@ -189,7 +199,19 @@ Output JSON:
   "requiresApproval": boolean,
   "rationale": string,
   "response": { "subject"?: string, "body": string, "to"?: string[], "cc"?: string[], "labels"?: string[] }?,
-  "toolCalls": [{ "name": string, "input": object }]
+  "toolCalls": [{ "name": string, "input": object }],
+  "transactionWrites": [
+    {
+      "name": "updateTransactionCore" | "upsertTransactionFact" | "upsertParties" | "upsertMilestones" | "updateTasks" | "updateDocuments" | "upsertBlocker" | "appendTransactionMemory",
+      "input": { "transactionId": "uuid", "...": "tool-specific fields" },
+      "source": {
+        "sourceType": "contract_extraction" | "email" | "agent" | "system" | "manual",
+        "sourceReference": "message/thread/document reference",
+        "confidence": number,
+        "rationale": "why this write is grounded"
+      }
+    }
+  ]
 }
 
 Context:

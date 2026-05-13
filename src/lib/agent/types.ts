@@ -1,5 +1,6 @@
 import type { NormalizedInboundEmail } from "@/lib/agentmail/inbound";
 import type { TemporalContext } from "@/lib/time/clock";
+import type { TransactionWrite } from "@/lib/transaction-writes/schemas";
 
 export type AgentIntent =
   | "new_contract"
@@ -103,6 +104,7 @@ export interface AgentDecision {
     labels?: string[];
   };
   toolCalls: AgentToolCall[];
+  transactionWrites: TransactionWrite[];
 }
 
 export interface PolicyResult {

@@ -1366,7 +1366,7 @@ export async function createAgentDecision(input: {
   requiresApproval: boolean;
   rationale: string;
   contextSummary?: Record<string, unknown>;
-  toolPlan?: unknown[];
+  toolPlan?: unknown;
 }) {
   const result = await query<{ id: string }>(
     `insert into agent_decisions (

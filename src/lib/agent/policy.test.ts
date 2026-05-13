@@ -42,7 +42,8 @@ const decision: AgentDecision = {
     to: ["agent@example.com"],
     body: "The next deadline is the option period."
   },
-  toolCalls: []
+  toolCalls: [],
+  transactionWrites: []
 };
 
 describe("evaluateActionPolicy", () => {

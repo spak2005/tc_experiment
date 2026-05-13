@@ -703,7 +703,10 @@ export async function processAgentMailInbound(input: {
           }
         : undefined
     },
-    toolPlan: decision.toolCalls
+    toolPlan: {
+      toolCalls: decision.toolCalls,
+      transactionWrites: decision.transactionWrites
+    }
   });
   await logActivity(activityContext, {
     agentDecisionId: decisionRecord.id,
@@ -728,7 +731,8 @@ export async function processAgentMailInbound(input: {
             labels: decision.response.labels
           }
         : undefined,
-      toolPlan: decision.toolCalls
+      toolPlan: decision.toolCalls,
+      transactionWrites: decision.transactionWrites
     }
   });
   const policy = evaluateActionPolicy(decision, context);
