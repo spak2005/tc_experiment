@@ -206,7 +206,7 @@ button:disabled {
 }
 
 .observability-header {
-  align-items: start;
+  align-items: flex-start;
   display: flex;
   gap: 24px;
   justify-content: space-between;
@@ -439,7 +439,7 @@ pre {
   .activity-debugger-header,
   .activity-card-topline,
   .observability-header {
-    align-items: start;
+    align-items: flex-start;
     flex-direction: column;
   }
 }
