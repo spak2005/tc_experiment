@@ -18,6 +18,7 @@ function getMessageScopedEventId(event: Record<string, unknown>) {
     asString(event.inbox_id) ??
     "unknown-inbox";
   const messageId =
+    asString(message.id) ??
     asString(message.messageId) ??
     asString(message.message_id) ??
     asString(event.messageId) ??

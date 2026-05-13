@@ -20,6 +20,16 @@ function asString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+function extractEmailAddress(value?: string): string | undefined {
+  if (!value) return undefined;
+
+  const angleMatch = value.match(/<([^<>@\s]+@[^<>\s]+)>/);
+  if (angleMatch?.[1]) return angleMatch[1];
+
+  const emailMatch = value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  return emailMatch?.[0] ?? value;
+}
+
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -50,6 +60,7 @@ export function normalizeAgentMailInbound(
       asString(event.inbox_id) ??
       "",
     messageId:
+      asString(message.id) ??
       asString(message.messageId) ??
       asString(message.message_id) ??
       asString(event.messageId) ??
@@ -57,7 +68,7 @@ export function normalizeAgentMailInbound(
       "",
     threadId: asString(message.threadId) ?? asString(message.thread_id),
     from:
-      asString(message.from) ??
+      extractEmailAddress(asString(message.from)) ??
       asString((message.from as Record<string, unknown> | undefined)?.email) ??
       "",
     to: asStringArray(message.to),
