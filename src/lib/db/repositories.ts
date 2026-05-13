@@ -564,6 +564,7 @@ export async function findTransactionMatchCandidates(teamId: string) {
     effective_date: string | null;
     closing_date: string | null;
     updated_at: string;
+    latest_facts: unknown;
     party_emails: string[];
     party_names: string[];
     thread_ids: string[];
@@ -577,16 +578,24 @@ export async function findTransactionMatchCandidates(teamId: string) {
        t.effective_date::text,
        t.closing_date::text,
        t.updated_at::text,
+       f.facts as latest_facts,
        coalesce(array_remove(array_agg(distinct lower(p.email)), null), '{}') as party_emails,
        coalesce(array_remove(array_agg(distinct lower(p.name)), null), '{}') as party_names,
        coalesce(array_remove(array_agg(distinct m.thread_id), null), '{}') as thread_ids,
        coalesce(array_remove(array_agg(distinct lower(m.subject)), null), '{}') as recent_subjects
      from transactions t
+     left join lateral (
+       select facts
+       from extracted_contract_facts
+       where transaction_id = t.id
+       order by created_at desc
+       limit 1
+     ) f on true
      left join parties p on p.transaction_id = t.id
      left join messages m on m.transaction_id = t.id
      where t.team_id = $1
        and t.status not in ('closed', 'terminated')
-     group by t.id
+     group by t.id, f.facts
      order by t.updated_at desc
      limit 25`,
     [teamId]
