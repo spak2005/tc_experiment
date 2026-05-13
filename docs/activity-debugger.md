@@ -14,8 +14,8 @@ one transaction file.
 Open the observability page from the dashboard. The team-wide timeline runs
 newest to oldest, so the latest agent behavior is always at the top.
 
-Transaction detail pages keep a filtered timeline that runs oldest to newest, so
-one file still reads like the agent's operating trail:
+Transaction detail pages keep the same newest-first ordering, filtered to one
+file, so the latest agent movement is always at the top:
 
 - email received
 - transaction matched or opened

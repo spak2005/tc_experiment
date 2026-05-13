@@ -1300,10 +1300,10 @@ export async function getTransactionDetail(transactionId: string) {
     approvals: approvals.rows,
     auditEvents: auditEvents.rows
   });
-  const activityTimeline = sortActivityTimeline([
-    ...activityEvents.rows.map(toActivityEvent),
-    ...syntheticActivity
-  ]);
+  const activityTimeline = sortActivityTimeline(
+    [...activityEvents.rows.map(toActivityEvent), ...syntheticActivity],
+    "newest_first"
+  );
 
   return {
     transaction: transaction.rows[0] ?? null,

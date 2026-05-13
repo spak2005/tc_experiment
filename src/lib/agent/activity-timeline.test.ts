@@ -152,6 +152,36 @@ describe("activity timeline legacy mappers", () => {
     expect(events.map((event) => event.id)).toEqual(["earlier", "later"]);
   });
 
+  it("can sort activity newest first", () => {
+    const base = {
+      teamId: "team-1",
+      sourceType: "system",
+      eventType: "test_event",
+      title: "Test",
+      summary: "Test event.",
+      status: "completed",
+      metadata: {}
+    } satisfies Omit<AgentActivityEvent, "id" | "occurredAt">;
+
+    const events = sortActivityTimeline(
+      [
+        {
+          ...base,
+          id: "old",
+          occurredAt: "2026-05-12T10:01:00Z"
+        },
+        {
+          ...base,
+          id: "new",
+          occurredAt: "2026-05-12T10:05:00Z"
+        }
+      ],
+      "newest_first"
+    );
+
+    expect(events.map((event) => event.id)).toEqual(["new", "old"]);
+  });
+
   it("keeps raw metadata available separately from primary copy", () => {
     const event = mapLegacyDecisionToActivity(
       {
@@ -192,26 +222,27 @@ describe("activity timeline legacy mappers", () => {
       metadata: {}
     } satisfies Omit<AgentActivityEvent, "id" | "occurredAt">;
 
-    const oldestFirst = sortActivityTimeline([
-      {
-        ...base,
-        id: "old",
-        occurredAt: "2026-05-12T10:00:00Z"
-      },
-      {
-        ...base,
-        id: "new",
-        occurredAt: "2026-05-12T11:00:00Z",
-        transactionId: "tx-1",
-        transaction: {
-          id: "tx-1",
-          propertyAddress: "123 Main Street",
-          status: "needs_info"
+    const newestFirst = sortActivityTimeline(
+      [
+        {
+          ...base,
+          id: "old",
+          occurredAt: "2026-05-12T10:00:00Z"
+        },
+        {
+          ...base,
+          id: "new",
+          occurredAt: "2026-05-12T11:00:00Z",
+          transactionId: "tx-1",
+          transaction: {
+            id: "tx-1",
+            propertyAddress: "123 Main Street",
+            status: "needs_info"
+          }
         }
-      }
-    ]);
-
-    const newestFirst = [...oldestFirst].reverse();
+      ],
+      "newest_first"
+    );
 
     expect(newestFirst.map((event) => event.id)).toEqual(["new", "old"]);
     expect(newestFirst[0].transaction).toMatchObject({

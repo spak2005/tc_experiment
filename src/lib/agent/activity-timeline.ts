@@ -251,15 +251,20 @@ export function mapLegacyRecordsToActivity(input: {
   ];
 }
 
-export function sortActivityTimeline(events: AgentActivityEvent[]) {
+export function sortActivityTimeline(
+  events: AgentActivityEvent[],
+  direction: "oldest_first" | "newest_first" = "oldest_first"
+) {
   return [...events].sort((left, right) => {
     const timeComparison =
       new Date(left.occurredAt).getTime() - new Date(right.occurredAt).getTime();
 
     if (timeComparison !== 0) {
-      return timeComparison;
+      return direction === "oldest_first" ? timeComparison : -timeComparison;
     }
 
-    return left.id.localeCompare(right.id);
+    const idComparison = left.id.localeCompare(right.id);
+
+    return direction === "oldest_first" ? idComparison : -idComparison;
   });
 }
