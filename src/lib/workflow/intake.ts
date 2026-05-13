@@ -32,6 +32,23 @@ function isoDateOrUndefined(value?: string) {
   return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
 }
 
+function normalizeEmail(value?: string | null) {
+  return (value ?? "").toLowerCase().trim();
+}
+
+function isFromTcInbox(input: {
+  from: string;
+  inboxAddress: string;
+  inboxId?: string | null;
+}) {
+  const from = normalizeEmail(input.from);
+
+  return (
+    from.length > 0 &&
+    (from === normalizeEmail(input.inboxAddress) || from === normalizeEmail(input.inboxId))
+  );
+}
+
 async function withTransactionContext(input: {
   context: AgentContextPack;
   transactionId: string;
@@ -171,6 +188,18 @@ export async function processAgentMailInbound(input: {
 
   if (!tcProfile) {
     return { status: "ignored", reason: "unknown_inbox" };
+  }
+
+  if (
+    isFromTcInbox({
+      from: inbound.from,
+      inboxAddress: tcProfile.inbox_address,
+      inboxId: tcProfile.agentmail_inbox_id
+    })
+  ) {
+    await markWebhookEventProcessed(input.webhookEventId);
+
+    return { status: "ignored", reason: "self_authored_email" };
   }
 
   let context = await buildAgentContextPack({ inbound, tcProfile });

@@ -5,6 +5,31 @@ import { recordWebhookEvent } from "@/lib/db/repositories";
 import { inngest } from "@/lib/inngest/client";
 import { events } from "@/lib/inngest/events";
 
+function asString(value: unknown) {
+  return typeof value === "string" ? value : undefined;
+}
+
+function getMessageScopedEventId(event: Record<string, unknown>) {
+  const message = (event.message ?? event.data ?? event) as Record<string, unknown>;
+  const inboxId =
+    asString(message.inboxId) ??
+    asString(message.inbox_id) ??
+    asString(event.inboxId) ??
+    asString(event.inbox_id) ??
+    "unknown-inbox";
+  const messageId =
+    asString(message.messageId) ??
+    asString(message.message_id) ??
+    asString(event.messageId) ??
+    asString(event.message_id);
+
+  if (messageId) {
+    return `${inboxId}:message:${messageId}`;
+  }
+
+  return String(event.id ?? event.event_id ?? crypto.randomUUID());
+}
+
 export async function POST(request: Request) {
   const payload = await request.text();
   const headers = Object.fromEntries(request.headers.entries());
@@ -18,8 +43,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid webhook signature" }, { status: 401 });
   }
 
-  const eventId =
-    String(event.id ?? event.event_id ?? event.message_id ?? crypto.randomUUID());
+  const eventId = getMessageScopedEventId(event);
 
   const stored = await recordWebhookEvent({
     provider: "agentmail",
