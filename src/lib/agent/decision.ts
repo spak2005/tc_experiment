@@ -162,11 +162,16 @@ function fallbackDecision(context: AgentContextPack, assessment?: DocumentAssess
 
   return {
     intent: context.inbound.attachments.length > 0 ? "document_delivery" : "unknown",
-    action: context.inbound.attachments.length > 0 ? "process_contract" : "ask_for_info",
+    action: context.inbound.attachments.length > 0 ? "ask_for_info" : "ask_for_info",
     confidence: 0.45,
     matchConfidence: context.match.confidence,
     requiresApproval: false,
     rationale: "Fallback decision used because no confident transaction context was available.",
+    response: {
+      body:
+        "Hi there,\n\nI received your email, but I do not yet have enough clear transaction context to act on it. Please send the executed contract PDF or the property address this relates to, and I will attach it to the right file.\n\nBest,\nYour TC",
+      labels: ["clarification", "missing_context"]
+    },
     toolCalls: []
   };
 }
