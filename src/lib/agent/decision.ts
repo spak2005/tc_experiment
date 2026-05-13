@@ -169,7 +169,7 @@ function fallbackDecision(context: AgentContextPack, assessment?: DocumentAssess
     rationale: "Fallback decision used because no confident transaction context was available.",
     response: {
       body:
-        "Hi there,\n\nI received your email, but I do not yet have enough clear transaction context to act on it. Please send the executed contract PDF or the property address this relates to, and I will attach it to the right file.\n\nBest,\nYour TC",
+        "Hi there,\n\nI can help with that. Right now I do not have enough detail to attach this conversation to a specific transaction file.\n\nIf this is for a new deal, please send the executed contract PDF. If this is for an existing deal, send me the property address or client name so I can pull up the right file.\n\nOnce I have the right file, the main items I usually need to confirm are the Effective Date, Closing Date, cash vs. financing, earnest money, option period, title company or escrow officer, and any missing signatures or addenda.\n\nBest,\nYour TC",
       labels: ["clarification", "missing_context"]
     },
     toolCalls: []
