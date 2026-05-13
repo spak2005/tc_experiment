@@ -46,3 +46,32 @@ export async function buildStatusAnswer(teamId: string) {
     text: `Current file: ${property}\nStatus: ${transaction.status}${transaction.phase ? ` (${transaction.phase})` : ""}\nNext deadline: ${nextLine}${blockerLine}`
   };
 }
+
+export async function buildStatusAnswerForTransaction(transactionId: string) {
+  const summary = await getTransactionStatusSummary(transactionId);
+  const transaction = summary.transaction;
+
+  if (!transaction) {
+    return {
+      transactionId: undefined,
+      text:
+        "I could not find that transaction file. Send me the property address or forward the contract again and I will reconcile it."
+    };
+  }
+
+  const next = summary.nextMilestone;
+  const blockers = summary.blockers;
+  const property = transaction.property_address ?? "the current transaction";
+  const nextLine = next
+    ? `${next.title}${next.due_date ? ` due ${next.due_date}` : " is event-triggered"}`
+    : "No upcoming milestone is available yet.";
+  const blockerLine =
+    blockers.length > 0
+      ? `\n\nOpen blockers:\n${blockers.map((blocker) => `- ${blocker.title} (${blocker.risk_level})`).join("\n")}`
+      : "\n\nI do not see open blockers right now.";
+
+  return {
+    transactionId,
+    text: `Current file: ${property}\nStatus: ${transaction.status}${transaction.phase ? ` (${transaction.phase})` : ""}\nNext deadline: ${nextLine}${blockerLine}`
+  };
+}
