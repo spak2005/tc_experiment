@@ -205,6 +205,26 @@ button:disabled {
   grid-column: 1 / -1;
 }
 
+.observability-header {
+  align-items: start;
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+}
+
+.observability-layout {
+  margin-top: 36px;
+}
+
+.utility-link {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--foreground);
+  font-weight: 700;
+  padding: 10px 12px;
+  text-decoration: none;
+}
+
 .activity-debugger {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -325,6 +345,25 @@ button:disabled {
   margin: 0;
 }
 
+.activity-transaction-link {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.activity-transaction-link a,
+.activity-transaction-link span {
+  color: var(--foreground);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.activity-transaction-link small {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 .activity-badges,
 .activity-chips {
   display: flex;
@@ -398,7 +437,8 @@ pre {
   }
 
   .activity-debugger-header,
-  .activity-card-topline {
+  .activity-card-topline,
+  .observability-header {
     align-items: start;
     flex-direction: column;
   }
