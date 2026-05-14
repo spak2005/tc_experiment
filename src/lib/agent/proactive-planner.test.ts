@@ -13,8 +13,9 @@ function context(overrides: Partial<ProactiveAgentContext> = {}): ProactiveAgent
   return {
     temporalContext: {
       today: "2026-05-14",
-      nowIso: "2026-05-14T15:00:00.000Z",
-      timeZone: "America/Chicago"
+      now: "2026-05-14T15:00:00.000Z",
+      timezone: "America/Chicago",
+      businessDay: true
     },
     tcProfile: {
       id: "tc-1",
