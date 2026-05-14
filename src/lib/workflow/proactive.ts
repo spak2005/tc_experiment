@@ -1,0 +1,327 @@
+import { safeBodyPreview } from "@/lib/agent/activity";
+import { buildProactiveAgentContext } from "@/lib/agent/proactive-context";
+import { decideProactiveAction } from "@/lib/agent/proactive-planner";
+import {
+  extractAgentMailMessageMetadata,
+  sendTcEmail
+} from "@/lib/agentmail/service";
+import {
+  completeAgentWakeup,
+  createAgentActivityEvent,
+  createAgentDecision,
+  createApproval,
+  createAuditEvent,
+  updateAgentDecisionExecution,
+  updateApprovalRequestMetadata
+} from "@/lib/db/repositories";
+import type { AgentWakeup } from "@/lib/domain/types";
+import { approvalRequestEmail } from "@/lib/email/templates";
+import { getTemporalContext } from "@/lib/time/clock";
+import { executeTransactionWrites } from "@/lib/transaction-writes/executor";
+import { transitionOutboundTaskToWaitingResponse } from "@/lib/workflow/task-transitions";
+
+function normalizeEmail(value?: string) {
+  return (value ?? "").toLowerCase().trim();
+}
+
+function responseIsRealtorOnly(input: { realtorEmail: string; to: string[] }) {
+  const realtorEmail = normalizeEmail(input.realtorEmail);
+  return input.to.length > 0 && input.to.every((recipient) => normalizeEmail(recipient) === realtorEmail);
+}
+
+function wakeupDedupeKey(input: {
+  transactionId: string;
+  actionType: string;
+  taskId?: string;
+}) {
+  return [input.transactionId, input.actionType, input.taskId].filter(Boolean).join(":");
+}
+
+export async function executeAgentWakeup(wakeup: AgentWakeup) {
+  const context = await buildProactiveAgentContext(wakeup.transactionId);
+  if (!context) {
+    await createAgentActivityEvent({
+      teamId: wakeup.teamId,
+      transactionId: wakeup.transactionId,
+      sourceType: "system",
+      eventType: "proactive_wakeup_skipped",
+      title: "Skipped proactive wakeup",
+      summary: "The wakeup transaction context could not be loaded.",
+      status: "ignored",
+      metadata: {
+        wakeupId: wakeup.id,
+        actionType: wakeup.actionType,
+        reason: wakeup.reason
+      }
+    });
+    await completeAgentWakeup({
+      id: wakeup.id,
+      status: "skipped",
+      payload: { skippedReason: "missing_transaction_context" }
+    });
+    return { status: "skipped", reason: "missing_transaction_context" };
+  }
+
+  await createAgentActivityEvent({
+    teamId: context.tcProfile.teamId,
+    transactionId: context.transactionId,
+    sourceType: "system",
+    eventType: "proactive_wakeup_claimed",
+    title: "Claimed proactive wakeup",
+    summary: `Started ${wakeup.actionType}: ${wakeup.reason}.`,
+    status: "started",
+    metadata: {
+      wakeupId: wakeup.id,
+      actionType: wakeup.actionType,
+      taskId: wakeup.taskId,
+      attemptCount: wakeup.attemptCount
+    }
+  });
+
+  const decision = await decideProactiveAction({ context });
+  const decisionRecord = await createAgentDecision({
+    teamId: context.tcProfile.teamId,
+    transactionId: context.transactionId,
+    intent: "proactive_review",
+    action: decision.action,
+    confidence: decision.confidence,
+    requiresApproval: decision.requiresApproval,
+    rationale: decision.rationale,
+    contextSummary: {
+      wakeup: {
+        id: wakeup.id,
+        actionType: wakeup.actionType,
+        taskId: wakeup.taskId,
+        reason: wakeup.reason
+      },
+      transaction: context.transactionContext.transaction,
+      nextMilestone: context.transactionContext.nextMilestone
+    },
+    toolPlan: {
+      transactionWrites: decision.transactionWrites,
+      response: decision.response
+        ? {
+            subject: decision.response.subject,
+            to: decision.response.to,
+            cc: decision.response.cc,
+            labels: decision.response.labels
+          }
+        : undefined,
+      nextWakeup: decision.nextWakeup
+    }
+  });
+
+  await createAgentActivityEvent({
+    teamId: context.tcProfile.teamId,
+    transactionId: context.transactionId,
+    agentDecisionId: decisionRecord.id,
+    sourceType: "decision",
+    eventType: "proactive_decision_created",
+    title: `Selected proactive ${decision.action}`,
+    summary: decision.rationale,
+    status: "completed",
+    metadata: {
+      wakeupId: wakeup.id,
+      confidence: decision.confidence,
+      requiresApproval: decision.requiresApproval,
+      taskId: decision.taskId
+    }
+  });
+
+  const toolResults: unknown[] = [];
+  const writeResults =
+    decision.transactionWrites.length > 0
+      ? await executeTransactionWrites({
+          teamId: context.tcProfile.teamId,
+          agentDecisionId: decisionRecord.id,
+          writes: decision.transactionWrites
+        })
+      : [];
+  if (writeResults.length > 0) {
+    toolResults.push({ tool: "transactionWrites", result: writeResults });
+  }
+
+  const response = decision.response;
+  let executionStatus = "executed";
+  let policyResult = "allowed";
+
+  if (response) {
+    await createAgentActivityEvent({
+      teamId: context.tcProfile.teamId,
+      transactionId: context.transactionId,
+      agentDecisionId: decisionRecord.id,
+      sourceType: "email",
+      eventType: "proactive_response_composed",
+      title: "Composed proactive response",
+      summary: `Composed "${response.subject}" for ${response.to.join(", ")}.`,
+      status: "completed",
+      metadata: {
+        wakeupId: wakeup.id,
+        subject: response.subject,
+        to: response.to,
+        cc: response.cc ?? [],
+        labels: response.labels,
+        bodyPreview: safeBodyPreview(response.body)
+      }
+    });
+
+    const needsApproval =
+      decision.action === "draft_external_email" ||
+      decision.requiresApproval ||
+      !responseIsRealtorOnly({
+        realtorEmail: context.tcProfile.escalationEmail,
+        to: response.to
+      });
+
+    if (needsApproval) {
+      policyResult = "approval_required";
+      const approval = await createApproval({
+        transactionId: context.transactionId,
+        agentDecisionId: decisionRecord.id,
+        taskId: decision.taskId,
+        proposedSubject: response.subject,
+        proposedBody: response.body,
+        proposedTo: response.to,
+        proposedCc: response.cc ?? []
+      });
+      const request = approvalRequestEmail({
+        proposedSubject: response.subject,
+        proposedBody: response.body,
+        proposedTo: response.to
+      });
+      const requestMessage = await sendTcEmail({
+        inboxId: context.tcProfile.inboxId,
+        to: [context.tcProfile.escalationEmail],
+        subject: request.subject,
+        text: request.text,
+        labels: ["approval_request", "proactive", decision.action]
+      });
+      const requestMetadata = extractAgentMailMessageMetadata(requestMessage);
+      await updateApprovalRequestMetadata({
+        id: approval.id,
+        requestMessageId: requestMetadata.messageId,
+        requestThreadId: requestMetadata.threadId
+      });
+      await createAgentActivityEvent({
+        teamId: context.tcProfile.teamId,
+        transactionId: context.transactionId,
+        agentDecisionId: decisionRecord.id,
+        sourceType: "approval",
+        eventType: "proactive_approval_request_sent",
+        title: "Sent proactive approval request",
+        summary: `Asked the realtor to approve "${response.subject}".`,
+        status: "waiting",
+        metadata: {
+          wakeupId: wakeup.id,
+          approvalId: approval.id,
+          taskId: decision.taskId,
+          subject: request.subject,
+          requestMessageId: requestMetadata.messageId,
+          requestThreadId: requestMetadata.threadId,
+          bodyPreview: safeBodyPreview(request.text)
+        }
+      });
+      executionStatus = "waiting_approval";
+      toolResults.push({ tool: "createApproval", result: "created", approvalId: approval.id });
+    } else {
+      await sendTcEmail({
+        inboxId: context.tcProfile.inboxId,
+        to: response.to,
+        cc: response.cc,
+        subject: response.subject,
+        text: response.body,
+        labels: response.labels ?? ["proactive"]
+      });
+      await createAgentActivityEvent({
+        teamId: context.tcProfile.teamId,
+        transactionId: context.transactionId,
+        agentDecisionId: decisionRecord.id,
+        sourceType: "email",
+        eventType: "proactive_email_sent",
+        title: "Sent proactive email",
+        summary: `Sent "${response.subject}" to ${response.to.join(", ")}.`,
+        status: "sent",
+        metadata: {
+          wakeupId: wakeup.id,
+          subject: response.subject,
+          to: response.to,
+          cc: response.cc ?? [],
+          labels: response.labels,
+          bodyPreview: safeBodyPreview(response.body)
+        }
+      });
+      const transition = await transitionOutboundTaskToWaitingResponse({
+        teamId: context.tcProfile.teamId,
+        transactionId: context.transactionId,
+        taskId: decision.taskId,
+        recipientEmails: response.to,
+        today: getTemporalContext().today,
+        agentDecisionId: decisionRecord.id,
+        outboundSubject: response.subject
+      });
+      toolResults.push({ tool: "sendResponse", result: "sent" });
+      toolResults.push({ tool: "outboundTaskTransition", result: transition });
+    }
+  } else {
+    toolResults.push({ tool: "sendResponse", result: "skipped", reason: "no response needed" });
+  }
+
+  await updateAgentDecisionExecution({
+    decisionId: decisionRecord.id,
+    policyResult,
+    toolResults,
+    status: executionStatus
+  });
+
+  await createAuditEvent({
+    teamId: context.tcProfile.teamId,
+    transactionId: context.transactionId,
+    actor: "tc_agent",
+    eventType: "proactive_wakeup_executed",
+    payload: {
+      wakeupId: wakeup.id,
+      decisionId: decisionRecord.id,
+      action: decision.action,
+      status: executionStatus,
+      toolResults
+    }
+  });
+
+  await completeAgentWakeup({
+    id: wakeup.id,
+    status: decision.action === "noop" ? "skipped" : "completed",
+    payload: {
+      decisionId: decisionRecord.id,
+      executionStatus
+    }
+  });
+
+  await createAgentActivityEvent({
+    teamId: context.tcProfile.teamId,
+    transactionId: context.transactionId,
+    agentDecisionId: decisionRecord.id,
+    sourceType: "system",
+    eventType: "proactive_wakeup_completed",
+    title: "Completed proactive wakeup",
+    summary: `Proactive wakeup finished with ${executionStatus}.`,
+    status: decision.action === "noop" ? "ignored" : "completed",
+    metadata: {
+      wakeupId: wakeup.id,
+      actionType: wakeup.actionType,
+      action: decision.action,
+      policyResult,
+      toolResults
+    }
+  });
+
+  return {
+    status: executionStatus,
+    action: decision.action,
+    decisionId: decisionRecord.id,
+    dedupeKey: wakeupDedupeKey({
+      transactionId: wakeup.transactionId,
+      actionType: wakeup.actionType,
+      taskId: wakeup.taskId
+    })
+  };
+}
