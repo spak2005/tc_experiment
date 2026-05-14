@@ -106,6 +106,42 @@ export type TransactionWriteApprovalStatus =
   | "blocked"
   | "skipped";
 
+export type AgentWakeupActionType =
+  | "transaction_dispatch"
+  | "transaction_heartbeat"
+  | "task_follow_up";
+
+export type AgentWakeupStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "cancelled"
+  | "failed"
+  | "skipped";
+
+export interface AgentWakeup {
+  id: ID;
+  teamId: ID;
+  transactionId: ID;
+  taskId?: ID;
+  actionType: AgentWakeupActionType;
+  reason: string;
+  status: AgentWakeupStatus;
+  dedupeKey: string;
+  wakeAt: string;
+  payload: Record<string, unknown>;
+  preconditions: Record<string, unknown>;
+  attemptCount: number;
+  maxAttempts: number;
+  lockedAt?: string;
+  lockedBy?: string;
+  lastError?: string;
+  completedAt?: string;
+  cancelledAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface User {
   id: ID;
   teamId: ID;
