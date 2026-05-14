@@ -146,7 +146,8 @@ export const upsertMilestonesWriteSchema = z.object({
           ]),
           sourceReference: z.string().optional(),
           riskLevel: z.enum(["normal", "watch", "urgent", "critical"]),
-          completedAt: z.string().datetime().nullable().optional()
+          completedAt: z.string().datetime().nullable().optional(),
+          metadata: z.record(jsonValueSchema).optional()
         })
       )
       .min(1)
@@ -178,7 +179,9 @@ export const updateTasksWriteSchema = z.object({
                 "cancelled"
               ])
               .optional(),
-            dueDate: dateOnlySchema.nullable().optional()
+            dueDate: dateOnlySchema.nullable().optional(),
+            followUpDueDate: dateOnlySchema.nullable().optional(),
+            metadata: z.record(jsonValueSchema).optional()
           })
           .refine((task) => task.id || (task.title && task.ownerRole), {
             message: "Task update requires either id or title plus ownerRole."
@@ -199,6 +202,9 @@ export const updateDocumentsWriteSchema = z.object({
             id: z.string().uuid().optional(),
             name: z.string().min(1).optional(),
             type: z.string().min(1).optional(),
+            ownerRole: z.string().min(1).optional(),
+            dueDate: dateOnlySchema.nullable().optional(),
+            metadata: z.record(jsonValueSchema).optional(),
             status: z.enum([
               "needed",
               "requested",
@@ -229,6 +235,7 @@ export const upsertBlockerWriteSchema = z.object({
     riskLevel: z.enum(["normal", "watch", "urgent", "critical"]),
     responsiblePartyRole: partyRoleSchema.optional(),
     deadlineId: z.string().uuid().optional(),
+    taskId: z.string().uuid().optional(),
     resolved: z.boolean().optional()
   }),
   source: transactionWriteSourceSchema

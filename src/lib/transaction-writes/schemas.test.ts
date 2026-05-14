@@ -41,7 +41,8 @@ describe("transactionWriteSchema", () => {
               phase: "closing_funding",
               dueDate: "2026-06-30",
               sourceType: "explicit_date",
-              riskLevel: "critical"
+              riskLevel: "critical",
+              metadata: { expectedEvidence: ["funding confirmation"] }
             }
           ]
         },
@@ -51,7 +52,15 @@ describe("transactionWriteSchema", () => {
         name: "updateTasks",
         input: {
           transactionId,
-          tasks: [{ title: "Confirm title receipt", ownerRole: "title", status: "complete" }]
+          tasks: [
+            {
+              title: "Confirm title receipt",
+              ownerRole: "title",
+              status: "waiting_response",
+              followUpDueDate: "2026-06-01",
+              metadata: { staleAfterDays: 1 }
+            }
+          ]
         },
         source
       },
@@ -59,7 +68,16 @@ describe("transactionWriteSchema", () => {
         name: "updateDocuments",
         input: {
           transactionId,
-          documents: [{ name: "Contract.pdf", status: "approved" }]
+          documents: [
+            {
+              name: "Contract.pdf",
+              type: "contract",
+              ownerRole: "agent",
+              dueDate: "2026-05-14",
+              status: "approved",
+              metadata: { expectedEvidence: ["executed pdf"] }
+            }
+          ]
         },
         source
       },
@@ -69,7 +87,8 @@ describe("transactionWriteSchema", () => {
           transactionId,
           title: "Missing title company",
           details: "Need escrow officer contact.",
-          riskLevel: "watch"
+          riskLevel: "watch",
+          taskId: transactionId
         },
         source
       },

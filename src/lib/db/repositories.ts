@@ -720,6 +720,7 @@ export async function insertMilestones(
     sourceType: string;
     sourceReference?: string;
     riskLevel: string;
+    metadata?: Record<string, unknown>;
   }>
 ) {
   for (const milestone of milestones) {
@@ -732,16 +733,18 @@ export async function insertMilestones(
          due_date,
          source_type,
          source_reference,
-         risk_level
+         risk_level,
+         metadata
        )
-       values ($1, $2, $3, $4, $5, $6, $7, $8)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        on conflict (transaction_id, key) do update
          set title = excluded.title,
              phase = excluded.phase,
              due_date = excluded.due_date,
              source_type = excluded.source_type,
              source_reference = excluded.source_reference,
-             risk_level = excluded.risk_level`,
+             risk_level = excluded.risk_level,
+             metadata = excluded.metadata`,
       [
         transactionId,
         milestone.key,
@@ -750,7 +753,8 @@ export async function insertMilestones(
         milestone.dueDate ?? null,
         milestone.sourceType,
         milestone.sourceReference ?? null,
-        milestone.riskLevel
+        milestone.riskLevel,
+        toJsonb(milestone.metadata ?? {})
       ]
     );
   }
@@ -763,12 +767,22 @@ export async function insertTasks(
     ownerRole: string;
     status: string;
     dueDate?: string;
+    followUpDueDate?: string;
+    metadata?: Record<string, unknown>;
   }>
 ) {
   for (const task of tasks) {
     await query(
-      `insert into tasks (transaction_id, title, owner_role, status, due_date)
-       select $1, $2, $3, $4, $5
+      `insert into tasks (
+         transaction_id,
+         title,
+         owner_role,
+         status,
+         due_date,
+         follow_up_due_date,
+         metadata
+       )
+       select $1, $2, $3, $4, $5, $6, $7
        where not exists (
          select 1
          from tasks
@@ -776,7 +790,15 @@ export async function insertTasks(
            and title = $2
            and owner_role = $3
        )`,
-      [transactionId, task.title, task.ownerRole, task.status, task.dueDate ?? null]
+      [
+        transactionId,
+        task.title,
+        task.ownerRole,
+        task.status,
+        task.dueDate ?? null,
+        task.followUpDueDate ?? null,
+        toJsonb(task.metadata ?? {})
+      ]
     );
   }
 }
@@ -791,6 +813,7 @@ export async function upsertMilestoneRecord(input: {
   sourceReference?: string;
   riskLevel: string;
   completedAt?: string | null;
+  metadata?: Record<string, unknown>;
 }) {
   const result = await query<{ id: string }>(
     `insert into milestones (
@@ -802,9 +825,10 @@ export async function upsertMilestoneRecord(input: {
        source_type,
        source_reference,
        risk_level,
-       completed_at
+       completed_at,
+       metadata
      )
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      on conflict (transaction_id, key) do update
        set title = excluded.title,
            phase = excluded.phase,
@@ -812,7 +836,8 @@ export async function upsertMilestoneRecord(input: {
            source_type = excluded.source_type,
            source_reference = excluded.source_reference,
            risk_level = excluded.risk_level,
-           completed_at = excluded.completed_at
+           completed_at = excluded.completed_at,
+           metadata = excluded.metadata
      returning id`,
     [
       input.transactionId,
@@ -823,7 +848,8 @@ export async function upsertMilestoneRecord(input: {
       input.sourceType,
       input.sourceReference ?? null,
       input.riskLevel,
-      input.completedAt ?? null
+      input.completedAt ?? null,
+      toJsonb(input.metadata ?? {})
     ]
   );
 
@@ -837,6 +863,8 @@ export async function upsertTaskRecord(input: {
   ownerRole?: string;
   status?: string;
   dueDate?: string | null;
+  followUpDueDate?: string | null;
+  metadata?: Record<string, unknown>;
 }) {
   const existing = await query<{ id: string }>(
     `select id
@@ -862,7 +890,12 @@ export async function upsertTaskRecord(input: {
        set title = coalesce($2, title),
            owner_role = coalesce($3, owner_role),
            status = coalesce($4, status),
-           due_date = coalesce($5::date, due_date)
+           due_date = coalesce($5::date, due_date),
+           follow_up_due_date = coalesce($6::date, follow_up_due_date),
+           metadata = case
+             when $7::jsonb = '{}'::jsonb then metadata
+             else metadata || $7::jsonb
+           end
        where id = $1
        returning id`,
       [
@@ -870,7 +903,9 @@ export async function upsertTaskRecord(input: {
         input.title ?? null,
         input.ownerRole ?? null,
         input.status ?? null,
-        input.dueDate ?? null
+        input.dueDate ?? null,
+        input.followUpDueDate ?? null,
+        toJsonb(input.metadata ?? {})
       ]
     );
 
@@ -882,15 +917,25 @@ export async function upsertTaskRecord(input: {
   }
 
   const result = await query<{ id: string }>(
-    `insert into tasks (transaction_id, title, owner_role, status, due_date)
-     values ($1, $2, $3, $4, $5)
+    `insert into tasks (
+       transaction_id,
+       title,
+       owner_role,
+       status,
+       due_date,
+       follow_up_due_date,
+       metadata
+     )
+     values ($1, $2, $3, $4, $5, $6, $7)
      returning id`,
     [
       input.transactionId,
       input.title,
       input.ownerRole,
       input.status ?? "not_started",
-      input.dueDate ?? null
+      input.dueDate ?? null,
+      input.followUpDueDate ?? null,
+      toJsonb(input.metadata ?? {})
     ]
   );
 
@@ -946,6 +991,9 @@ export async function createDocumentRecord(input: {
   status: string;
   blobKey?: string;
   sourceMessageId?: string;
+  ownerRole?: string;
+  dueDate?: string | null;
+  metadata?: Record<string, unknown>;
 }) {
   const result = await query<{ id: string }>(
     `insert into documents (
@@ -954,9 +1002,12 @@ export async function createDocumentRecord(input: {
        name,
        status,
        blob_key,
-       source_message_id
+       source_message_id,
+       owner_role,
+       due_date,
+       metadata
      )
-     values ($1, $2, $3, $4, $5, $6)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      returning id`,
     [
       input.transactionId,
@@ -964,7 +1015,10 @@ export async function createDocumentRecord(input: {
       input.name,
       input.status,
       input.blobKey ?? null,
-      input.sourceMessageId ?? null
+      input.sourceMessageId ?? null,
+      input.ownerRole ?? null,
+      input.dueDate ?? null,
+      toJsonb(input.metadata ?? {})
     ]
   );
 
@@ -1061,32 +1115,78 @@ export async function updateDocumentRecord(input: {
   name?: string;
   type?: string;
   status: string;
+  ownerRole?: string;
+  dueDate?: string | null;
+  metadata?: Record<string, unknown>;
 }) {
   const result = await query<{
     id: string;
     type: string;
     name: string;
     status: string;
+    inserted?: boolean;
   }>(
     `update documents
      set type = coalesce($4, type),
-         status = $5
+         status = $5,
+         owner_role = coalesce($6, owner_role),
+         due_date = coalesce($7::date, due_date),
+         metadata = case
+           when $8::jsonb = '{}'::jsonb then metadata
+           else metadata || $8::jsonb
+         end
      where transaction_id = $1
        and (
          ($2::uuid is not null and id = $2::uuid) or
          ($3::text is not null and name = $3::text)
        )
-     returning id, type, name, status`,
+     returning id, type, name, status, false as inserted`,
     [
       input.transactionId,
       input.id ?? null,
       input.name ?? null,
       input.type ?? null,
-      input.status
+      input.status,
+      input.ownerRole ?? null,
+      input.dueDate ?? null,
+      toJsonb(input.metadata ?? {})
     ]
   );
 
-  return result.rows[0] ?? null;
+  if (result.rows[0] || !input.name || !input.type) {
+    return result.rows[0] ?? null;
+  }
+
+  const inserted = await query<{
+    id: string;
+    type: string;
+    name: string;
+    status: string;
+    inserted: boolean;
+  }>(
+    `insert into documents (
+       transaction_id,
+       type,
+       name,
+       status,
+       owner_role,
+       due_date,
+       metadata
+     )
+     values ($1, $2, $3, $4, $5, $6, $7)
+     returning id, type, name, status, true as inserted`,
+    [
+      input.transactionId,
+      input.type,
+      input.name,
+      input.status,
+      input.ownerRole ?? null,
+      input.dueDate ?? null,
+      toJsonb(input.metadata ?? {})
+    ]
+  );
+
+  return inserted.rows[0] ?? null;
 }
 
 export async function findTransactionMatchCandidates(teamId: string) {
@@ -1193,22 +1293,40 @@ export async function getTransactionContextData(transactionId: string) {
       source_reference: string | null;
       risk_level: string;
       completed_at: string | null;
+      metadata: unknown;
     }>(
-      `select key, title, phase, due_date::text, source_reference, risk_level, completed_at::text
+      `select key, title, phase, due_date::text, source_reference, risk_level, completed_at::text, metadata
        from milestones
        where transaction_id = $1
        order by due_date nulls last, title`,
       [transactionId]
     ),
-    query<{ title: string; owner_role: string; status: string; due_date: string | null }>(
-      `select title, owner_role, status, due_date::text
+    query<{
+      id: string;
+      title: string;
+      owner_role: string;
+      status: string;
+      due_date: string | null;
+      follow_up_due_date: string | null;
+      metadata: unknown;
+    }>(
+      `select id, title, owner_role, status, due_date::text, follow_up_due_date::text, metadata
        from tasks
        where transaction_id = $1
        order by due_date nulls last, created_at`,
       [transactionId]
     ),
-    query<{ type: string; name: string; status: string; blob_key: string | null; created_at: string }>(
-      `select type, name, status, blob_key, created_at::text
+    query<{
+      type: string;
+      name: string;
+      status: string;
+      blob_key: string | null;
+      owner_role: string | null;
+      due_date: string | null;
+      metadata: unknown;
+      created_at: string;
+    }>(
+      `select type, name, status, blob_key, owner_role, due_date::text, metadata, created_at::text
        from documents
        where transaction_id = $1
        order by created_at desc`,
@@ -1531,6 +1649,7 @@ export async function createBlocker(input: {
   details: string;
   riskLevel: string;
   deadlineId?: string;
+  taskId?: string;
 }) {
   const result = await query<{ id: string }>(
     `insert into blockers (
@@ -1538,16 +1657,18 @@ export async function createBlocker(input: {
        title,
        details,
        risk_level,
-       deadline_id
+       deadline_id,
+       task_id
      )
-     values ($1, $2, $3, $4, $5)
+     values ($1, $2, $3, $4, $5, $6)
      returning id`,
     [
       input.transactionId,
       input.title,
       input.details,
       input.riskLevel,
-      input.deadlineId ?? null
+      input.deadlineId ?? null,
+      input.taskId ?? null
     ]
   );
 
@@ -1562,6 +1683,7 @@ export async function upsertBlockerRecord(input: {
   riskLevel: string;
   responsiblePartyRole?: string;
   deadlineId?: string;
+  taskId?: string;
   resolved?: boolean;
 }) {
   const existing = await query<{ id: string }>(
@@ -1570,11 +1692,12 @@ export async function upsertBlockerRecord(input: {
      where transaction_id = $1
        and (
          ($2::uuid is not null and id = $2::uuid) or
-         ($3::text is not null and title = $3::text)
+         ($3::text is not null and title = $3::text) or
+         ($4::uuid is not null and task_id = $4::uuid and resolved_at is null)
        )
      order by created_at desc
      limit 1`,
-    [input.transactionId, input.id ?? null, input.title]
+    [input.transactionId, input.id ?? null, input.title, input.taskId ?? null]
   );
 
   if (existing.rows[0]) {
@@ -1585,7 +1708,8 @@ export async function upsertBlockerRecord(input: {
            risk_level = $4,
            responsible_party_role = coalesce($5, responsible_party_role),
            deadline_id = coalesce($6::uuid, deadline_id),
-           resolved_at = case when $7 then coalesce(resolved_at, now()) else resolved_at end
+           task_id = coalesce($7::uuid, task_id),
+           resolved_at = case when $8 then coalesce(resolved_at, now()) else resolved_at end
        where id = $1
        returning id`,
       [
@@ -1595,6 +1719,7 @@ export async function upsertBlockerRecord(input: {
         input.riskLevel,
         input.responsiblePartyRole ?? null,
         input.deadlineId ?? null,
+        input.taskId ?? null,
         input.resolved ?? false
       ]
     );
@@ -1610,9 +1735,10 @@ export async function upsertBlockerRecord(input: {
        risk_level,
        responsible_party_role,
        deadline_id,
+       task_id,
        resolved_at
      )
-     values ($1, $2, $3, $4, $5, $6, case when $7 then now() else null end)
+     values ($1, $2, $3, $4, $5, $6, $7, case when $8 then now() else null end)
      returning id`,
     [
       input.transactionId,
@@ -1621,6 +1747,7 @@ export async function upsertBlockerRecord(input: {
       input.riskLevel,
       input.responsiblePartyRole ?? null,
       input.deadlineId ?? null,
+      input.taskId ?? null,
       input.resolved ?? false
     ]
   );
@@ -1988,15 +2115,24 @@ export async function getTransactionDetail(transactionId: string) {
         source_reference: string | null;
         risk_level: string;
         completed_at: string | null;
+        metadata: unknown;
       }>(
-        `select key, title, phase, due_date::text, source_reference, risk_level, completed_at::text
+        `select key, title, phase, due_date::text, source_reference, risk_level, completed_at::text, metadata
          from milestones
          where transaction_id = $1
          order by due_date nulls last, title`,
         [transactionId]
       ),
-      query<{ title: string; owner_role: string; status: string; due_date: string | null }>(
-        `select title, owner_role, status, due_date::text
+      query<{
+        id: string;
+        title: string;
+        owner_role: string;
+        status: string;
+        due_date: string | null;
+        follow_up_due_date: string | null;
+        metadata: unknown;
+      }>(
+        `select id, title, owner_role, status, due_date::text, follow_up_due_date::text, metadata
          from tasks
          where transaction_id = $1
          order by due_date nulls last, created_at`,
@@ -2007,9 +2143,12 @@ export async function getTransactionDetail(transactionId: string) {
         name: string;
         status: string;
         blob_key: string | null;
+        owner_role: string | null;
+        due_date: string | null;
+        metadata: unknown;
         created_at: string;
       }>(
-        `select type, name, status, blob_key, created_at::text
+        `select type, name, status, blob_key, owner_role, due_date::text, metadata, created_at::text
          from documents
          where transaction_id = $1
          order by created_at desc`,

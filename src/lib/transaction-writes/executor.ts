@@ -317,7 +317,10 @@ async function executeDocumentsWrite(input: {
       id: document.id,
       name: document.name,
       type: document.type,
-      status: document.status
+      status: document.status,
+      ownerRole: document.ownerRole,
+      dueDate: document.dueDate,
+      metadata: document.metadata
     });
 
     if (!updated) {
@@ -342,7 +345,7 @@ async function executeDocumentsWrite(input: {
       targetId: updated.id,
       fieldKey: "status",
       newValue: document.status,
-      message: `Updated document ${updated.name} to ${document.status}.`
+      message: `${updated.inserted ? "Created" : "Updated"} document ${updated.name} to ${document.status}.`
     });
     await recordWriteResult({ ...input, transactionId, result: applied });
     results.push(applied);
@@ -369,7 +372,8 @@ async function executeMilestonesWrite(input: {
       sourceType: milestone.sourceType,
       sourceReference: milestone.sourceReference,
       riskLevel: milestone.riskLevel,
-      completedAt: milestone.completedAt
+      completedAt: milestone.completedAt,
+      metadata: milestone.metadata
     });
     const applied = result({
       name: input.write.name,
@@ -402,7 +406,9 @@ async function executeTasksWrite(input: {
       title: task.title,
       ownerRole: task.ownerRole,
       status: task.status,
-      dueDate: task.dueDate
+      dueDate: task.dueDate,
+      followUpDueDate: task.followUpDueDate,
+      metadata: task.metadata
     });
 
     if (!saved) {
@@ -449,6 +455,7 @@ async function executeBlockerWrite(input: {
     riskLevel: input.write.input.riskLevel,
     responsiblePartyRole: input.write.input.responsiblePartyRole,
     deadlineId: input.write.input.deadlineId,
+    taskId: input.write.input.taskId,
     resolved: input.write.input.resolved
   });
   const applied = result({

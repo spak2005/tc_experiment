@@ -172,6 +172,9 @@ export interface DocumentRecord {
   status: DocumentStatus;
   blobKey?: string;
   sourceMessageId?: string;
+  ownerRole?: PartyRole | "tc" | "agent";
+  dueDate?: string;
+  metadata?: Record<string, unknown>;
   createdAt: Date;
 }
 
@@ -186,6 +189,7 @@ export interface Milestone {
   sourceReference?: string;
   riskLevel: RiskLevel;
   completedAt?: Date;
+  metadata?: Record<string, unknown>;
 }
 
 export interface Task {
@@ -196,6 +200,8 @@ export interface Task {
   ownerRole: PartyRole | "tc" | "agent";
   status: TaskStatus;
   dueDate?: string;
+  followUpDueDate?: string;
+  metadata?: Record<string, unknown>;
   createdAt: Date;
 }
 
