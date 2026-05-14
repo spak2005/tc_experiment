@@ -48,6 +48,20 @@ function firstPartyWithEmail(parties: ProactiveParty[], role?: string) {
   return parties.find((party) => party.role === role && party.email);
 }
 
+function recipientForTask(parties: ProactiveParty[], metadata: Record<string, unknown>) {
+  const roles = [
+    stringValue(metadata.recipientRole),
+    ...arrayValue(metadata.recipientRoleCandidates)
+  ].filter((role): role is string => typeof role === "string");
+
+  for (const role of roles) {
+    const party = firstPartyWithEmail(parties, role);
+    if (party) return party;
+  }
+
+  return undefined;
+}
+
 function firstNotStartedProactiveTask(context: ProactiveAgentContext) {
   return context.transactionContext.tasks.find((task) => {
     const metadata = recordValue(task.metadata);
@@ -245,7 +259,7 @@ function fallbackProactiveDecision(context: ProactiveAgentContext): ProactiveDec
   }
 
   const recipientRole = stringValue(metadata.recipientRole);
-  const recipient = firstPartyWithEmail(context.parties, recipientRole);
+  const recipient = recipientForTask(context.parties, metadata);
   if (!recipient) {
     return missingContactDecision({
       context,
