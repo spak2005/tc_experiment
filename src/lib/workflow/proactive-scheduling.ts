@@ -1,4 +1,5 @@
 import {
+  cancelPendingAgentWakeups,
   createAgentActivityEvent,
   createAgentWakeup
 } from "@/lib/db/repositories";
@@ -161,4 +162,39 @@ export async function scheduleNextHeartbeat(input: {
       scheduledBy: "adaptive_heartbeat"
     }
   });
+}
+
+export async function cancelScheduledWakeups(input: {
+  teamId: string;
+  transactionId: string;
+  actionType?: AgentWakeupActionType;
+  taskId?: string;
+  reason: string;
+}) {
+  const cancelled = await cancelPendingAgentWakeups({
+    transactionId: input.transactionId,
+    actionType: input.actionType,
+    taskId: input.taskId,
+    reason: input.reason
+  });
+
+  for (const wakeup of cancelled) {
+    await createAgentActivityEvent({
+      teamId: input.teamId,
+      transactionId: input.transactionId,
+      sourceType: "system",
+      eventType: "proactive_wakeup_cancelled",
+      title: "Cancelled proactive wakeup",
+      summary: `${wakeup.actionType} cancelled: ${input.reason}.`,
+      status: "ignored",
+      metadata: {
+        wakeupId: wakeup.id,
+        actionType: wakeup.actionType,
+        taskId: wakeup.taskId,
+        reason: input.reason
+      }
+    });
+  }
+
+  return cancelled;
 }
