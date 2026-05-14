@@ -49,12 +49,26 @@ export function agentEscalationEmail(input: AgentEscalationEmailInput) {
 export interface ApprovalRequestEmailInput {
   proposedSubject: string;
   proposedBody: string;
+  proposedTo?: string[];
+  intro?: string;
+}
+
+function formatApprovalRecipients(recipients?: string[]) {
+  if (!recipients || recipients.length === 0) return undefined;
+  if (recipients.length === 1) return recipients[0];
+  if (recipients.length === 2) return `${recipients[0]} and ${recipients[1]}`;
+
+  return `${recipients.slice(0, -1).join(", ")}, and ${recipients[recipients.length - 1]}`;
 }
 
 export function approvalRequestEmail(input: ApprovalRequestEmailInput) {
+  const recipient = formatApprovalRecipients(input.proposedTo);
+  const intro = input.intro ?? "I drafted the email below";
+  const recipientContext = recipient ? ` for ${recipient}` : "";
+
   return {
     subject: `Approve email: ${input.proposedSubject}`,
-    text: `I drafted this email and want to make sure it looks right before I send it.\n\nSubject: ${input.proposedSubject}\n\n${input.proposedBody}\n\nIs this okay to send, or should I make any changes?`
+    text: `${intro}${recipientContext} about "${input.proposedSubject}" and want to make sure it looks right before I send it.\n\nSubject: ${input.proposedSubject}\n\n${input.proposedBody}\n\nIs this okay to send, or should I make any changes?`
   };
 }
 

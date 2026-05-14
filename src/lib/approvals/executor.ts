@@ -168,12 +168,14 @@ async function sendRevisedApprovalRequest(input: {
 }) {
   const request = approvalRequestEmail({
     proposedSubject: input.approval.proposed_subject,
-    proposedBody: input.approval.proposed_body
+    proposedBody: input.approval.proposed_body,
+    proposedTo: input.approval.proposed_to,
+    intro: "I made those changes and put the revised draft below"
   });
   const response = await replyToRealtor({
     approval: input.approval,
     inbound: input.inbound,
-    text: `I made those changes.\n\n${request.text}`,
+    text: request.text,
     labels: ["approval_request", "approval_revised"]
   });
   const metadata = extractAgentMailMessageMetadata(response);

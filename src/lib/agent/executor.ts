@@ -228,7 +228,8 @@ export async function executeAgentDecision(input: {
         });
         const request = approvalRequestEmail({
           proposedSubject: response.subject,
-          proposedBody: response.body
+          proposedBody: response.body,
+          proposedTo: response.to
         });
 
         const requestMessage = await sendTcEmail({
