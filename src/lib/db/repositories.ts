@@ -7,6 +7,11 @@ import {
   mapLegacyRecordsToActivity,
   sortActivityTimeline
 } from "@/lib/agent/activity-timeline";
+import type {
+  AgentWakeup,
+  AgentWakeupActionType,
+  AgentWakeupStatus
+} from "@/lib/domain/types";
 
 function toJsonb(value: unknown) {
   return JSON.stringify(value ?? null);
@@ -49,6 +54,60 @@ function toActivityEvent(row: {
         ? (row.metadata as Record<string, unknown>)
         : {},
     occurredAt: row.occurred_at
+  };
+}
+
+type AgentWakeupRow = {
+  id: string;
+  team_id: string;
+  transaction_id: string;
+  task_id: string | null;
+  action_type: AgentWakeupActionType;
+  reason: string;
+  status: AgentWakeupStatus;
+  dedupe_key: string;
+  wake_at: string;
+  payload: unknown;
+  preconditions: unknown;
+  attempt_count: number;
+  max_attempts: number;
+  locked_at: string | null;
+  locked_by: string | null;
+  last_error: string | null;
+  completed_at: string | null;
+  cancelled_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+function toAgentWakeup(row: AgentWakeupRow): AgentWakeup {
+  return {
+    id: row.id,
+    teamId: row.team_id,
+    transactionId: row.transaction_id,
+    taskId: row.task_id ?? undefined,
+    actionType: row.action_type,
+    reason: row.reason,
+    status: row.status,
+    dedupeKey: row.dedupe_key,
+    wakeAt: row.wake_at,
+    payload:
+      row.payload && typeof row.payload === "object"
+        ? (row.payload as Record<string, unknown>)
+        : {},
+    preconditions:
+      row.preconditions && typeof row.preconditions === "object"
+        ? (row.preconditions as Record<string, unknown>)
+        : {},
+    attemptCount: row.attempt_count,
+    maxAttempts: row.max_attempts,
+    lockedAt: row.locked_at ?? undefined,
+    lockedBy: row.locked_by ?? undefined,
+    lastError: row.last_error ?? undefined,
+    completedAt: row.completed_at ?? undefined,
+    cancelledAt: row.cancelled_at ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
   };
 }
 
@@ -307,6 +366,177 @@ export async function createAuditEvent(input: {
       toJsonb(input.payload ?? {})
     ]
   );
+}
+
+const agentWakeupColumns = `
+  id,
+  team_id,
+  transaction_id,
+  task_id,
+  action_type,
+  reason,
+  status,
+  dedupe_key,
+  wake_at::text,
+  payload,
+  preconditions,
+  attempt_count,
+  max_attempts,
+  locked_at::text,
+  locked_by,
+  last_error,
+  completed_at::text,
+  cancelled_at::text,
+  created_at::text,
+  updated_at::text
+`;
+
+export async function createAgentWakeup(input: {
+  teamId: string;
+  transactionId: string;
+  taskId?: string;
+  actionType: AgentWakeupActionType;
+  reason: string;
+  dedupeKey: string;
+  wakeAt: string;
+  payload?: Record<string, unknown>;
+  preconditions?: Record<string, unknown>;
+  maxAttempts?: number;
+}) {
+  const result = await query<AgentWakeupRow>(
+    `insert into agent_wakeups (
+       team_id,
+       transaction_id,
+       task_id,
+       action_type,
+       reason,
+       dedupe_key,
+       wake_at,
+       payload,
+       preconditions,
+       max_attempts
+     )
+     values ($1, $2, $3, $4, $5, $6, $7::timestamptz, $8, $9, $10)
+     on conflict (dedupe_key) where status in ('pending', 'running') do update
+       set wake_at = excluded.wake_at,
+           reason = excluded.reason,
+           payload = excluded.payload,
+           preconditions = excluded.preconditions,
+           max_attempts = excluded.max_attempts,
+           updated_at = now()
+     returning ${agentWakeupColumns}`,
+    [
+      input.teamId,
+      input.transactionId,
+      input.taskId ?? null,
+      input.actionType,
+      input.reason,
+      input.dedupeKey,
+      input.wakeAt,
+      toJsonb(input.payload ?? {}),
+      toJsonb(input.preconditions ?? {}),
+      input.maxAttempts ?? 3
+    ]
+  );
+
+  return toAgentWakeup(result.rows[0]);
+}
+
+export async function completeAgentWakeup(input: {
+  id: string;
+  status?: Extract<AgentWakeupStatus, "completed" | "skipped">;
+  payload?: Record<string, unknown>;
+}) {
+  const result = await query<AgentWakeupRow>(
+    `update agent_wakeups
+     set status = $2,
+         payload = case
+           when $3::jsonb = '{}'::jsonb then payload
+           else payload || $3::jsonb
+         end,
+         completed_at = now(),
+         locked_at = null,
+         locked_by = null,
+         updated_at = now()
+     where id = $1
+     returning ${agentWakeupColumns}`,
+    [input.id, input.status ?? "completed", toJsonb(input.payload ?? {})]
+  );
+
+  return result.rows[0] ? toAgentWakeup(result.rows[0]) : null;
+}
+
+export async function failAgentWakeup(input: {
+  id: string;
+  error: string;
+  retryAt?: string;
+}) {
+  const result = await query<AgentWakeupRow>(
+    `update agent_wakeups
+     set status = case
+           when attempt_count >= max_attempts then 'failed'
+           else 'pending'
+         end,
+         wake_at = case
+           when attempt_count >= max_attempts then wake_at
+           else coalesce($3::timestamptz, now() + interval '30 minutes')
+         end,
+         last_error = $2,
+         locked_at = null,
+         locked_by = null,
+         updated_at = now()
+     where id = $1
+     returning ${agentWakeupColumns}`,
+    [input.id, input.error, input.retryAt ?? null]
+  );
+
+  return result.rows[0] ? toAgentWakeup(result.rows[0]) : null;
+}
+
+export async function cancelPendingAgentWakeups(input: {
+  transactionId: string;
+  actionType?: AgentWakeupActionType;
+  taskId?: string;
+  reason?: string;
+}) {
+  const result = await query<AgentWakeupRow>(
+    `update agent_wakeups
+     set status = 'cancelled',
+         cancelled_at = now(),
+         last_error = coalesce($4, last_error),
+         locked_at = null,
+         locked_by = null,
+         updated_at = now()
+     where transaction_id = $1
+       and status in ('pending', 'running')
+       and ($2::text is null or action_type = $2)
+       and ($3::uuid is null or task_id = $3::uuid)
+     returning ${agentWakeupColumns}`,
+    [
+      input.transactionId,
+      input.actionType ?? null,
+      input.taskId ?? null,
+      input.reason ?? null
+    ]
+  );
+
+  return result.rows.map(toAgentWakeup);
+}
+
+export async function listTransactionWakeups(input: {
+  transactionId: string;
+  statuses?: AgentWakeupStatus[];
+}) {
+  const result = await query<AgentWakeupRow>(
+    `select ${agentWakeupColumns}
+     from agent_wakeups
+     where transaction_id = $1
+       and ($2::text[] is null or status = any($2::text[]))
+     order by wake_at asc, created_at asc`,
+    [input.transactionId, input.statuses ?? null]
+  );
+
+  return result.rows.map(toAgentWakeup);
 }
 
 export async function findTcProfileByInbox(inboxAddress: string) {
