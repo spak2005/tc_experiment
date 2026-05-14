@@ -20,7 +20,11 @@ import type { AgentWakeup } from "@/lib/domain/types";
 import { approvalRequestEmail } from "@/lib/email/templates";
 import { getTemporalContext } from "@/lib/time/clock";
 import { executeTransactionWrites } from "@/lib/transaction-writes/executor";
-import { scheduleAgentWakeup } from "@/lib/workflow/proactive-scheduling";
+import {
+  cancelScheduledWakeups,
+  scheduleAgentWakeup,
+  scheduleNextHeartbeat
+} from "@/lib/workflow/proactive-scheduling";
 import { transitionOutboundTaskToWaitingResponse } from "@/lib/workflow/task-transitions";
 
 function normalizeEmail(value?: string) {
@@ -288,6 +292,28 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
       actionType: scheduled.actionType,
       wakeAt: scheduled.wakeAt
     });
+  } else {
+    const heartbeat = await scheduleNextHeartbeat({ context });
+    if (heartbeat) {
+      toolResults.push({
+        tool: "scheduleHeartbeat",
+        result: "scheduled",
+        wakeupId: heartbeat.id,
+        wakeAt: heartbeat.wakeAt
+      });
+    } else {
+      const cancelled = await cancelScheduledWakeups({
+        teamId: context.tcProfile.teamId,
+        transactionId: context.transactionId,
+        actionType: "transaction_heartbeat",
+        reason: "Transaction is closed or terminated."
+      });
+      toolResults.push({
+        tool: "scheduleHeartbeat",
+        result: "cancelled",
+        count: cancelled.length
+      });
+    }
   }
 
   await updateAgentDecisionExecution({
