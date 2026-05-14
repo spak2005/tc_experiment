@@ -18,6 +18,7 @@ import type { AgentWakeup } from "@/lib/domain/types";
 import { approvalRequestEmail } from "@/lib/email/templates";
 import { getTemporalContext } from "@/lib/time/clock";
 import { executeTransactionWrites } from "@/lib/transaction-writes/executor";
+import { scheduleAgentWakeup } from "@/lib/workflow/proactive-scheduling";
 import { transitionOutboundTaskToWaitingResponse } from "@/lib/workflow/task-transitions";
 
 function normalizeEmail(value?: string) {
@@ -264,6 +265,27 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
     }
   } else {
     toolResults.push({ tool: "sendResponse", result: "skipped", reason: "no response needed" });
+  }
+
+  if (decision.nextWakeup) {
+    const scheduled = await scheduleAgentWakeup({
+      teamId: context.tcProfile.teamId,
+      transactionId: context.transactionId,
+      taskId: decision.nextWakeup.taskId,
+      actionType: decision.nextWakeup.actionType,
+      reason: decision.nextWakeup.reason,
+      wakeAt: decision.nextWakeup.wakeAt,
+      dedupeKey: decision.nextWakeup.dedupeKey,
+      payload: decision.nextWakeup.payload,
+      preconditions: decision.nextWakeup.preconditions
+    });
+    toolResults.push({
+      tool: "scheduleWakeup",
+      result: "scheduled",
+      wakeupId: scheduled.id,
+      actionType: scheduled.actionType,
+      wakeAt: scheduled.wakeAt
+    });
   }
 
   await updateAgentDecisionExecution({
