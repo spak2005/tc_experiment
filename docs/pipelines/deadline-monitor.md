@@ -42,6 +42,37 @@ Then it handles stale response tasks from `findStaleResponseTasks(today)`:
 | 4 | Send the realtor a deterministic escalation email |
 | 5 | Log activity + audit and add the blocker to the return array |
 
+### Who sets `tasks.follow_up_due_date`
+
+The deadline monitor never writes to `follow_up_due_date`. It only
+reads it. Both columns the stale-response query depends on
+(`status = 'waiting_response'` and `follow_up_due_date`) are written
+by [../../src/lib/workflow/task-transitions.ts](../../src/lib/workflow/task-transitions.ts)
+at the moment an outbound email is sent:
+
+- For a direct send: called from
+  [../../src/lib/agent/executor.ts](../../src/lib/agent/executor.ts)
+  after `sendDecisionResponse`.
+- For an approval-gated send: called from
+  [../../src/lib/approvals/executor.ts](../../src/lib/approvals/executor.ts)
+  inside `sendApprovedApproval`.
+
+The transition helper picks the task from `AgentDecision.response.taskId`
+when the decision LLM supplied one, and otherwise falls back to mapping
+the recipient email to a party role and finding the single open task
+with that owner role. `follow_up_due_date` is set to
+`today + tasks.metadata.staleAfterDays`, defaulting to
+`DEFAULT_STALE_AFTER_DAYS` (2) when metadata is missing. The helper
+also emits `outbound_task_transitioned` or
+`outbound_task_transition_skipped` activity events so the
+observability surface can show why a task did or did not start
+waiting.
+
+That means: if no `waiting_response` task ever appears for a deal you
+expect, the bug is in the outbound send path, not here. Check the
+relevant `outbound_task_transition_skipped` event for the reason
+(`no_external_recipient`, `no_match`, or `ambiguous`).
+
 The function returns the list of `{ transactionId, blockerId }` pairs
 it created.
 
