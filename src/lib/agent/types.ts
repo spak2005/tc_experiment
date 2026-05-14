@@ -116,6 +116,7 @@ export interface AgentDecision {
     to?: string[];
     cc?: string[];
     labels?: string[];
+    taskId?: string;
   };
   toolCalls: AgentToolCall[];
   transactionWrites: TransactionWrite[];

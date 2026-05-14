@@ -51,7 +51,8 @@ const agentDecisionSchema = z.object({
       body: z.string(),
       to: z.array(z.string()).optional(),
       cc: z.array(z.string()).optional(),
-      labels: z.array(z.string()).optional()
+      labels: z.array(z.string()).optional(),
+      taskId: z.string().uuid().optional()
     })
     .optional(),
   toolCalls: z.array(
