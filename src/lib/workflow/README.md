@@ -12,7 +12,8 @@ order for a particular trigger.
 | [deadline-monitor.ts](deadline-monitor.ts) | Inngest cron `*/30 * * * *` | Finds at-risk milestones and stale response tasks, creates deduped blockers, sends escalation emails. See [../../../docs/pipelines/deadline-monitor.md](../../../docs/pipelines/deadline-monitor.md). |
 | [contract-routing.ts](contract-routing.ts) | Called from `intake.ts` after document assessment | Picks `create_transaction`, `update_transaction`, `ask_which_transaction`, `ask_for_identity`, or `no_transaction_action` for a new contract PDF. Computes a "stable identity" from the property address + buyer/seller names. |
 | [status-responder.ts](status-responder.ts) | Called from [../agent/executor.ts](../agent/executor.ts) when the decision is `answer_status` | Builds the plain-text status answer for a transaction (current file, status, next deadline, open blockers). Also exports `isStatusQuestion(text)` as a heuristic. |
-| [tasks.ts](tasks.ts) | Called from `intake.ts` after milestones are generated | `createOpeningTasks()` returns opening tasks; `createTasksForMilestone(m)` turns operational milestone metadata into owner/follow-up task state. |
+| [tasks.ts](tasks.ts) | Called from `intake.ts` after milestones are generated | `createOpeningTasks()` returns opening tasks; `createTasksForMilestone(m)` turns operational milestone metadata into owner/follow-up task state. Tasks are created with `follow_up_due_date` unset; that field is populated later by `task-transitions.ts` at the moment an outbound email is sent. |
+| [task-transitions.ts](task-transitions.ts) | Called from [../agent/executor.ts](../agent/executor.ts) on a direct send and from [../approvals/executor.ts](../approvals/executor.ts) on an approved send | Resolves which open task an outbound email is meant to progress (LLM-supplied `taskId` first, then party-email -> owner-role fallback) and flips it to `waiting_response` with `follow_up_due_date = today + staleAfterDays`. Closes the send -> waiting_response -> stale escalation loop the deadline monitor relies on. |
 
 ## Tests
 
@@ -22,6 +23,7 @@ Each non-trivial workflow has a Vitest spec in this folder:
 - [deadline-monitor.test.ts](deadline-monitor.test.ts)
 - [status-responder.test.ts](status-responder.test.ts)
 - [tasks.test.ts](tasks.test.ts)
+- [task-transitions.test.ts](task-transitions.test.ts)
 
 These are the easiest way to learn the expected behavior. `intake.ts`
 does not have a unit test today — it is exercised end-to-end through
@@ -36,6 +38,8 @@ the Inngest function.
 | Change what counts as a status question | [status-responder.ts](status-responder.ts) (`statusQuestionPatterns`) |
 | Change owner-role mapping for milestone tasks | [tasks.ts](tasks.ts) (`ownerByMilestone`) |
 | Change deadline or stale-response risk math | [deadline-monitor.ts](deadline-monitor.ts) |
+| Change how outbound sends pick a task to flip to `waiting_response` | [task-transitions.ts](task-transitions.ts) (`resolveOutboundTask`, `transitionOutboundTaskToWaitingResponse`) |
+| Change the default stale window when a task has no `staleAfterDays` | [task-transitions.ts](task-transitions.ts) (`DEFAULT_STALE_AFTER_DAYS`) |
 | Change the cron schedule | [../inngest/functions.ts](../inngest/functions.ts) |
 
 ## What lives elsewhere

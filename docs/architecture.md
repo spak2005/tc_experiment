@@ -35,6 +35,7 @@ elsewhere.
 | Stable | [src/lib/workflow/deadline-monitor.ts](../src/lib/workflow/deadline-monitor.ts) | Cron worker that escalates at-risk milestones and stale response tasks |
 | Stable | [src/lib/workflow/status-responder.ts](../src/lib/workflow/status-responder.ts) | Builds "what is the status of my deal?" reply text |
 | Stable | [src/lib/workflow/tasks.ts](../src/lib/workflow/tasks.ts) | Opening tasks + operational per-milestone task generation |
+| Stable | [src/lib/workflow/task-transitions.ts](../src/lib/workflow/task-transitions.ts) | Flips an open task into `waiting_response` with a `follow_up_due_date` whenever an outbound email goes to an external party |
 | Stable | [src/lib/contracts/anthropic-extract.ts](../src/lib/contracts/anthropic-extract.ts) | Anthropic PDF extraction prompt + call |
 | Stable | [src/lib/contracts/extract.ts](../src/lib/contracts/extract.ts) | Regex fallback for TREC contract facts |
 | Stable | [src/lib/contracts/facts.ts](../src/lib/contracts/facts.ts) | Zod schema for `ContractFacts` + small accessors |
@@ -94,6 +95,8 @@ elsewhere.
 | Steps inside the inbound pipeline | [src/lib/workflow/intake.ts](../src/lib/workflow/intake.ts) (read [docs/pipelines/intake.md](pipelines/intake.md) first) |
 | Cron cadence for deadline monitoring | [src/lib/inngest/functions.ts](../src/lib/inngest/functions.ts) |
 | What "at risk" / stale response means or escalation copy | [src/lib/workflow/deadline-monitor.ts](../src/lib/workflow/deadline-monitor.ts) + [src/lib/email/templates.ts](../src/lib/email/templates.ts) |
+| How tasks transition to `waiting_response` on outbound send | [src/lib/workflow/task-transitions.ts](../src/lib/workflow/task-transitions.ts) (called from [src/lib/agent/executor.ts](../src/lib/agent/executor.ts) on direct sends and from [src/lib/approvals/executor.ts](../src/lib/approvals/executor.ts) on approved sends) |
+| Default stale window for outbound tasks | `DEFAULT_STALE_AFTER_DAYS` in [src/lib/workflow/task-transitions.ts](../src/lib/workflow/task-transitions.ts); per-task overrides live on `tasks.metadata.staleAfterDays`, set by [src/lib/milestones/engine.ts](../src/lib/milestones/engine.ts) |
 | Texas milestone definitions or due-date offsets | [src/lib/milestones/engine.ts](../src/lib/milestones/engine.ts) |
 | Operational milestone/task metadata | [src/lib/milestones/engine.ts](../src/lib/milestones/engine.ts) + [src/lib/workflow/tasks.ts](../src/lib/workflow/tasks.ts) |
 | Business-day / weekend / holiday math | [src/lib/milestones/date-rules.ts](../src/lib/milestones/date-rules.ts) |
