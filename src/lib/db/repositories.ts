@@ -995,6 +995,29 @@ export async function findOpenTasksByOwnerRole(input: {
   return result.rows;
 }
 
+export async function findPartyRolesByEmails(input: {
+  transactionId: string;
+  emails: string[];
+}): Promise<string[]> {
+  if (input.emails.length === 0) return [];
+
+  const normalized = input.emails
+    .map((email) => email.trim().toLowerCase())
+    .filter((email) => email.length > 0);
+  if (normalized.length === 0) return [];
+
+  const result = await query<{ role: string }>(
+    `select distinct role
+     from parties
+     where transaction_id = $1
+       and email is not null
+       and lower(email) = any($2::text[])`,
+    [input.transactionId, normalized]
+  );
+
+  return result.rows.map((row) => row.role);
+}
+
 export async function createMessage(input: {
   transactionId?: string;
   agentMailMessageId: string;

@@ -1,8 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  createAgentActivityEvent: vi.fn(),
+  findOpenTasksByOwnerRole: vi.fn(),
+  findPartyRolesByEmails: vi.fn(),
+  getTaskById: vi.fn(),
+  upsertTaskRecord: vi.fn()
+}));
+
+vi.mock("@/lib/db/repositories", () => mocks);
+
 import {
   DEFAULT_STALE_AFTER_DAYS,
   readStaleAfterDays,
-  resolveTaskFollowUpDate
+  resolveTaskFollowUpDate,
+  transitionOutboundTaskToWaitingResponse
 } from "@/lib/workflow/task-transitions";
 
 describe("readStaleAfterDays", () => {
@@ -69,5 +81,144 @@ describe("resolveTaskFollowUpDate", () => {
         today: "not-a-date"
       })
     ).toBeUndefined();
+  });
+});
+
+describe("transitionOutboundTaskToWaitingResponse", () => {
+  beforeEach(() => {
+    mocks.createAgentActivityEvent.mockReset();
+    mocks.findOpenTasksByOwnerRole.mockReset();
+    mocks.findPartyRolesByEmails.mockReset();
+    mocks.getTaskById.mockReset();
+    mocks.upsertTaskRecord.mockReset();
+  });
+
+  const baseInput = {
+    teamId: "team-1",
+    transactionId: "tx-1",
+    recipientEmails: ["title@example.com"],
+    today: "2026-05-13",
+    agentDecisionId: "decision-1"
+  };
+
+  it("flips the task identified by the LLM provided taskId", async () => {
+    mocks.getTaskById.mockResolvedValueOnce({
+      id: "task-1",
+      transaction_id: "tx-1",
+      title: "Earnest money due",
+      owner_role: "title",
+      status: "not_started",
+      due_date: "2026-05-15",
+      follow_up_due_date: null,
+      metadata: { staleAfterDays: 1 }
+    });
+
+    const result = await transitionOutboundTaskToWaitingResponse({
+      ...baseInput,
+      taskId: "task-1"
+    });
+
+    expect(result).toEqual({
+      status: "transitioned",
+      reason: "task_id",
+      taskId: "task-1",
+      followUpDueDate: "2026-05-14"
+    });
+    expect(mocks.upsertTaskRecord).toHaveBeenCalledWith({
+      transactionId: "tx-1",
+      id: "task-1",
+      status: "waiting_response",
+      followUpDueDate: "2026-05-14"
+    });
+    expect(mocks.findOpenTasksByOwnerRole).not.toHaveBeenCalled();
+  });
+
+  it("falls back to owner-role match when no taskId is supplied", async () => {
+    mocks.findPartyRolesByEmails.mockResolvedValueOnce(["title"]);
+    mocks.findOpenTasksByOwnerRole.mockResolvedValueOnce([
+      {
+        id: "task-2",
+        transaction_id: "tx-1",
+        title: "Title commitment due",
+        owner_role: "title",
+        status: "not_started",
+        due_date: null,
+        follow_up_due_date: null,
+        metadata: { staleAfterDays: 2 }
+      }
+    ]);
+
+    const result = await transitionOutboundTaskToWaitingResponse(baseInput);
+
+    expect(result.status).toBe("transitioned");
+    expect(result.reason).toBe("owner_role");
+    expect(result.followUpDueDate).toBe("2026-05-15");
+    expect(mocks.upsertTaskRecord).toHaveBeenCalledWith({
+      transactionId: "tx-1",
+      id: "task-2",
+      status: "waiting_response",
+      followUpDueDate: "2026-05-15"
+    });
+  });
+
+  it("skips and logs when no party email matches", async () => {
+    mocks.findPartyRolesByEmails.mockResolvedValueOnce([]);
+
+    const result = await transitionOutboundTaskToWaitingResponse(baseInput);
+
+    expect(result.status).toBe("skipped");
+    expect(result.reason).toBe("no_external_recipient");
+    expect(mocks.upsertTaskRecord).not.toHaveBeenCalled();
+    expect(mocks.createAgentActivityEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "outbound_task_transition_skipped",
+        status: "ignored"
+      })
+    );
+  });
+
+  it("skips when multiple open tasks share the owner role", async () => {
+    mocks.findPartyRolesByEmails.mockResolvedValueOnce(["title"]);
+    mocks.findOpenTasksByOwnerRole.mockResolvedValueOnce([
+      {
+        id: "task-a",
+        transaction_id: "tx-1",
+        title: "Earnest money due",
+        owner_role: "title",
+        status: "not_started",
+        due_date: "2026-05-15",
+        follow_up_due_date: null,
+        metadata: {}
+      },
+      {
+        id: "task-b",
+        transaction_id: "tx-1",
+        title: "Title commitment due",
+        owner_role: "title",
+        status: "not_started",
+        due_date: "2026-06-01",
+        follow_up_due_date: null,
+        metadata: {}
+      }
+    ]);
+
+    const result = await transitionOutboundTaskToWaitingResponse(baseInput);
+
+    expect(result.status).toBe("skipped");
+    expect(result.reason).toBe("ambiguous");
+    expect(mocks.upsertTaskRecord).not.toHaveBeenCalled();
+  });
+
+  it("ignores realtor-internal recipients", async () => {
+    mocks.findPartyRolesByEmails.mockResolvedValueOnce(["agent"]);
+
+    const result = await transitionOutboundTaskToWaitingResponse({
+      ...baseInput,
+      recipientEmails: ["agent@example.com"]
+    });
+
+    expect(result.status).toBe("skipped");
+    expect(result.reason).toBe("no_external_recipient");
+    expect(mocks.findOpenTasksByOwnerRole).not.toHaveBeenCalled();
   });
 });
