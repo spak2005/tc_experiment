@@ -15,10 +15,13 @@ elsewhere.
 
 | Status | File | Why it matters |
 | --- | --- | --- |
-| Active | [src/lib/workflow/intake.ts](../src/lib/workflow/intake.ts) | Main inbound-email pipeline (~800 lines, ~60% activity logging) |
-| Active | [src/lib/db/repositories.ts](../src/lib/db/repositories.ts) | Single Postgres repository file (~1336 lines); used by almost everything |
+| Active | [src/lib/workflow/intake.ts](../src/lib/workflow/intake.ts) | Main inbound-email pipeline; read pipeline doc before the file |
+| Active | [src/lib/db/repositories.ts](../src/lib/db/repositories.ts) | Single large Postgres repository file; use DB README/function search |
 | Active | [src/lib/agent/decision.ts](../src/lib/agent/decision.ts) | LLM-driven intent and action picker |
 | Active | [src/lib/agent/executor.ts](../src/lib/agent/executor.ts) | Sends emails, creates approvals, records execution |
+| Active | [src/lib/transaction-writes/executor.ts](../src/lib/transaction-writes/executor.ts) | Applies structured transaction mutations from intake and agent decisions |
+| Active | [src/lib/transaction-writes/schemas.ts](../src/lib/transaction-writes/schemas.ts) | Zod schemas for allowed transaction write tools |
+| Active | [src/lib/approvals/executor.ts](../src/lib/approvals/executor.ts) | Approve-by-reply execution for send/reject/revise realtor replies |
 | Active | [src/lib/agent/activity.ts](../src/lib/agent/activity.ts) | Activity event types, status helpers, body preview |
 | Active | [src/lib/agent/activity-timeline.ts](../src/lib/agent/activity-timeline.ts) | Maps legacy records into the same activity stream |
 | Active | [src/lib/documents/attachments.ts](../src/lib/documents/attachments.ts) | Fetch / store inbound attachments and write document records |
@@ -29,12 +32,13 @@ elsewhere.
 | Stable | [src/lib/agent/response-writer.ts](../src/lib/agent/response-writer.ts) | LLM email-body composer |
 | Stable | [src/lib/agent/document-assessment.ts](../src/lib/agent/document-assessment.ts) | Anthropic PDF assessment + fallback heuristics |
 | Stable | [src/lib/workflow/contract-routing.ts](../src/lib/workflow/contract-routing.ts) | Pick: create_transaction / update_transaction / ask_which |
-| Stable | [src/lib/workflow/deadline-monitor.ts](../src/lib/workflow/deadline-monitor.ts) | Cron worker that escalates at-risk milestones |
+| Stable | [src/lib/workflow/deadline-monitor.ts](../src/lib/workflow/deadline-monitor.ts) | Cron worker that escalates at-risk milestones and stale response tasks |
 | Stable | [src/lib/workflow/status-responder.ts](../src/lib/workflow/status-responder.ts) | Builds "what is the status of my deal?" reply text |
-| Stable | [src/lib/workflow/tasks.ts](../src/lib/workflow/tasks.ts) | Opening tasks + per-milestone task generation |
+| Stable | [src/lib/workflow/tasks.ts](../src/lib/workflow/tasks.ts) | Opening tasks + operational per-milestone task generation |
 | Stable | [src/lib/contracts/anthropic-extract.ts](../src/lib/contracts/anthropic-extract.ts) | Anthropic PDF extraction prompt + call |
 | Stable | [src/lib/contracts/extract.ts](../src/lib/contracts/extract.ts) | Regex fallback for TREC contract facts |
 | Stable | [src/lib/contracts/facts.ts](../src/lib/contracts/facts.ts) | Zod schema for `ContractFacts` + small accessors |
+| Stable | [src/lib/contracts/checklist.ts](../src/lib/contracts/checklist.ts) | Builds expected document checklist from extracted facts/addenda |
 | Stable | [src/lib/contracts/validate.ts](../src/lib/contracts/validate.ts) | Decides ready_for_review / needs_info / blocked |
 | Stable | [src/lib/milestones/engine.ts](../src/lib/milestones/engine.ts) | Texas milestone generator from extracted facts |
 | Stable | [src/lib/milestones/date-rules.ts](../src/lib/milestones/date-rules.ts) | Business-day, weekend, and holiday math |
@@ -57,12 +61,14 @@ elsewhere.
 ## Subsystem one-liners
 
 - `src/lib/agent` — the agent "brain": context pack, matching, decision, policy, executor, response writer, document assessment, and observability helpers. See [src/lib/agent/README.md](../src/lib/agent/README.md).
-- `src/lib/workflow` — orchestrators (intake, deadline monitor, contract routing, status responder, tasks). See [src/lib/workflow/README.md](../src/lib/workflow/README.md).
+- `src/lib/workflow` — orchestrators (intake, deadline/stale monitor, contract routing, status responder, tasks). See [src/lib/workflow/README.md](../src/lib/workflow/README.md).
 - `src/lib/db` — Postgres connection pool + a single very large repositories file. See [src/lib/db/README.md](../src/lib/db/README.md).
 - `src/lib/agentmail` — inbound normalization + outbound send/reply + inbox provisioning. See [src/lib/agentmail/README.md](../src/lib/agentmail/README.md).
-- `src/lib/contracts` — extract + validate Texas residential contract facts.
-- `src/lib/milestones` — date math and Texas-specific milestone generator.
+- `src/lib/contracts` — extract + validate Texas residential contract facts, contacts, operational terms, and expected documents.
+- `src/lib/milestones` — date math and Texas-specific operational milestone generator.
 - `src/lib/documents` — fetch attachments from AgentMail, store in Vercel Blob, write a `documents` row.
+- `src/lib/transaction-writes` — schema-validated mutation tools for facts, parties, milestones, tasks, documents, blockers, memory, and core transaction fields.
+- `src/lib/approvals` — approve-by-reply classification/execution for realtor replies to pending external-email drafts.
 - `src/lib/email` — plain-text outbound templates (escalation, approval request).
 - `src/lib/storage` — Vercel Blob wrapper for private files.
 - `src/lib/llm` — Anthropic client + JSON-from-LLM helpers.
@@ -78,17 +84,22 @@ elsewhere.
 | Change | File |
 | --- | --- |
 | Decision prompt or schema (what the agent can do) | [src/lib/agent/decision.ts](../src/lib/agent/decision.ts) |
+| Inbound event categories (`confirmation`, `document_received`, etc.) | [src/lib/agent/types.ts](../src/lib/agent/types.ts) + [src/lib/agent/decision.ts](../src/lib/agent/decision.ts) |
 | Outbound email-writer prompt or rules | [src/lib/agent/response-writer.ts](../src/lib/agent/response-writer.ts) |
 | Allow / require-approval / block rules | [src/lib/agent/policy.ts](../src/lib/agent/policy.ts) |
+| Structured transaction write tools | [src/lib/transaction-writes/schemas.ts](../src/lib/transaction-writes/schemas.ts) + [src/lib/transaction-writes/executor.ts](../src/lib/transaction-writes/executor.ts) |
+| Approve-by-reply wording / behavior | [src/lib/approvals](../src/lib/approvals) |
 | Transaction-matching scoring | [src/lib/agent/matching.ts](../src/lib/agent/matching.ts) |
 | Whether contract opens a new transaction or updates one | [src/lib/workflow/contract-routing.ts](../src/lib/workflow/contract-routing.ts) |
 | Steps inside the inbound pipeline | [src/lib/workflow/intake.ts](../src/lib/workflow/intake.ts) (read [docs/pipelines/intake.md](pipelines/intake.md) first) |
 | Cron cadence for deadline monitoring | [src/lib/inngest/functions.ts](../src/lib/inngest/functions.ts) |
-| What "at risk" means or the escalation email body | [src/lib/workflow/deadline-monitor.ts](../src/lib/workflow/deadline-monitor.ts) + [src/lib/email/templates.ts](../src/lib/email/templates.ts) |
+| What "at risk" / stale response means or escalation copy | [src/lib/workflow/deadline-monitor.ts](../src/lib/workflow/deadline-monitor.ts) + [src/lib/email/templates.ts](../src/lib/email/templates.ts) |
 | Texas milestone definitions or due-date offsets | [src/lib/milestones/engine.ts](../src/lib/milestones/engine.ts) |
+| Operational milestone/task metadata | [src/lib/milestones/engine.ts](../src/lib/milestones/engine.ts) + [src/lib/workflow/tasks.ts](../src/lib/workflow/tasks.ts) |
 | Business-day / weekend / holiday math | [src/lib/milestones/date-rules.ts](../src/lib/milestones/date-rules.ts) |
 | Contract facts schema (`ContractFacts`) | [src/lib/contracts/facts.ts](../src/lib/contracts/facts.ts) |
 | Anthropic PDF extraction prompt | [src/lib/contracts/anthropic-extract.ts](../src/lib/contracts/anthropic-extract.ts) |
+| Expected document checklist | [src/lib/contracts/checklist.ts](../src/lib/contracts/checklist.ts) |
 | Validation thresholds for facts | [src/lib/contracts/validate.ts](../src/lib/contracts/validate.ts) |
 | Document classification (`usable` / `unusable`) | [src/lib/agent/document-assessment.ts](../src/lib/agent/document-assessment.ts) |
 | What gets stored on inbound attachments | [src/lib/documents/attachments.ts](../src/lib/documents/attachments.ts) |
@@ -108,3 +119,4 @@ elsewhere.
 - **`src/lib/contracts/extract.ts` vs `src/lib/contracts/anthropic-extract.ts`** — the first is a regex-only fallback used when the LLM path is not available; the second is the live Anthropic PDF path. Both produce a `ContractFacts`.
 - **`src/lib/agent/activity.ts` vs `src/lib/agent/activity-timeline.ts`** — the first defines real activity events; the second synthesizes legacy events (from messages, documents, decisions, approvals, audit) so older transactions still render a timeline.
 - **`src/lib/agent/decision.ts` (LLM call) vs `src/lib/agent/executor.ts` (acts on the decision)** — they always run as a pair but own different concerns: pick the action vs perform it.
+- **`src/lib/agent/executor.ts` vs `src/lib/transaction-writes/executor.ts`** — the first handles email/approval execution; the second applies structured state changes.

@@ -9,10 +9,10 @@ order for a particular trigger.
 | File | Triggered by | What it does |
 | --- | --- | --- |
 | [intake.ts](intake.ts) | Inngest event `agentmail/inbound.received` (registered in [../inngest/functions.ts](../inngest/functions.ts)) | Main inbound-email pipeline. See [../../../docs/pipelines/intake.md](../../../docs/pipelines/intake.md). |
-| [deadline-monitor.ts](deadline-monitor.ts) | Inngest cron `*/30 * * * *` | Finds at-risk milestones, creates blockers, sends escalation emails. See [../../../docs/pipelines/deadline-monitor.md](../../../docs/pipelines/deadline-monitor.md). |
+| [deadline-monitor.ts](deadline-monitor.ts) | Inngest cron `*/30 * * * *` | Finds at-risk milestones and stale response tasks, creates deduped blockers, sends escalation emails. See [../../../docs/pipelines/deadline-monitor.md](../../../docs/pipelines/deadline-monitor.md). |
 | [contract-routing.ts](contract-routing.ts) | Called from `intake.ts` after document assessment | Picks `create_transaction`, `update_transaction`, `ask_which_transaction`, `ask_for_identity`, or `no_transaction_action` for a new contract PDF. Computes a "stable identity" from the property address + buyer/seller names. |
 | [status-responder.ts](status-responder.ts) | Called from [../agent/executor.ts](../agent/executor.ts) when the decision is `answer_status` | Builds the plain-text status answer for a transaction (current file, status, next deadline, open blockers). Also exports `isStatusQuestion(text)` as a heuristic. |
-| [tasks.ts](tasks.ts) | Called from `intake.ts` after milestones are generated | `createOpeningTasks()` returns three opening tasks; `createTasksForMilestone(m)` returns the per-milestone task with the right owner role. |
+| [tasks.ts](tasks.ts) | Called from `intake.ts` after milestones are generated | `createOpeningTasks()` returns opening tasks; `createTasksForMilestone(m)` turns operational milestone metadata into owner/follow-up task state. |
 
 ## Tests
 
@@ -21,6 +21,7 @@ Each non-trivial workflow has a Vitest spec in this folder:
 - [contract-routing.test.ts](contract-routing.test.ts)
 - [deadline-monitor.test.ts](deadline-monitor.test.ts)
 - [status-responder.test.ts](status-responder.test.ts)
+- [tasks.test.ts](tasks.test.ts)
 
 These are the easiest way to learn the expected behavior. `intake.ts`
 does not have a unit test today — it is exercised end-to-end through
@@ -34,7 +35,7 @@ the Inngest function.
 | Change how contracts route to a new vs existing transaction | [contract-routing.ts](contract-routing.ts) |
 | Change what counts as a status question | [status-responder.ts](status-responder.ts) (`statusQuestionPatterns`) |
 | Change owner-role mapping for milestone tasks | [tasks.ts](tasks.ts) (`ownerByMilestone`) |
-| Change deadline lead time / risk math | [deadline-monitor.ts](deadline-monitor.ts) |
+| Change deadline or stale-response risk math | [deadline-monitor.ts](deadline-monitor.ts) |
 | Change the cron schedule | [../inngest/functions.ts](../inngest/functions.ts) |
 
 ## What lives elsewhere

@@ -15,10 +15,14 @@ result in both `transaction_change_events` and `agent_activity_events`.
   `transaction_facts`.
 - `upsertParties`: inserts or updates buyers, sellers, agents, title, lender,
   and other known parties.
-- `upsertMilestones`: creates, updates, reschedules, or completes milestones.
-- `updateTasks`: creates or updates task status, owner, and due date.
-- `updateDocuments`: updates tracked document status and type.
-- `upsertBlocker`: creates, updates, or resolves blockers.
+- `upsertMilestones`: creates, updates, reschedules, or completes milestones,
+  including operational metadata.
+- `updateTasks`: creates or updates task status, owner, due date,
+  follow-up due date, and metadata.
+- `updateDocuments`: creates or updates tracked document status, type, owner,
+  due date, and metadata.
+- `upsertBlocker`: creates, updates, or resolves blockers, including
+  task-linked stale-response blockers.
 - `appendTransactionMemory`: appends deal notes, open questions, and known
   context without deleting prior memory.
 
