@@ -27,8 +27,6 @@ export function createTasksForMilestone(milestone: Omit<Milestone, "id" | "trans
       : undefined) ??
     ownerByMilestone[milestone.key] ??
     "tc";
-  const staleAfterDays =
-    typeof metadata.staleAfterDays === "number" ? metadata.staleAfterDays : undefined;
 
   return [
     {
@@ -37,7 +35,7 @@ export function createTasksForMilestone(milestone: Omit<Milestone, "id" | "trans
       ownerRole,
       status: "not_started",
       dueDate: milestone.dueDate,
-      followUpDueDate: milestone.dueDate && staleAfterDays ? milestone.dueDate : undefined,
+      followUpDueDate: undefined,
       metadata
     }
   ];

@@ -19,10 +19,29 @@ describe("createTasksForMilestone", () => {
 
     expect(task).toMatchObject({
       ownerRole: "title",
-      followUpDueDate: "2026-05-20",
+      dueDate: "2026-05-20",
+      status: "not_started",
       metadata: {
-        expectedEvidence: ["title commitment"]
+        expectedEvidence: ["title commitment"],
+        staleAfterDays: 2
       }
     });
+  });
+
+  it("leaves followUpDueDate unset at creation so the send transition can fill it in later", () => {
+    const [task] = createTasksForMilestone({
+      key: "earnest_money_due",
+      title: "Earnest money due",
+      phase: "earnest_money_and_option",
+      dueDate: "2026-05-15",
+      sourceType: "anchor_offset",
+      riskLevel: "urgent",
+      metadata: {
+        ownerRole: "title",
+        staleAfterDays: 1
+      }
+    });
+
+    expect(task.followUpDueDate).toBeUndefined();
   });
 });
