@@ -610,6 +610,53 @@ export async function findTcProfileByInbox(inboxAddress: string) {
   return result.rows[0] ?? null;
 }
 
+export async function findTcProfileByTransaction(transactionId: string) {
+  const result = await query<{
+    id: string;
+    team_id: string;
+    inbox_address: string;
+    agentmail_inbox_id: string | null;
+    escalation_email: string;
+    display_name: string;
+  }>(
+    `select
+       tc.id,
+       tc.team_id,
+       tc.inbox_address,
+       tc.agentmail_inbox_id,
+       tc.escalation_email,
+       tc.display_name
+     from transactions t
+     join tc_profiles tc on tc.id = t.tc_profile_id
+     where t.id = $1
+     limit 1`,
+    [transactionId]
+  );
+
+  return result.rows[0] ?? null;
+}
+
+export async function getTransactionParties(transactionId: string) {
+  const result = await query<{
+    id: string;
+    role: string;
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+    organization: string | null;
+    confidence: string | null;
+    source: string | null;
+  }>(
+    `select id, role, name, email, phone, organization, confidence::text, source
+     from parties
+     where transaction_id = $1
+     order by role, name nulls last, organization nulls last`,
+    [transactionId]
+  );
+
+  return result.rows;
+}
+
 export async function createTransaction(input: {
   teamId: string;
   tcProfileId: string;
