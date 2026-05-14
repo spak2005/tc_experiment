@@ -40,6 +40,7 @@ import { generateTexasMilestones } from "@/lib/milestones/engine";
 import { executeTransactionWrites } from "@/lib/transaction-writes/executor";
 import type { TransactionWrite } from "@/lib/transaction-writes/schemas";
 import { routeContractIntake, type ContractRoutingDecision } from "@/lib/workflow/contract-routing";
+import { scheduleAgentWakeup } from "@/lib/workflow/proactive-scheduling";
 import { createOpeningTasks, createTasksForMilestone } from "@/lib/workflow/tasks";
 
 function isoDateOrUndefined(value?: string) {
@@ -474,6 +475,18 @@ async function persistContractAssessment(input: {
         }
       }
     );
+    await scheduleAgentWakeup({
+      teamId: input.context.tcProfile.teamId,
+      transactionId: input.transactionId,
+      actionType: "transaction_dispatch",
+      wakeAt: new Date().toISOString(),
+      reason: "Start newly generated opening and milestone tasks.",
+      payload: {
+        source: "contract_intake",
+        milestoneCount: milestones.length,
+        taskCount: tasks.length
+      }
+    });
   }
 
   await upsertTransactionMemory({
