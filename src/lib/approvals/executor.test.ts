@@ -7,12 +7,16 @@ const mocks = vi.hoisted(() => ({
   classifyApprovalReply: vi.fn(),
   createAgentActivityEvent: vi.fn(),
   createAuditEvent: vi.fn(),
+  findOpenTasksByOwnerRole: vi.fn(),
+  findPartyRolesByEmails: vi.fn(),
+  getTaskById: vi.fn(),
   replyTcEmail: vi.fn(),
   sendTcEmail: vi.fn(),
   updateApprovalDraft: vi.fn(),
   updateApprovalRequestMetadata: vi.fn(),
   updateApprovalSentMetadata: vi.fn(),
-  updateApprovalStatus: vi.fn()
+  updateApprovalStatus: vi.fn(),
+  upsertTaskRecord: vi.fn()
 }));
 
 vi.mock("@/lib/approvals/reply-interpreter", () => ({
@@ -31,10 +35,14 @@ vi.mock("@/lib/agentmail/service", () => ({
 vi.mock("@/lib/db/repositories", () => ({
   createAgentActivityEvent: mocks.createAgentActivityEvent,
   createAuditEvent: mocks.createAuditEvent,
+  findOpenTasksByOwnerRole: mocks.findOpenTasksByOwnerRole,
+  findPartyRolesByEmails: mocks.findPartyRolesByEmails,
+  getTaskById: mocks.getTaskById,
   updateApprovalDraft: mocks.updateApprovalDraft,
   updateApprovalRequestMetadata: mocks.updateApprovalRequestMetadata,
   updateApprovalSentMetadata: mocks.updateApprovalSentMetadata,
-  updateApprovalStatus: mocks.updateApprovalStatus
+  updateApprovalStatus: mocks.updateApprovalStatus,
+  upsertTaskRecord: mocks.upsertTaskRecord
 }));
 
 const approval: ApprovalExecutionRow = {
@@ -77,6 +85,10 @@ describe("executeApprovalReply", () => {
     mocks.updateApprovalRequestMetadata.mockResolvedValue(undefined);
     mocks.updateApprovalSentMetadata.mockResolvedValue(undefined);
     mocks.updateApprovalStatus.mockResolvedValue(approval);
+    mocks.findPartyRolesByEmails.mockResolvedValue([]);
+    mocks.findOpenTasksByOwnerRole.mockResolvedValue([]);
+    mocks.getTaskById.mockResolvedValue(null);
+    mocks.upsertTaskRecord.mockResolvedValue({ id: "task-stub", inserted: false });
   });
 
   it("sends the original draft when the realtor approves", async () => {

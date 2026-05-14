@@ -19,6 +19,8 @@ import {
   classifyApprovalReply,
   type ApprovalReplyDecision
 } from "@/lib/approvals/reply-interpreter";
+import { getTemporalContext } from "@/lib/time/clock";
+import { transitionOutboundTaskToWaitingResponse } from "@/lib/workflow/task-transitions";
 
 function inboundReplyText(inbound: NormalizedInboundEmail) {
   return [inbound.subject, inbound.text, inbound.html].filter(Boolean).join("\n\n");
@@ -78,6 +80,7 @@ export async function sendApprovedApproval(input: {
     status: "sent",
     metadata: {
       approvalId: input.approval.id,
+      taskId: input.approval.task_id,
       subject: input.approval.proposed_subject,
       to: input.approval.proposed_to,
       cc: input.approval.proposed_cc,
@@ -86,6 +89,16 @@ export async function sendApprovedApproval(input: {
       sentThreadId: sentMetadata.threadId,
       bodyPreview: safeBodyPreview(input.approval.proposed_body)
     }
+  });
+  await transitionOutboundTaskToWaitingResponse({
+    teamId: input.approval.team_id,
+    transactionId: input.approval.transaction_id,
+    taskId: input.approval.task_id ?? undefined,
+    recipientEmails: input.approval.proposed_to,
+    today: getTemporalContext().today,
+    agentDecisionId: input.approval.agent_decision_id ?? undefined,
+    approvalId: input.approval.id,
+    outboundSubject: input.approval.proposed_subject
   });
 
   return sentMetadata;
