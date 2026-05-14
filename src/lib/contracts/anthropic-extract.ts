@@ -42,6 +42,60 @@ Use this output shape exactly:
   "titleObjectionDays": extractedValue?,
   "hoaRequired": extractedValue?,
   "addenda": extractedValue[],
+  "contacts": [
+    {
+      "role": "buyer" | "seller" | "buyer_agent" | "listing_agent" | "title" | "lender" | "inspector" | "appraiser" | "surveyor" | "attorney" | "hoa" | "broker_compliance" | "vendor" | "agent_client",
+      "name": "optional person name",
+      "email": "optional email",
+      "phone": "optional phone",
+      "organization": "optional company",
+      "confidence": number from 0 to 1,
+      "sourceReference": "paragraph/page reference",
+      "evidence": "short quote or description",
+      "needsConfirmation": boolean
+    }
+  ],
+  "expectedDocuments": [
+    {
+      "key": "stable_snake_case_key",
+      "type": "document type",
+      "name": "human document name",
+      "ownerRole": "buyer" | "seller" | "buyer_agent" | "listing_agent" | "title" | "lender" | "hoa" | "agent" | "tc",
+      "status": "needed" | "requested" | "received" | "under_review" | "needs_correction" | "submitted" | "approved" | "rejected" | "not_applicable",
+      "dueDate": "optional ISO YYYY-MM-DD",
+      "sourceReference": "contract/addendum reference",
+      "evidence": "short quote or description",
+      "confidence": number from 0 to 1,
+      "needsConfirmation": boolean
+    }
+  ],
+  "financing": {
+    "financingType": extractedValue?,
+    "lenderName": extractedValue?,
+    "loanOfficerName": extractedValue?,
+    "loanOfficerEmail": extractedValue?,
+    "loanApprovalDeadlineDays": extractedValue?,
+    "appraisalRequired": extractedValue?,
+    "appraisalDeadlineDays": extractedValue?
+  },
+  "titleEscrow": {
+    "titleCompany": extractedValue?,
+    "escrowOfficerName": extractedValue?,
+    "escrowOfficerEmail": extractedValue?,
+    "titleCommitmentDeadlineDays": extractedValue?,
+    "titleObjectionDeadlineDays": extractedValue?
+  },
+  "hoa": {
+    "required": extractedValue?,
+    "managementCompany": extractedValue?,
+    "contactEmail": extractedValue?,
+    "resaleCertificateRequired": extractedValue?
+  },
+  "disclosures": {
+    "sellerDisclosureRequired": extractedValue?,
+    "sellerDisclosureDeadlineDays": extractedValue?,
+    "leadBasedPaintRequired": extractedValue?
+  },
   "signatureStatus": "appears_executed" | "missing_signature" | "unknown",
   "missingRequiredFacts": string[]
 }
@@ -56,6 +110,8 @@ Each extractedValue must be:
 }
 
 Critical required facts are Effective Date, Closing Date, cash vs financed, earnest money amount, option period length if option applies, title company/escrow officer, and property address.
+Extract all visible coordination contacts, especially buyer, seller, listing agent, title/escrow officer, lender/loan officer, HOA management, inspector, appraiser, and surveyor.
+Expected documents should include the executed contract, earnest money receipt, option fee receipt, title commitment, survey/T-47, seller disclosure, financing/lender/appraisal documents when financed, HOA resale certificate when applicable, closing disclosure, settlement statement, and commission disbursement if applicable.
 For TREC 20-18, Paragraph 5 contains earnest money, option fee, and option period. Paragraph 9 contains Closing Date. The execution page contains Effective Date.
 If a value is blank, unreadable, absent, or ambiguous, set value to null, confidence below 0.5, needsConfirmation true, and include the field name in missingRequiredFacts.
 Use ISO YYYY-MM-DD dates when a date is clear.`;

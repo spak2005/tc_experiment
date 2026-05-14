@@ -24,6 +24,8 @@ describe("validateContractFacts", () => {
       optionPeriodDays: extracted(7),
       titleCompany: extracted("Austin Title"),
       addenda: [],
+      contacts: [],
+      expectedDocuments: [],
       signatureStatus: "appears_executed",
       missingRequiredFacts: []
     };
@@ -44,6 +46,8 @@ describe("validateContractFacts", () => {
       optionPeriodDays: extracted(7),
       titleCompany: extracted("Austin Title"),
       addenda: [],
+      contacts: [],
+      expectedDocuments: [],
       signatureStatus: "missing_signature",
       missingRequiredFacts: []
     };

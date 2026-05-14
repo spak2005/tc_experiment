@@ -19,6 +19,8 @@ const baseFacts: ContractFacts = {
   closingDate: fact("2026-06-30"),
   salesPrice: fact(500000),
   addenda: [],
+  contacts: [],
+  expectedDocuments: [],
   signatureStatus: "appears_executed",
   missingRequiredFacts: []
 };

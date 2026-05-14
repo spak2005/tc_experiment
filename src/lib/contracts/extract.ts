@@ -1,4 +1,5 @@
 import type { ContractFacts, ExtractedValue } from "@/lib/contracts/facts";
+import { buildExpectedDocumentChecklist } from "@/lib/contracts/checklist";
 
 function value(
   extracted: string | number | boolean | null,
@@ -81,9 +82,11 @@ export function extractTexasContractFacts(rawText: string): ContractFacts {
   if (!earnestMoneyAmount) missingRequiredFacts.push("earnestMoneyAmount");
   if (!titleCompany) missingRequiredFacts.push("titleCompany");
 
-  return {
+  const facts: ContractFacts = {
     contractVersion,
     propertyAddress: value(propertyAddress, propertyAddress ? 0.72 : 0, "Paragraph 2A"),
+    buyerNames: value(findFirst(text, /Buyer:\s*(.+?)\s+Seller:/i), 0.35, "Fallback text"),
+    sellerNames: value(findFirst(text, /Seller:\s*(.+?)\s+Property:/i), 0.35, "Fallback text"),
     cashOrFinanced: value(isFinanced ? "financed" : "cash_or_unknown", 0.62, "Paragraph 3/22"),
     titleCompany: value(titleCompany, titleCompany ? 0.72 : 0, "Paragraph 6A"),
     earnestMoneyAmount: value(
@@ -100,9 +103,43 @@ export function extractTexasContractFacts(rawText: string): ContractFacts {
     closingDate: value(closingDate, closingDate ? 0.62 : 0, "Paragraph 9A"),
     hoaRequired: value(hoaRequired, hoaRequired === null ? 0.2 : 0.65, "Paragraph 6E"),
     addenda: [],
+    contacts: [
+      ...(titleCompany
+        ? [
+            {
+              role: "title" as const,
+              organization: titleCompany,
+              confidence: 0.65,
+              sourceReference: "Paragraph 6A",
+              evidence: titleCompany,
+              needsConfirmation: true
+            }
+          ]
+        : [])
+    ],
+    financing: {
+      financingType: value(isFinanced ? "third_party" : "cash_or_unknown", 0.62, "Paragraph 3/22")
+    },
+    titleEscrow: {
+      titleCompany: value(titleCompany, titleCompany ? 0.72 : 0, "Paragraph 6A")
+    },
+    hoa: {
+      required: value(hoaRequired, hoaRequired === null ? 0.2 : 0.65, "Paragraph 6E"),
+      resaleCertificateRequired: value(hoaRequired, hoaRequired === null ? 0.2 : 0.65, "HOA Addendum")
+    },
+    disclosures: {
+      sellerDisclosureRequired: value(true, 0.55, "Paragraph 7B"),
+      leadBasedPaintRequired: value(/lead[- ]based paint/i.test(text), 0.55, "Lead-Based Paint Addendum")
+    },
     signatureStatus: /Buyer\s+Seller.*Buyer\s+Seller/i.test(text)
       ? "unknown"
       : "unknown",
-    missingRequiredFacts
+    missingRequiredFacts,
+    expectedDocuments: []
+  };
+
+  return {
+    ...facts,
+    expectedDocuments: buildExpectedDocumentChecklist(facts)
   };
 }

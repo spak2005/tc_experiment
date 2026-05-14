@@ -23,6 +23,8 @@ describe("generateTexasMilestones", () => {
       optionPeriodDays: extracted(7),
       titleCompany: extracted("Austin Title"),
       addenda: [],
+      contacts: [],
+      expectedDocuments: [],
       signatureStatus: "appears_executed",
       missingRequiredFacts: []
     };
