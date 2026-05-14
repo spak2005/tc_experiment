@@ -487,6 +487,19 @@ async function persistContractAssessment(input: {
         taskCount: tasks.length
       }
     });
+    const firstHeartbeatAt = new Date();
+    firstHeartbeatAt.setUTCHours(firstHeartbeatAt.getUTCHours() + 12);
+    await scheduleAgentWakeup({
+      teamId: input.context.tcProfile.teamId,
+      transactionId: input.transactionId,
+      actionType: "transaction_heartbeat",
+      wakeAt: firstHeartbeatAt.toISOString(),
+      reason: "Opening file phase needs a follow-up review.",
+      payload: {
+        source: "contract_intake",
+        intervalHours: 12
+      }
+    });
   }
 
   await upsertTransactionMemory({
