@@ -187,4 +187,48 @@ describe("processDueAgentWakeups", () => {
       })
     );
   });
+
+  it("creates approval requests with the proactive task id for external outreach", async () => {
+    const taskId = "33333333-3333-4333-8333-333333333333";
+    mocks.claimDueAgentWakeups.mockResolvedValue([wakeup({ taskId })]);
+    mocks.buildProactiveAgentContext.mockResolvedValue(proactiveContext());
+    mocks.decideProactiveAction.mockResolvedValue({
+      action: "draft_external_email",
+      confidence: 0.9,
+      rationale: "Title contact is known",
+      taskId,
+      requiresApproval: true,
+      response: {
+        subject: "New contract: 123 Main St",
+        body: "Hi there,\n\nPlease confirm receipt.",
+        to: ["title@example.com"],
+        labels: ["proactive", "opening_title"]
+      },
+      transactionWrites: []
+    });
+    mocks.createApproval.mockResolvedValue({ id: "approval-1" });
+    mocks.sendTcEmail.mockResolvedValue({ id: "request-message" });
+    mocks.extractAgentMailMessageMetadata.mockReturnValue({
+      messageId: "request-message",
+      threadId: "request-thread"
+    });
+
+    await processDueAgentWakeups({
+      now: new Date("2026-05-14T15:00:00.000Z"),
+      workerId: "worker-1"
+    });
+
+    expect(mocks.createApproval).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskId,
+        proposedTo: ["title@example.com"]
+      })
+    );
+    expect(mocks.sendTcEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: ["agent@example.com"],
+        labels: ["approval_request", "proactive", "draft_external_email"]
+      })
+    );
+  });
 });
