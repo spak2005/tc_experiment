@@ -46,17 +46,44 @@ export function createOpeningTasks(): TaskDraft[] {
     {
       title: "Send opening email to title",
       ownerRole: "tc",
-      status: "not_started"
+      status: "not_started",
+      metadata: {
+        outreachKind: "opening_title_email",
+        recipientRole: "title",
+        requiredContactRoles: ["title"],
+        staleAfterDays: 2,
+        completionSignals: ["title confirms receipt", "escrow officer/contact identified"],
+        requiresApproval: true,
+        templateHint: "openingTitleEmail"
+      }
     },
     {
       title: "Introduce TC to opposite agent",
       ownerRole: "tc",
-      status: "not_started"
+      status: "not_started",
+      metadata: {
+        outreachKind: "opposite_agent_intro",
+        recipientRole: "listing_agent",
+        requiredContactRoles: ["listing_agent"],
+        staleAfterDays: 2,
+        completionSignals: ["opposite agent confirms best coordination contact"],
+        requiresApproval: true,
+        templateHint: "oppositeAgentIntro"
+      }
     },
     {
       title: "Ask agent for missing stakeholder contacts",
       ownerRole: "agent",
-      status: "not_started"
+      status: "not_started",
+      metadata: {
+        outreachKind: "missing_stakeholder_contacts",
+        recipientRole: "agent",
+        requiredContactRoles: [],
+        staleAfterDays: 1,
+        completionSignals: ["agent provides missing contact information"],
+        requiresApproval: false,
+        templateHint: "missingContacts"
+      }
     }
   ];
 }
