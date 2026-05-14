@@ -55,7 +55,7 @@ end-to-end. Use the function names below with `rg` to jump.
   flipping `tasks.status` to `waiting_response`. `tasks.metadata.staleAfterDays`
   controls the offset; missing or invalid values fall back to
   `DEFAULT_STALE_AFTER_DAYS` (2).
-- `approvals.task_id` links an approval-gated draft
+- `approvals.task_id` (migration 008) links an approval-gated draft
   to the task the eventual send is meant to progress. The approvals
   executor uses it to flip the linked task to `waiting_response`
   after the realtor approves.
@@ -79,5 +79,5 @@ end-to-end. Use the function names below with `rg` to jump.
 
 ## Related docs
 
-- The schema itself: migrations `001` through `007` in [../../../migrations](../../../migrations).
+- The schema itself: migrations `001` through `008` in [../../../migrations](../../../migrations).
 - The observability event contract: [../../../docs/activity-debugger.md](../../../docs/activity-debugger.md).
