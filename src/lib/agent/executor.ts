@@ -216,6 +216,7 @@ export async function executeAgentDecision(input: {
         const approval = await createApproval({
           transactionId,
           agentDecisionId: input.decisionId,
+          taskId: response.taskId,
           proposedSubject: response.subject,
           proposedBody: response.body,
           proposedTo: response.to,
@@ -232,6 +233,7 @@ export async function executeAgentDecision(input: {
           status: "waiting",
           metadata: {
             approvalId: approval.id,
+            taskId: response.taskId,
             subject: response.subject,
             to: response.to,
             cc: response.cc ?? [],
