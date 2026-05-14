@@ -14,6 +14,16 @@ function milestone(input: MilestoneDraft): MilestoneDraft {
   return input;
 }
 
+function operationalMetadata(input: {
+  ownerRole: string;
+  expectedEvidence: string[];
+  completionSignals: string[];
+  staleAfterDays?: number;
+  nextActions: string[];
+}) {
+  return input;
+}
+
 function anchorMilestone(
   key: string,
   title: string,
@@ -21,7 +31,8 @@ function anchorMilestone(
   anchor: Date,
   offsetDays: number,
   sourceReference: string,
-  riskLevel: Milestone["riskLevel"] = "normal"
+  riskLevel: Milestone["riskLevel"] = "normal",
+  metadata?: Record<string, unknown>
 ): MilestoneDraft {
   return milestone({
     key,
@@ -30,7 +41,8 @@ function anchorMilestone(
     dueDate: toDateOnly(extendIfWeekendOrHoliday(addDays(anchor, offsetDays))),
     sourceType: "anchor_offset",
     sourceReference,
-    riskLevel
+    riskLevel,
+    metadata
   });
 }
 
@@ -42,6 +54,9 @@ export function generateTexasMilestones(facts: ContractFacts): MilestoneDraft[] 
       ? facts.optionPeriodDays.value
       : null;
   const financed = facts.cashOrFinanced?.value === "financed";
+  const hoaRequired = facts.hoaRequired?.value === true || facts.hoa?.required?.value === true;
+  const sellerDisclosureRequired =
+    facts.disclosures?.sellerDisclosureRequired?.value !== false;
   const milestones: MilestoneDraft[] = [];
 
   if (effectiveDate) {
@@ -53,7 +68,14 @@ export function generateTexasMilestones(facts: ContractFacts): MilestoneDraft[] 
         effectiveDate,
         3,
         "Paragraph 5A",
-        "urgent"
+        "urgent",
+        operationalMetadata({
+          ownerRole: "title",
+          expectedEvidence: ["earnest money receipt", "title confirmation"],
+          completionSignals: ["title confirms receipt", "receipt attached"],
+          staleAfterDays: 1,
+          nextActions: ["ask title for receipt", "escalate to agent"]
+        })
       )
     );
 
@@ -65,7 +87,14 @@ export function generateTexasMilestones(facts: ContractFacts): MilestoneDraft[] 
         effectiveDate,
         3,
         "Paragraph 5A",
-        "urgent"
+        "urgent",
+        operationalMetadata({
+          ownerRole: "seller",
+          expectedEvidence: ["option fee receipt", "seller or listing agent confirmation"],
+          completionSignals: ["seller confirms receipt", "receipt attached"],
+          staleAfterDays: 1,
+          nextActions: ["ask listing agent for confirmation", "escalate to agent"]
+        })
       )
     );
 
@@ -78,7 +107,14 @@ export function generateTexasMilestones(facts: ContractFacts): MilestoneDraft[] 
           dueDate: toDateOnly(addDays(effectiveDate, optionPeriodDays)),
           sourceType: "anchor_offset",
           sourceReference: "Paragraph 5B",
-          riskLevel: "critical"
+          riskLevel: "critical",
+          metadata: operationalMetadata({
+            ownerRole: "agent",
+            expectedEvidence: ["agent confirms option decision"],
+            completionSignals: ["agent confirms buyer will proceed", "termination/amendment noted"],
+            staleAfterDays: 1,
+            nextActions: ["remind agent before 5 PM", "escalate as critical"]
+          })
         })
       );
     }
@@ -91,18 +127,37 @@ export function generateTexasMilestones(facts: ContractFacts): MilestoneDraft[] 
         effectiveDate,
         5,
         "Paragraph 6C",
-        "watch"
-      ),
-      anchorMilestone(
-        "seller_disclosure_due",
-        "Seller disclosure due",
-        "title_survey_disclosures",
-        effectiveDate,
-        5,
-        "Paragraph 7B",
-        "watch"
+        "watch",
+        operationalMetadata({
+          ownerRole: "listing_agent",
+          expectedEvidence: ["survey", "T-47", "agent confirmation"],
+          completionSignals: ["survey attached", "listing agent confirms not required"],
+          staleAfterDays: 2,
+          nextActions: ["ask listing agent for survey status", "notify agent if missing"]
+        })
       )
     );
+
+    if (sellerDisclosureRequired) {
+      milestones.push(
+        anchorMilestone(
+          "seller_disclosure_due",
+          "Seller disclosure due",
+          "title_survey_disclosures",
+          effectiveDate,
+          5,
+          "Paragraph 7B",
+          "watch",
+          operationalMetadata({
+            ownerRole: "listing_agent",
+            expectedEvidence: ["seller disclosure"],
+            completionSignals: ["seller disclosure attached", "agent confirms received"],
+            staleAfterDays: 2,
+            nextActions: ["ask listing agent for seller disclosure", "notify agent if missing"]
+          })
+        )
+      );
+    }
 
     if (financed) {
       milestones.push(
@@ -113,7 +168,51 @@ export function generateTexasMilestones(facts: ContractFacts): MilestoneDraft[] 
           effectiveDate,
           21,
           "Third Party Financing Addendum",
-          "urgent"
+          "urgent",
+          operationalMetadata({
+            ownerRole: "lender",
+            expectedEvidence: ["loan approval status", "conditional approval"],
+            completionSignals: ["lender confirms approval", "agent confirms financing status"],
+            staleAfterDays: 2,
+            nextActions: ["ask lender for status", "escalate to agent"]
+          })
+        ),
+        anchorMilestone(
+          "appraisal_status_due",
+          "Appraisal status due",
+          "financing_appraisal",
+          effectiveDate,
+          14,
+          "Third Party Financing Addendum",
+          "watch",
+          operationalMetadata({
+            ownerRole: "lender",
+            expectedEvidence: ["appraisal ordered", "appraisal report", "appraisal status"],
+            completionSignals: ["lender confirms appraisal ordered", "appraisal received"],
+            staleAfterDays: 2,
+            nextActions: ["ask lender for appraisal status", "notify agent of delay"]
+          })
+        )
+      );
+    }
+
+    if (hoaRequired) {
+      milestones.push(
+        anchorMilestone(
+          "hoa_resale_certificate_due",
+          "HOA resale certificate due",
+          "title_survey_disclosures",
+          effectiveDate,
+          10,
+          "HOA Addendum",
+          "watch",
+          operationalMetadata({
+            ownerRole: "hoa",
+            expectedEvidence: ["HOA resale certificate", "HOA status certificate"],
+            completionSignals: ["certificate attached", "title confirms receipt"],
+            staleAfterDays: 2,
+            nextActions: ["ask HOA or title for certificate status", "escalate to agent"]
+          })
         )
       );
     }
@@ -126,7 +225,14 @@ export function generateTexasMilestones(facts: ContractFacts): MilestoneDraft[] 
       phase: "title_survey_disclosures",
       sourceType: "derived_event",
       sourceReference: "20 days after title receives contract",
-      riskLevel: "watch"
+      riskLevel: "watch",
+      metadata: operationalMetadata({
+        ownerRole: "title",
+        expectedEvidence: ["title commitment"],
+        completionSignals: ["title commitment attached", "title confirms issued"],
+        staleAfterDays: 2,
+        nextActions: ["ask title for title commitment status", "escalate to agent"]
+      })
     }),
     milestone({
       key: "title_objection_due",
@@ -134,7 +240,14 @@ export function generateTexasMilestones(facts: ContractFacts): MilestoneDraft[] 
       phase: "title_survey_disclosures",
       sourceType: "derived_event",
       sourceReference: "Paragraph 6D",
-      riskLevel: "urgent"
+      riskLevel: "urgent",
+      metadata: operationalMetadata({
+        ownerRole: "agent",
+        expectedEvidence: ["agent review decision", "title objection confirmation"],
+        completionSignals: ["agent confirms no objections", "objection/amendment noted"],
+        staleAfterDays: 1,
+        nextActions: ["remind agent to review title", "escalate before deadline"]
+      })
     })
   );
 
@@ -147,7 +260,14 @@ export function generateTexasMilestones(facts: ContractFacts): MilestoneDraft[] 
         dueDate: toDateOnly(subtractBusinessDays(closingDate, 3)),
         sourceType: "derived_event",
         sourceReference: "TRID",
-        riskLevel: "urgent"
+        riskLevel: "urgent",
+        metadata: operationalMetadata({
+          ownerRole: "lender",
+          expectedEvidence: ["Closing Disclosure delivered"],
+          completionSignals: ["buyer confirms CD receipt", "lender confirms delivery"],
+          staleAfterDays: 1,
+          nextActions: ["ask lender if CD has been delivered", "escalate to agent"]
+        })
       }),
       milestone({
         key: "final_walkthrough",
@@ -156,7 +276,14 @@ export function generateTexasMilestones(facts: ContractFacts): MilestoneDraft[] 
         dueDate: toDateOnly(addDays(closingDate, -1)),
         sourceType: "derived_event",
         sourceReference: "TC convention",
-        riskLevel: "watch"
+        riskLevel: "watch",
+        metadata: operationalMetadata({
+          ownerRole: "agent",
+          expectedEvidence: ["walkthrough scheduled", "walkthrough completed"],
+          completionSignals: ["agent confirms walkthrough complete"],
+          staleAfterDays: 1,
+          nextActions: ["remind agent to schedule walkthrough"]
+        })
       }),
       milestone({
         key: "closing_date",
@@ -165,7 +292,14 @@ export function generateTexasMilestones(facts: ContractFacts): MilestoneDraft[] 
         dueDate: toDateOnly(closingDate),
         sourceType: "explicit_date",
         sourceReference: "Paragraph 9A",
-        riskLevel: "critical"
+        riskLevel: "critical",
+        metadata: operationalMetadata({
+          ownerRole: "title",
+          expectedEvidence: ["signed closing package", "funding confirmation", "recording confirmation"],
+          completionSignals: ["title confirms funded", "agent confirms closing complete"],
+          staleAfterDays: 1,
+          nextActions: ["ask title for funding status", "escalate to agent"]
+        })
       }),
       milestone({
         key: "post_closing_docs_due",
@@ -174,7 +308,14 @@ export function generateTexasMilestones(facts: ContractFacts): MilestoneDraft[] 
         dueDate: toDateOnly(addDays(closingDate, 3)),
         sourceType: "derived_event",
         sourceReference: "Post-closing checklist",
-        riskLevel: "normal"
+        riskLevel: "normal",
+        metadata: operationalMetadata({
+          ownerRole: "title",
+          expectedEvidence: ["final settlement statement", "commission disbursement"],
+          completionSignals: ["final docs attached", "agent confirms file complete"],
+          staleAfterDays: 3,
+          nextActions: ["ask title for final docs", "remind agent to archive file"]
+        })
       })
     );
   }

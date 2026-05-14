@@ -19,6 +19,7 @@ describe("generateTexasMilestones", () => {
       effectiveDate: extracted("2026-05-11"),
       closingDate: extracted("2026-06-15"),
       cashOrFinanced: extracted("financed"),
+      hoaRequired: extracted(true),
       earnestMoneyAmount: extracted("5000"),
       optionPeriodDays: extracted(7),
       titleCompany: extracted("Austin Title"),
@@ -35,6 +36,12 @@ describe("generateTexasMilestones", () => {
     expect(byKey.earnest_money_due.dueDate).toBe("2026-05-14");
     expect(byKey.option_period_expires.dueDate).toBe("2026-05-18");
     expect(byKey.buyer_approval_due).toBeDefined();
+    expect(byKey.appraisal_status_due).toBeDefined();
+    expect(byKey.hoa_resale_certificate_due).toBeDefined();
     expect(byKey.closing_date.dueDate).toBe("2026-06-15");
+    expect(byKey.earnest_money_due.metadata).toMatchObject({
+      ownerRole: "title",
+      expectedEvidence: ["earnest money receipt", "title confirmation"]
+    });
   });
 });

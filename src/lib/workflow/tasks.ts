@@ -11,6 +11,8 @@ const ownerByMilestone: Record<string, TaskDraft["ownerRole"]> = {
   title_commitment_due: "title",
   title_objection_due: "agent",
   buyer_approval_due: "lender",
+  appraisal_status_due: "lender",
+  hoa_resale_certificate_due: "hoa",
   closing_disclosure_due: "lender",
   final_walkthrough: "agent",
   closing_date: "tc",
@@ -18,7 +20,15 @@ const ownerByMilestone: Record<string, TaskDraft["ownerRole"]> = {
 };
 
 export function createTasksForMilestone(milestone: Omit<Milestone, "id" | "transactionId">): TaskDraft[] {
-  const ownerRole = ownerByMilestone[milestone.key] ?? "tc";
+  const metadata = milestone.metadata ?? {};
+  const ownerRole =
+    (typeof metadata.ownerRole === "string"
+      ? (metadata.ownerRole as TaskDraft["ownerRole"])
+      : undefined) ??
+    ownerByMilestone[milestone.key] ??
+    "tc";
+  const staleAfterDays =
+    typeof metadata.staleAfterDays === "number" ? metadata.staleAfterDays : undefined;
 
   return [
     {
@@ -26,7 +36,9 @@ export function createTasksForMilestone(milestone: Omit<Milestone, "id" | "trans
       title: milestone.title,
       ownerRole,
       status: "not_started",
-      dueDate: milestone.dueDate
+      dueDate: milestone.dueDate,
+      followUpDueDate: milestone.dueDate && staleAfterDays ? milestone.dueDate : undefined,
+      metadata
     }
   ];
 }
