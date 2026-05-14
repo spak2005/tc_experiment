@@ -46,8 +46,8 @@ Numbered by the order operations run.
 | 7 | Store inbound attachments; if this is contract intake, persist facts, contacts, checklist documents, milestones, tasks, memory, and audit |
 | 8 | If non-PDF attachments arrive on a matched transaction, store them as transaction documents |
 | 9 | Persist the inbound message |
-| 10 | Call `decideNextAction`; it returns intent/action, inbound event category, optional response, and structured transaction writes |
-| 11 | Persist the decision, evaluate policy, execute allowed/approval-gated work, mark the webhook processed, and return |
+| 10 | Call `decideNextAction`; it returns intent/action, inbound event category, optional response (with an optional `taskId` linking the send to an open task), and structured transaction writes |
+| 11 | Persist the decision, evaluate policy, execute allowed/approval-gated work, mark the webhook processed, and return. The executor flips the matched task to `waiting_response` on the actual send via [../../src/lib/workflow/task-transitions.ts](../../src/lib/workflow/task-transitions.ts) (directly for inline sends, or through `sendApprovedApproval` once the realtor approves an approval-gated draft) |
 
 ## Tips for changing this file
 
@@ -87,5 +87,6 @@ Numbered by the order operations run.
 - [../../src/lib/agent/decision.ts](../../src/lib/agent/decision.ts) — `decideNextAction`
 - [../../src/lib/agent/policy.ts](../../src/lib/agent/policy.ts) — `evaluateActionPolicy`
 - [../../src/lib/agent/executor.ts](../../src/lib/agent/executor.ts) — `executeAgentDecision`
+- [../../src/lib/workflow/task-transitions.ts](../../src/lib/workflow/task-transitions.ts) — `transitionOutboundTaskToWaitingResponse` (called from the executor on a direct send and from the approvals executor on an approved send)
 - [../../src/lib/transaction-writes/executor.ts](../../src/lib/transaction-writes/executor.ts) — applies structured state changes from intake and decisions
 - [../../src/lib/db/repositories.ts](../../src/lib/db/repositories.ts) — many writes (see [../../src/lib/db/README.md](../../src/lib/db/README.md))

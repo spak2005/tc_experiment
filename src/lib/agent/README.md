@@ -24,7 +24,7 @@ decision pipeline.
 | 3. Assess document | [document-assessment.ts](document-assessment.ts) | If the email carries a PDF, classifies it (contract vs other), extracts facts (Anthropic PDF mode with regex fallback), and decides `usable / unusable / needs_info`. |
 | 4. Decide | [decision.ts](decision.ts) | Asks Anthropic to pick an `AgentIntent`, `AgentAction`, inbound event category, optional response, and structured transaction writes. Falls back to a deterministic decision if the LLM call fails. |
 | 5. Policy | [policy.ts](policy.ts) | Enforces V1 send policy: noop allowed, "legal advice" blocked, external recipients require approval, etc. Output is `allowed / approval_required / blocked`. |
-| 6. Execute | [executor.ts](executor.ts) | Acts on the decision: applies transaction writes, writes outbound email, creates approvals, records tool results, updates the `agent_decisions` row, emits audit/activity. |
+| 6. Execute | [executor.ts](executor.ts) | Acts on the decision: applies transaction writes, writes outbound email, creates approvals (carrying `task_id` so the eventual send can close the loop), flips the matched task to `waiting_response` via [../workflow/task-transitions.ts](../workflow/task-transitions.ts) on a direct send, records tool results, updates the `agent_decisions` row, emits audit/activity. |
 | 7. Compose response | [response-writer.ts](response-writer.ts) | Used inside the executor when the decision did not supply a `response.body` itself. Calls Anthropic with the response-writer system prompt and returns `{ subject, body, to, cc, labels }`. |
 | 8. Log | [activity.ts](activity.ts), [activity-timeline.ts](activity-timeline.ts) | Records every step of the pipeline in `agent_activity_events`. Powers the observability and transaction-detail pages. Not part of behavior. |
 
@@ -74,7 +74,13 @@ logging rules).
 - Approval-by-reply classification and execution lives in
   [../approvals](../approvals). It interprets realtor replies such as
   "send", "hold off", "make this edit then send", and "make this edit
-  and let me see it".
+  and let me see it". When the realtor approves and the email actually
+  goes out, the approvals executor also calls
+  [../workflow/task-transitions.ts](../workflow/task-transitions.ts)
+  to flip the linked task (saved on `approvals.task_id` when the
+  draft was created) to `waiting_response`. The
+  [deadline monitor](../workflow/deadline-monitor.ts) picks up that
+  task if no reply arrives.
 - Transaction-file mutation is centralized in
   [../transaction-writes](../transaction-writes). The agent decision
   should propose writes; the transaction-write executor applies them.
