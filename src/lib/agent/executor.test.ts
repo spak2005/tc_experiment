@@ -157,4 +157,106 @@ describe("executeAgentDecision", () => {
       mocks.composeAgentResponse.mock.invocationCallOrder[0]
     );
   });
+
+  it("forwards the decision taskId onto approval requests for external recipients", async () => {
+    const taskId = "22222222-2222-4222-8222-222222222222";
+    mocks.createApproval.mockResolvedValueOnce({ id: "approval-99" });
+    mocks.sendTcEmail.mockResolvedValueOnce({
+      messageId: "request-1",
+      threadId: "thread-1"
+    });
+    mocks.extractAgentMailMessageMetadata.mockReturnValueOnce({
+      messageId: "request-1",
+      threadId: "thread-1"
+    });
+    mocks.updateApprovalRequestMetadata.mockResolvedValue(undefined);
+
+    const decision: AgentDecision = {
+      intent: "outbound_request",
+      action: "ask_for_info",
+      confidence: 0.9,
+      transactionId,
+      matchConfidence: 0.9,
+      requiresApproval: false,
+      rationale: "Need a title commitment from title.",
+      inboundEvent: "status_request",
+      toolCalls: [],
+      transactionWrites: [],
+      response: {
+        subject: "Title commitment status",
+        body: "Hi - can you send the commitment when ready? Thanks.",
+        to: ["title@example.com"],
+        labels: ["title_commitment", "outbound"],
+        taskId
+      }
+    };
+
+    await executeAgentDecision({
+      context,
+      decision,
+      decisionId: "decision-2",
+      policy: { result: "allowed", reasons: ["Allowed"] }
+    });
+
+    expect(mocks.createApproval).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transactionId,
+        agentDecisionId: "decision-2",
+        taskId,
+        proposedSubject: "Title commitment status",
+        proposedTo: ["title@example.com"]
+      })
+    );
+    const approvalCreatedEvent = mocks.createAgentActivityEvent.mock.calls.find(
+      ([event]) => event.eventType === "approval_created"
+    );
+    expect(approvalCreatedEvent?.[0].metadata).toMatchObject({ taskId });
+  });
+
+  it("transitions the task to waiting_response on a direct realtor send when an external recipient is also addressed", async () => {
+    const taskId = "33333333-3333-4333-8333-333333333333";
+    mocks.composeAgentResponse.mockReset();
+    mocks.composeAgentResponse.mockResolvedValue({
+      subject: "Re: Closing update",
+      body: "Quick update for the team.",
+      to: ["agent@example.com"],
+      labels: ["transaction_update"]
+    });
+    mocks.executeTransactionWrites.mockResolvedValue([]);
+
+    const decision: AgentDecision = {
+      intent: "transaction_update",
+      action: "record_update",
+      confidence: 0.9,
+      transactionId,
+      matchConfidence: 0.9,
+      requiresApproval: false,
+      rationale: "Updating realtor with a quick note.",
+      inboundEvent: "status_update",
+      toolCalls: [],
+      transactionWrites: [],
+      response: {
+        subject: "Re: Closing update",
+        body: "Quick update for the team.",
+        to: ["agent@example.com"],
+        labels: ["transaction_update"],
+        taskId
+      }
+    };
+
+    await executeAgentDecision({
+      context,
+      decision,
+      decisionId: "decision-3",
+      policy: { result: "allowed", reasons: ["Allowed"] }
+    });
+
+    expect(mocks.createApproval).not.toHaveBeenCalled();
+    expect(mocks.replyTcEmail).toHaveBeenCalled();
+    expect(mocks.upsertTaskRecord).not.toHaveBeenCalled();
+    const skipped = mocks.createAgentActivityEvent.mock.calls.find(
+      ([event]) => event.eventType === "outbound_task_transition_skipped"
+    );
+    expect(skipped?.[0].metadata.resolution.kind).toBe("no_external_recipient");
+  });
 });
