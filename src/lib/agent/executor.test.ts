@@ -172,14 +172,14 @@ describe("executeAgentDecision", () => {
     mocks.updateApprovalRequestMetadata.mockResolvedValue(undefined);
 
     const decision: AgentDecision = {
-      intent: "outbound_request",
+      intent: "transaction_update",
       action: "ask_for_info",
       confidence: 0.9,
       transactionId,
       matchConfidence: 0.9,
       requiresApproval: false,
       rationale: "Need a title commitment from title.",
-      inboundEvent: "status_request",
+      inboundEvent: "question",
       toolCalls: [],
       transactionWrites: [],
       response: {
@@ -232,7 +232,7 @@ describe("executeAgentDecision", () => {
       matchConfidence: 0.9,
       requiresApproval: false,
       rationale: "Updating realtor with a quick note.",
-      inboundEvent: "status_update",
+      inboundEvent: "deadline_change",
       toolCalls: [],
       transactionWrites: [],
       response: {

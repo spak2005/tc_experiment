@@ -167,6 +167,81 @@ describe("executeApprovalReply", () => {
     );
   });
 
+  it("flips the linked task to waiting_response once the approved email is sent", async () => {
+    const taskId = "44444444-4444-4444-8444-444444444444";
+    const approvalWithTask: ApprovalExecutionRow = {
+      ...approval,
+      task_id: taskId
+    };
+    mocks.classifyApprovalReply.mockResolvedValue({
+      action: "approve_send",
+      confidence: 0.95,
+      rationale: "Approved."
+    });
+    mocks.updateApprovalStatus.mockResolvedValue(approvalWithTask);
+    mocks.getTaskById.mockResolvedValueOnce({
+      id: taskId,
+      transaction_id: "tx-1",
+      title: "Title commitment due",
+      owner_role: "title",
+      status: "not_started",
+      due_date: null,
+      follow_up_due_date: null,
+      metadata: { staleAfterDays: 2 }
+    });
+
+    await executeApprovalReply({ approval: approvalWithTask, inbound });
+
+    expect(mocks.upsertTaskRecord).toHaveBeenCalledWith({
+      transactionId: "tx-1",
+      id: taskId,
+      status: "waiting_response",
+      followUpDueDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/)
+    });
+    const transitionedEvent = mocks.createAgentActivityEvent.mock.calls.find(
+      ([event]) => event.eventType === "outbound_task_transitioned"
+    );
+    expect(transitionedEvent?.[0].metadata).toMatchObject({
+      taskId,
+      approvalId: "approval-1",
+      resolutionReason: "task_id"
+    });
+  });
+
+  it("falls back to owner-role resolution when the approval has no taskId", async () => {
+    mocks.classifyApprovalReply.mockResolvedValue({
+      action: "approve_send",
+      confidence: 0.95,
+      rationale: "Approved."
+    });
+    mocks.findPartyRolesByEmails.mockResolvedValueOnce(["title"]);
+    mocks.findOpenTasksByOwnerRole.mockResolvedValueOnce([
+      {
+        id: "task-fallback",
+        transaction_id: "tx-1",
+        title: "Title commitment due",
+        owner_role: "title",
+        status: "not_started",
+        due_date: null,
+        follow_up_due_date: null,
+        metadata: { staleAfterDays: 2 }
+      }
+    ]);
+
+    await executeApprovalReply({ approval, inbound });
+
+    expect(mocks.upsertTaskRecord).toHaveBeenCalledWith({
+      transactionId: "tx-1",
+      id: "task-fallback",
+      status: "waiting_response",
+      followUpDueDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/)
+    });
+    const transitionedEvent = mocks.createAgentActivityEvent.mock.calls.find(
+      ([event]) => event.eventType === "outbound_task_transitioned"
+    );
+    expect(transitionedEvent?.[0].metadata).toMatchObject({ resolutionReason: "owner_role" });
+  });
+
   it("asks a clarification for ambiguous replies", async () => {
     mocks.classifyApprovalReply.mockResolvedValue({
       action: "needs_clarification",
