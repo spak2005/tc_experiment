@@ -1,4 +1,4 @@
-import { query, type PoolClientLike } from "@/lib/db/client";
+import { query, withTransaction, type PoolClientLike } from "@/lib/db/client";
 import type {
   AgentActivityEvent,
   CreateAgentActivityEventInput
@@ -537,6 +537,58 @@ export async function listTransactionWakeups(input: {
   );
 
   return result.rows.map(toAgentWakeup);
+}
+
+export async function claimDueAgentWakeups(input: {
+  now: string;
+  limit: number;
+  workerId: string;
+}) {
+  return withTransaction(async (client) => {
+    const result = await client.query<AgentWakeupRow>(
+      `with due as (
+         select id
+         from agent_wakeups
+         where status = 'pending'
+           and wake_at <= $1::timestamptz
+         order by wake_at asc, created_at asc
+         limit $2
+         for update skip locked
+       )
+       update agent_wakeups wakeup
+       set status = 'running',
+           locked_at = now(),
+           locked_by = $3,
+           attempt_count = attempt_count + 1,
+           updated_at = now()
+       from due
+       where wakeup.id = due.id
+       returning
+         wakeup.id,
+         wakeup.team_id,
+         wakeup.transaction_id,
+         wakeup.task_id,
+         wakeup.action_type,
+         wakeup.reason,
+         wakeup.status,
+         wakeup.dedupe_key,
+         wakeup.wake_at::text,
+         wakeup.payload,
+         wakeup.preconditions,
+         wakeup.attempt_count,
+         wakeup.max_attempts,
+         wakeup.locked_at::text,
+         wakeup.locked_by,
+         wakeup.last_error,
+         wakeup.completed_at::text,
+         wakeup.cancelled_at::text,
+         wakeup.created_at::text,
+         wakeup.updated_at::text`,
+      [input.now, input.limit, input.workerId]
+    );
+
+    return result.rows.map(toAgentWakeup);
+  });
 }
 
 export async function findTcProfileByInbox(inboxAddress: string) {
