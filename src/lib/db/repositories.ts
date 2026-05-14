@@ -942,6 +942,59 @@ export async function upsertTaskRecord(input: {
   return { id: result.rows[0].id, inserted: true };
 }
 
+export interface OpenTaskRow {
+  id: string;
+  transaction_id: string;
+  title: string;
+  owner_role: string;
+  status: string;
+  due_date: string | null;
+  follow_up_due_date: string | null;
+  metadata: Record<string, unknown>;
+}
+
+const openTaskSelect = `
+  id,
+  transaction_id,
+  title,
+  owner_role,
+  status,
+  due_date::text as due_date,
+  follow_up_due_date::text as follow_up_due_date,
+  metadata
+`;
+
+export async function getTaskById(taskId: string): Promise<OpenTaskRow | null> {
+  const result = await query<OpenTaskRow>(
+    `select ${openTaskSelect}
+     from tasks
+     where id = $1`,
+    [taskId]
+  );
+
+  return result.rows[0] ?? null;
+}
+
+export async function findOpenTasksByOwnerRole(input: {
+  transactionId: string;
+  ownerRole: string;
+}): Promise<OpenTaskRow[]> {
+  const result = await query<OpenTaskRow>(
+    `select ${openTaskSelect}
+     from tasks
+     where transaction_id = $1
+       and owner_role = $2
+       and status not in ('complete', 'cancelled')
+     order by
+       case when due_date is null then 1 else 0 end,
+       due_date asc,
+       created_at asc`,
+    [input.transactionId, input.ownerRole]
+  );
+
+  return result.rows;
+}
+
 export async function createMessage(input: {
   transactionId?: string;
   agentMailMessageId: string;
