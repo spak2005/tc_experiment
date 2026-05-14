@@ -10,6 +10,7 @@ import { executeAgentDecision } from "@/lib/agent/executor";
 import { evaluateActionPolicy } from "@/lib/agent/policy";
 import { normalizeAgentMailInbound } from "@/lib/agentmail/inbound";
 import { executeApprovalReply } from "@/lib/approvals/executor";
+import { buildExpectedDocumentChecklist } from "@/lib/contracts/checklist";
 import { getStringFact, type ContractFacts, type ExtractedValue } from "@/lib/contracts/facts";
 import {
   createAgentActivityEvent,
@@ -124,6 +125,16 @@ const contractFactKeys = [
   "hoaRequired"
 ] as const;
 
+const operationalFactKeys = ["financing", "titleEscrow", "hoa", "disclosures"] as const;
+
+function sourceConfidence(values: Array<{ confidence?: number } | undefined>) {
+  const confidences = values
+    .map((item) => item?.confidence)
+    .filter((confidence): confidence is number => typeof confidence === "number");
+
+  return confidences.length > 0 ? Math.min(...confidences) : 0.8;
+}
+
 function canonicalFactWrites(input: {
   transactionId: string;
   facts: ContractFacts;
@@ -199,6 +210,89 @@ function canonicalFactWrites(input: {
         sourceReference: input.filename,
         confidence: Math.min(...input.facts.addenda.map((item) => item.confidence)),
         rationale: "Addenda identified during document assessment."
+      }
+    });
+  }
+
+  for (const key of operationalFactKeys) {
+    const value = input.facts[key];
+
+    if (!value) continue;
+
+    writes.push({
+      name: "upsertTransactionFact",
+      input: {
+        transactionId: input.transactionId,
+        key,
+        value
+      },
+      source: {
+        sourceType: "contract_extraction",
+        sourceReference: input.filename,
+        confidence: sourceConfidence(Object.values(value)),
+        rationale: `${key} coordination details identified during contract assessment.`
+      }
+    });
+  }
+
+  const contacts = input.facts.contacts.filter(
+    (contact) => contact.name || contact.email || contact.organization
+  );
+  if (contacts.length > 0) {
+    writes.push({
+      name: "upsertParties",
+      input: {
+        transactionId: input.transactionId,
+        parties: contacts.map((contact) => ({
+          role: contact.role,
+          name: contact.name,
+          email: contact.email,
+          phone: contact.phone,
+          organization: contact.organization,
+          confidence: contact.confidence,
+          source: contact.sourceReference ?? "contract_extraction"
+        }))
+      },
+      source: {
+        sourceType: "contract_extraction",
+        sourceReference: input.filename,
+        confidence: sourceConfidence(contacts),
+        rationale: "Contacts were extracted from the contract and addenda."
+      }
+    });
+  }
+
+  const checklistByKey = new Map(
+    [...buildExpectedDocumentChecklist(input.facts), ...input.facts.expectedDocuments].map(
+      (document) => [document.key, document]
+    )
+  );
+  const checklist = [...checklistByKey.values()];
+  if (checklist.length > 0) {
+    writes.push({
+      name: "updateDocuments",
+      input: {
+        transactionId: input.transactionId,
+        documents: checklist.map((document) => ({
+          type: document.type,
+          name: document.name,
+          status: document.status,
+          ownerRole: document.ownerRole,
+          dueDate: document.dueDate,
+          metadata: {
+            key: document.key,
+            sourceReference: document.sourceReference,
+            evidence: document.evidence,
+            confidence: document.confidence,
+            needsConfirmation: document.needsConfirmation
+          }
+        }))
+      },
+      source: {
+        sourceType: "contract_extraction",
+        sourceReference: input.filename,
+        confidence: sourceConfidence(checklist),
+        rationale: "Expected document checklist was derived from the contract and addenda."
       }
     });
   }
