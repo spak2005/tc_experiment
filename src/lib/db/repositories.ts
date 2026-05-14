@@ -1633,11 +1633,53 @@ export async function findAtRiskMilestones(daysAhead: number, today: string) {
      from milestones m
      join transactions t on t.id = m.transaction_id
      join tc_profiles p on p.id = t.tc_profile_id
+     left join blockers b on b.deadline_id = m.id and b.resolved_at is null
      where m.completed_at is null
        and m.due_date is not null
        and m.due_date <= $2::date + ($1::int * interval '1 day')
-       and t.status not in ('closed', 'terminated')`,
+       and t.status not in ('closed', 'terminated')
+       and b.id is null`,
     [daysAhead, today]
+  );
+
+  return result.rows;
+}
+
+export async function findStaleResponseTasks(today: string) {
+  const result = await query<{
+    transaction_id: string;
+    team_id: string;
+    property_address: string | null;
+    task_id: string;
+    title: string;
+    owner_role: string;
+    due_date: string | null;
+    follow_up_due_date: string;
+    escalation_email: string;
+    inbox_id: string;
+  }>(
+    `select
+       t.id as transaction_id,
+       t.team_id,
+       t.property_address,
+       task.id as task_id,
+       task.title,
+       task.owner_role,
+       task.due_date::text,
+       task.follow_up_due_date::text,
+       p.escalation_email,
+       coalesce(p.agentmail_inbox_id, p.inbox_address) as inbox_id
+     from tasks task
+     join transactions t on t.id = task.transaction_id
+     join tc_profiles p on p.id = t.tc_profile_id
+     left join blockers b on b.task_id = task.id and b.resolved_at is null
+     where task.status = 'waiting_response'
+       and task.follow_up_due_date is not null
+       and task.follow_up_due_date <= $1::date
+       and t.status not in ('closed', 'terminated')
+       and b.id is null
+     order by task.follow_up_due_date asc, task.created_at asc`,
+    [today]
   );
 
   return result.rows;
