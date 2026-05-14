@@ -1800,6 +1800,7 @@ export async function upsertBlockerRecord(input: {
 export async function createApproval(input: {
   transactionId: string;
   agentDecisionId?: string;
+  taskId?: string;
   proposedSubject: string;
   proposedBody: string;
   proposedTo: string[];
@@ -1810,17 +1811,19 @@ export async function createApproval(input: {
     `insert into approvals (
        transaction_id,
        agent_decision_id,
+       task_id,
        proposed_subject,
        proposed_body,
        proposed_to,
        proposed_cc,
        expires_at
      )
-     values ($1, $2, $3, $4, $5, $6, $7)
+     values ($1, $2, $3, $4, $5, $6, $7, $8)
      returning id`,
     [
       input.transactionId,
       input.agentDecisionId ?? null,
+      input.taskId ?? null,
       input.proposedSubject,
       input.proposedBody,
       input.proposedTo,
@@ -1837,6 +1840,7 @@ export interface ApprovalExecutionRow {
   transaction_id: string;
   team_id: string;
   agent_decision_id: string | null;
+  task_id: string | null;
   proposed_subject: string;
   proposed_body: string;
   proposed_to: string[];
@@ -1852,6 +1856,7 @@ const approvalExecutionSelect = `
   a.transaction_id,
   t.team_id,
   a.agent_decision_id,
+  a.task_id,
   a.proposed_subject,
   a.proposed_body,
   a.proposed_to,

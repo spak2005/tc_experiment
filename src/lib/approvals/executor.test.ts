@@ -42,6 +42,7 @@ const approval: ApprovalExecutionRow = {
   transaction_id: "tx-1",
   team_id: "team-1",
   agent_decision_id: "decision-1",
+  task_id: null,
   proposed_subject: "Title update",
   proposed_body: "Please confirm receipt.",
   proposed_to: ["title@example.com"],
