@@ -108,6 +108,55 @@ function missingContactDecision(input: {
   };
 }
 
+function missingStakeholdersDecision(
+  context: ProactiveAgentContext,
+  task: Record<string, unknown>
+): ProactiveDecision {
+  const property =
+    stringValue(context.transactionContext.transaction.property_address) ?? "this transaction";
+  const taskId = stringValue(task.id);
+  const missingItems =
+    context.transactionContext.missingItems.length > 0
+      ? context.transactionContext.missingItems.map((item) => `- ${item}`).join("\n")
+      : "- Any missing title, lender, opposite-agent, HOA, or vendor contacts you already have";
+
+  return {
+    action: "send_realtor_email",
+    confidence: 0.78,
+    rationale: "The next opening task is to collect missing stakeholder contacts from the realtor.",
+    taskId,
+    requiresApproval: false,
+    response: {
+      subject: `Contacts needed: ${property}`,
+      to: [context.tcProfile.escalationEmail],
+      labels: ["proactive", "missing_contacts"],
+      body: `Hi there,\n\nI am organizing ${property} and need a few contact details before I can keep moving.\n\nPlease send what you have for:\n${missingItems}\n\nOnce I have those, I will continue opening the file and coordinating the next steps.\n\nBest,\n${context.tcProfile.displayName}`
+    },
+    transactionWrites: taskId
+      ? [
+          {
+            name: "updateTasks",
+            input: {
+              transactionId: context.transactionId,
+              tasks: [
+                {
+                  id: taskId,
+                  status: "waiting_response"
+                }
+              ]
+            },
+            source: {
+              sourceType: "system",
+              sourceReference: "proactive_planner",
+              confidence: 0.85,
+              rationale: "The agent asked the realtor for missing stakeholder contacts."
+            }
+          }
+        ]
+      : []
+  };
+}
+
 function openingTitleDecision(
   context: ProactiveAgentContext,
   task: Record<string, unknown>,
@@ -185,6 +234,10 @@ function fallbackProactiveDecision(context: ProactiveAgentContext): ProactiveDec
   }
 
   const metadata = recordValue(task.metadata);
+  if (metadata.outreachKind === "missing_stakeholder_contacts") {
+    return missingStakeholdersDecision(context, task);
+  }
+
   const requiredRoles = arrayValue(metadata.requiredContactRoles);
   const missingRoles = requiredRoles.filter((role) => !firstPartyWithEmail(context.parties, role));
   if (missingRoles.length > 0) {
