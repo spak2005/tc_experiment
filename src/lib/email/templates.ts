@@ -54,7 +54,7 @@ export interface ApprovalRequestEmailInput {
 export function approvalRequestEmail(input: ApprovalRequestEmailInput) {
   return {
     subject: `Approve email: ${input.proposedSubject}`,
-    text: `I drafted the email below and need your approval before sending.\n\nReply "send" to approve it, reply "hold" if I should not send it, or reply with edits if you want changes first.\n\nSubject: ${input.proposedSubject}\n\n${input.proposedBody}`
+    text: `I drafted this email and want to make sure it looks right before I send it.\n\nSubject: ${input.proposedSubject}\n\n${input.proposedBody}\n\nIs this okay to send, or should I make any changes?`
   };
 }
 

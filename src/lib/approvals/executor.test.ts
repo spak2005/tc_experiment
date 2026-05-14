@@ -150,7 +150,7 @@ describe("executeApprovalReply", () => {
     expect(mocks.updateApprovalStatus).not.toHaveBeenCalled();
     expect(mocks.sendTcEmail).not.toHaveBeenCalled();
     expect(mocks.replyTcEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ text: expect.stringContaining("Please reply \"send\"") })
+      expect.objectContaining({ text: expect.stringContaining("Is this okay to send") })
     );
   });
 

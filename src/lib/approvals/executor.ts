@@ -173,7 +173,7 @@ async function sendRevisedApprovalRequest(input: {
   const response = await replyToRealtor({
     approval: input.approval,
     inbound: input.inbound,
-    text: `I made those edits. Please reply "send" if this looks good.\n\n${request.text}`,
+    text: `I made those changes.\n\n${request.text}`,
     labels: ["approval_request", "approval_revised"]
   });
   const metadata = extractAgentMailMessageMetadata(response);
@@ -295,7 +295,7 @@ export async function executeApprovalReply(input: {
   await replyToRealtor({
     approval: input.approval,
     inbound: input.inbound,
-    text: decision.question ?? "Did you want me to send this draft, hold it, or make changes?",
+    text: decision.question ?? "Did you want me to send this draft, make changes, or wait?",
     labels: ["approval_reply", "clarification"]
   });
 
