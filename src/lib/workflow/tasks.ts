@@ -19,6 +19,8 @@ const ownerByMilestone: Record<string, TaskDraft["ownerRole"]> = {
   post_closing_docs_due: "title"
 };
 
+const realtorOwnerRoles = new Set(["agent", "tc"]);
+
 export function createTasksForMilestone(milestone: Omit<Milestone, "id" | "transactionId">): TaskDraft[] {
   const metadata = milestone.metadata ?? {};
   const ownerRole =
@@ -36,7 +38,18 @@ export function createTasksForMilestone(milestone: Omit<Milestone, "id" | "trans
       status: "not_started",
       dueDate: milestone.dueDate,
       followUpDueDate: undefined,
-      metadata
+      metadata: {
+        outreachKind: metadata.outreachKind ?? "milestone_follow_up",
+        recipientRole: metadata.recipientRole ?? ownerRole,
+        requiredContactRoles:
+          metadata.requiredContactRoles ??
+          (realtorOwnerRoles.has(ownerRole) ? [] : [ownerRole]),
+        staleAfterDays: metadata.staleAfterDays ?? 2,
+        completionSignals: metadata.completionSignals ?? metadata.expectedEvidence ?? [],
+        requiresApproval: metadata.requiresApproval ?? !realtorOwnerRoles.has(ownerRole),
+        templateHint: metadata.templateHint ?? "milestoneFollowUp",
+        ...metadata
+      }
     }
   ];
 }
