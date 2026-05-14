@@ -708,6 +708,7 @@ export async function processAgentMailInbound(input: {
 
   let documentAssessment: Awaited<ReturnType<typeof assessContractDocument>> | undefined;
   let contractRouting: ContractRoutingDecision | undefined;
+  let shouldPersistContractAssessment = false;
   const fetchedAttachments: Record<string, FetchedAttachment> = {};
 
   if (inbound.attachments.length > 0) {
@@ -817,6 +818,7 @@ export async function processAgentMailInbound(input: {
       if (contractRouting.action === "update_transaction") {
         transactionId = contractRouting.transactionId;
         activityContext.transactionId = transactionId;
+        shouldPersistContractAssessment = true;
       } else if (contractRouting.action === "create_transaction") {
         const transaction = await createTransaction({
           teamId: tcProfile.team_id,
@@ -828,6 +830,7 @@ export async function processAgentMailInbound(input: {
         });
         transactionId = transaction.id;
         activityContext.transactionId = transactionId;
+        shouldPersistContractAssessment = true;
         await logActivity(activityContext, {
           sourceType: "system",
           eventType: "transaction_created",
@@ -839,6 +842,9 @@ export async function processAgentMailInbound(input: {
             routing: contractRouting
           }
         });
+      } else if (contractRouting.action === "no_transaction_action" && context.match.transactionId) {
+        transactionId = context.match.transactionId;
+        activityContext.transactionId = transactionId;
       } else {
         transactionId = undefined;
         activityContext.transactionId = undefined;
@@ -864,7 +870,7 @@ export async function processAgentMailInbound(input: {
           (attachment) => attachment.filename === pdfAttachment.filename && isPdfAttachment(attachment)
         );
 
-        if (storedPdfAttachment) {
+        if (storedPdfAttachment && shouldPersistContractAssessment) {
           await createAuditEvent({
             teamId: context.tcProfile.teamId,
             transactionId,
@@ -880,6 +886,20 @@ export async function processAgentMailInbound(input: {
             transactionId,
             attachment: storedPdfAttachment,
             assessment: documentAssessment
+          });
+        } else if (storedPdfAttachment) {
+          await logActivity(activityContext, {
+            sourceType: "document",
+            eventType: "matched_pdf_stored_without_contract_intake",
+            title: "Stored matched PDF",
+            summary: `${storedPdfAttachment.filename} was stored on the matched transaction without changing contract facts.`,
+            status: "completed",
+            metadata: {
+              filename: storedPdfAttachment.filename,
+              documentId: storedPdfAttachment.documentId,
+              documentKind: documentAssessment.kind,
+              usability: documentAssessment.usability
+            }
           });
         }
       }
@@ -911,6 +931,25 @@ export async function processAgentMailInbound(input: {
         eventType: "contract_pdf_missing",
         payload: { attachmentCount: inbound.attachments.length }
       });
+
+      if (transactionId) {
+        const storedAttachments = await storeInboundAttachments({
+          context,
+          transactionId,
+          fetchedAttachments
+        });
+        await logActivity(activityContext, {
+          sourceType: "document",
+          eventType: "non_contract_attachments_stored",
+          title: "Stored non-contract attachments",
+          summary: `Stored ${storedAttachments.length} attachment(s) on the matched transaction.`,
+          status: "completed",
+          metadata: {
+            count: storedAttachments.length,
+            attachmentNames: storedAttachments.map((attachment) => attachment.filename)
+          }
+        });
+      }
     }
   }
 
