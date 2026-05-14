@@ -188,6 +188,8 @@ Classify the inbound email as exactly one inboundEvent:
 - unknown: use only when the event cannot be classified.
 For confirmation/document/contact/deadline/blocker events on a confident transaction, include transactionWrites that update tasks, documents, milestones, parties, blockers, facts, or memory.
 
+If response.to includes anyone other than the realtor, you must set response.taskId to the id of the open task in transactionContext.tasks that this email is meant to progress. Match by owner role and topic. Do not invent task ids. If no matching task exists, leave response.taskId unset.
+
 If you populate response.body, write like a person, not a document. The email is sent as plain text.
 - No Markdown. No **bold**, no _italics_, no backticks, no # headings.
 - No em-dashes (the "—" character). Use commas, colons, parentheses, or a new sentence instead.
@@ -227,7 +229,7 @@ Output JSON:
   "requiresApproval": boolean,
   "rationale": string,
   "inboundEvent": "confirmation" | "document_received" | "question" | "delay_or_blocker" | "contact_update" | "deadline_change" | "approval_reply" | "noise" | "unknown",
-  "response": { "subject"?: string, "body": string, "to"?: string[], "cc"?: string[], "labels"?: string[] }?,
+  "response": { "subject"?: string, "body": string, "to"?: string[], "cc"?: string[], "labels"?: string[], "taskId"?: string }?,
   "toolCalls": [{ "name": string, "input": object }],
   "transactionWrites": [
     {
