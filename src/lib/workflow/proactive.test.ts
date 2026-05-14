@@ -17,7 +17,10 @@ const mocks = vi.hoisted(() => ({
   executeTransactionWrites: vi.fn(),
   sendTcEmail: vi.fn(),
   extractAgentMailMessageMetadata: vi.fn(),
-  transitionOutboundTaskToWaitingResponse: vi.fn()
+  transitionOutboundTaskToWaitingResponse: vi.fn(),
+  scheduleAgentWakeup: vi.fn(),
+  scheduleNextHeartbeat: vi.fn(),
+  cancelScheduledWakeups: vi.fn()
 }));
 
 vi.mock("@/lib/db/repositories", () => ({
@@ -51,6 +54,12 @@ vi.mock("@/lib/agentmail/service", () => ({
 
 vi.mock("@/lib/workflow/task-transitions", () => ({
   transitionOutboundTaskToWaitingResponse: mocks.transitionOutboundTaskToWaitingResponse
+}));
+
+vi.mock("@/lib/workflow/proactive-scheduling", () => ({
+  scheduleAgentWakeup: mocks.scheduleAgentWakeup,
+  scheduleNextHeartbeat: mocks.scheduleNextHeartbeat,
+  cancelScheduledWakeups: mocks.cancelScheduledWakeups
 }));
 
 function wakeup(overrides: Partial<AgentWakeup> = {}): AgentWakeup {
@@ -113,6 +122,8 @@ describe("processDueAgentWakeups", () => {
     mocks.createAgentDecision.mockResolvedValue({ id: "decision-1" });
     mocks.executeTransactionWrites.mockResolvedValue([]);
     mocks.completeAgentWakeup.mockResolvedValue(wakeup({ status: "completed" }));
+    mocks.scheduleNextHeartbeat.mockResolvedValue(undefined);
+    mocks.cancelScheduledWakeups.mockResolvedValue([]);
   });
 
   it("exits cheaply when no wakeups are due", async () => {
