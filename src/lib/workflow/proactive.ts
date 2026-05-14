@@ -6,11 +6,13 @@ import {
   sendTcEmail
 } from "@/lib/agentmail/service";
 import {
+  claimDueAgentWakeups,
   completeAgentWakeup,
   createAgentActivityEvent,
   createAgentDecision,
   createApproval,
   createAuditEvent,
+  failAgentWakeup,
   updateAgentDecisionExecution,
   updateApprovalRequestMetadata
 } from "@/lib/db/repositories";
@@ -345,5 +347,80 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
       actionType: wakeup.actionType,
       taskId: wakeup.taskId
     })
+  };
+}
+
+function retryAtForWakeup(wakeup: AgentWakeup, now: Date) {
+  const next = new Date(now);
+  next.setUTCMinutes(next.getUTCMinutes() + Math.max(1, wakeup.attemptCount) * 30);
+  return next.toISOString();
+}
+
+export async function processDueAgentWakeups(input: {
+  now?: Date;
+  limit?: number;
+  workerId?: string;
+} = {}) {
+  const now = input.now ?? new Date();
+  const workerId = input.workerId ?? `proactive-dispatcher-${process.pid}`;
+  const wakeups = await claimDueAgentWakeups({
+    now: now.toISOString(),
+    limit: input.limit ?? 10,
+    workerId
+  });
+  const results: Array<{
+    wakeupId: string;
+    status: string;
+    actionType: string;
+    error?: string;
+  }> = [];
+
+  for (const wakeup of wakeups) {
+    try {
+      const execution = await executeAgentWakeup(wakeup);
+      results.push({
+        wakeupId: wakeup.id,
+        status: execution.status,
+        actionType: wakeup.actionType
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown proactive wakeup error";
+      const failed = await failAgentWakeup({
+        id: wakeup.id,
+        error: message,
+        retryAt: retryAtForWakeup(wakeup, now)
+      });
+      await createAgentActivityEvent({
+        teamId: wakeup.teamId,
+        transactionId: wakeup.transactionId,
+        sourceType: "system",
+        eventType: "proactive_wakeup_failed",
+        title: failed?.status === "failed" ? "Failed proactive wakeup" : "Rescheduled proactive wakeup",
+        summary:
+          failed?.status === "failed"
+            ? `Proactive wakeup failed permanently: ${message}.`
+            : `Proactive wakeup failed and will retry: ${message}.`,
+        status: "failed",
+        metadata: {
+          wakeupId: wakeup.id,
+          actionType: wakeup.actionType,
+          attemptCount: wakeup.attemptCount,
+          finalStatus: failed?.status,
+          retryAt: failed?.wakeAt,
+          error: message
+        }
+      });
+      results.push({
+        wakeupId: wakeup.id,
+        status: failed?.status ?? "failed",
+        actionType: wakeup.actionType,
+        error: message
+      });
+    }
+  }
+
+  return {
+    claimed: wakeups.length,
+    results
   };
 }

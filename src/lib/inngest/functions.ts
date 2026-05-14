@@ -1,5 +1,6 @@
 import { processAgentMailInbound } from "@/lib/workflow/intake";
 import { checkDeadlineRisk } from "@/lib/workflow/deadline-monitor";
+import { processDueAgentWakeups } from "@/lib/workflow/proactive";
 import { inngest } from "@/lib/inngest/client";
 import { events } from "@/lib/inngest/events";
 
@@ -24,4 +25,12 @@ export const monitorDeadlineRisk = inngest.createFunction(
   }
 );
 
-export const functions = [processInboundEmail, monitorDeadlineRisk];
+export const dispatchAgentWakeups = inngest.createFunction(
+  { id: "dispatch-agent-wakeups" },
+  { cron: "*/10 * * * *" },
+  async ({ step }) => {
+    return step.run("process due agent wakeups", () => processDueAgentWakeups());
+  }
+);
+
+export const functions = [processInboundEmail, monitorDeadlineRisk, dispatchAgentWakeups];
