@@ -1014,6 +1014,7 @@ export async function processAgentMailInbound(input: {
     rationale: decision.rationale,
     contextSummary: {
       match: context.match,
+      inboundEvent: decision.inboundEvent,
       hasTransactionContext: Boolean(context.transactionContext),
       documentAssessment: documentAssessment
         ? {
@@ -1025,6 +1026,7 @@ export async function processAgentMailInbound(input: {
     },
     toolPlan: {
       toolCalls: decision.toolCalls,
+      inboundEvent: decision.inboundEvent,
       transactionWrites: decision.transactionWrites
     }
   });
@@ -1039,6 +1041,7 @@ export async function processAgentMailInbound(input: {
       decisionId: decisionRecord.id,
       intent: decision.intent,
       action: decision.action,
+      inboundEvent: decision.inboundEvent,
       confidence: decision.confidence,
       matchConfidence: decision.matchConfidence ?? context.match.confidence,
       requiresApproval: decision.requiresApproval,

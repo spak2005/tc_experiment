@@ -24,6 +24,17 @@ export type AgentAction =
   | "escalate_to_realtor"
   | "noop";
 
+export type InboundDealEvent =
+  | "confirmation"
+  | "document_received"
+  | "question"
+  | "delay_or_blocker"
+  | "contact_update"
+  | "deadline_change"
+  | "approval_reply"
+  | "noise"
+  | "unknown";
+
 export interface TransactionMatchCandidate {
   id: string;
   property_address: string | null;
@@ -98,6 +109,7 @@ export interface AgentDecision {
   matchConfidence?: number;
   requiresApproval: boolean;
   rationale: string;
+  inboundEvent: InboundDealEvent;
   response?: {
     subject?: string;
     body: string;

@@ -38,6 +38,7 @@ const decision: AgentDecision = {
   confidence: 0.9,
   requiresApproval: false,
   rationale: "The realtor asked for status.",
+  inboundEvent: "question",
   response: {
     to: ["agent@example.com"],
     body: "The next deadline is the option period."

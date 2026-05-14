@@ -34,6 +34,17 @@ const agentDecisionSchema = z.object({
   matchConfidence: z.number().min(0).max(1).optional(),
   requiresApproval: z.boolean(),
   rationale: z.string(),
+  inboundEvent: z.enum([
+    "confirmation",
+    "document_received",
+    "question",
+    "delay_or_blocker",
+    "contact_update",
+    "deadline_change",
+    "approval_reply",
+    "noise",
+    "unknown"
+  ]),
   response: z
     .object({
       subject: z.string().optional(),
@@ -105,6 +116,7 @@ function fallbackDecision(context: AgentContextPack, assessment?: DocumentAssess
       matchConfidence: context.match.confidence,
       requiresApproval: false,
       rationale: "The inbound email could belong to more than one active transaction.",
+      inboundEvent: "unknown",
       toolCalls: [],
       transactionWrites: []
     };
@@ -121,6 +133,7 @@ function fallbackDecision(context: AgentContextPack, assessment?: DocumentAssess
       matchConfidence: context.match.confidence,
       requiresApproval: false,
       rationale: `Document assessment completed. ${finding}`,
+      inboundEvent: "document_received",
       toolCalls: [],
       transactionWrites: []
     };
@@ -135,6 +148,7 @@ function fallbackDecision(context: AgentContextPack, assessment?: DocumentAssess
       matchConfidence: context.match.confidence,
       requiresApproval: false,
       rationale: "Inbound email matched an active transaction without attachments.",
+      inboundEvent: "question",
       toolCalls: [],
       transactionWrites: []
     };
@@ -147,6 +161,7 @@ function fallbackDecision(context: AgentContextPack, assessment?: DocumentAssess
     matchConfidence: context.match.confidence,
     requiresApproval: false,
     rationale: "Fallback decision used because no confident transaction context was available.",
+    inboundEvent: context.inbound.attachments.length > 0 ? "document_received" : "unknown",
     toolCalls: [],
     transactionWrites: []
   };
@@ -161,6 +176,16 @@ Use transactionWrites for any structured update to the transaction file. Do not 
 Only use the listed transactionWrites tools. Never invent table names, SQL, or unsupported tools.
 If no transaction is confidently identified, leave transactionWrites empty and ask for clarification.
 High-impact changes such as termination, closed status, cancellation, or conflicting facts can be proposed, but the app may require approval.
+Classify the inbound email as exactly one inboundEvent:
+- confirmation: a party confirms something is done or received.
+- document_received: a document or attachment arrived or a party says they sent one.
+- question: someone asks the TC or agent a question.
+- delay_or_blocker: a party reports delay, missing info, denial, cancellation risk, or inability to proceed.
+- contact_update: the email provides or corrects a stakeholder contact.
+- deadline_change: the email changes a date, closing timeline, option/financing/appraisal deadline, or scheduled event.
+- noise: the email is irrelevant to coordination.
+- unknown: use only when the event cannot be classified.
+For confirmation/document/contact/deadline/blocker events on a confident transaction, include transactionWrites that update tasks, documents, milestones, parties, blockers, facts, or memory.
 
 If you populate response.body, write like a person, not a document. The email is sent as plain text.
 - No Markdown. No **bold**, no _italics_, no backticks, no # headings.
@@ -200,6 +225,7 @@ Output JSON:
   "matchConfidence": number?,
   "requiresApproval": boolean,
   "rationale": string,
+  "inboundEvent": "confirmation" | "document_received" | "question" | "delay_or_blocker" | "contact_update" | "deadline_change" | "approval_reply" | "noise" | "unknown",
   "response": { "subject"?: string, "body": string, "to"?: string[], "cc"?: string[], "labels"?: string[] }?,
   "toolCalls": [{ "name": string, "input": object }],
   "transactionWrites": [

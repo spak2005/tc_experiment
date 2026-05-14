@@ -103,6 +103,7 @@ describe("executeAgentDecision", () => {
       matchConfidence: 0.9,
       requiresApproval: false,
       rationale: "The realtor provided a closing-date update.",
+      inboundEvent: "deadline_change",
       toolCalls: [],
       transactionWrites: [
         {
