@@ -28,6 +28,7 @@ end-to-end. Use the function names below with `rg` to jump.
 | Matching + transaction context | `findTransactionMatchCandidates`, `getTransactionContextData` | search by function |
 | Transaction memory | `upsertTransactionMemory`, `appendTransactionMemory` | search by function |
 | Agent decisions | `createAgentDecision`, `updateAgentDecisionExecution` | search by function |
+| Agent wakeups | `createAgentWakeup`, `claimDueAgentWakeups`, `completeAgentWakeup`, `failAgentWakeup`, `cancelPendingAgentWakeups`, `listTransactionWakeups` | search by function |
 | Deadlines + blockers | `findAtRiskMilestones`, `findStaleResponseTasks`, `createBlocker`, `upsertBlockerRecord` | search by function |
 | Approvals | `createApproval` (carries `task_id` so an approved send can transition the linked task), `updateApprovalStatus`, `findPendingApprovalByReply`, approval metadata helpers | search by function |
 | Dashboard view | `getDashboardSnapshot` | search by function |
@@ -54,10 +55,13 @@ end-to-end. Use the function names below with `rg` to jump.
   flipping `tasks.status` to `waiting_response`. `tasks.metadata.staleAfterDays`
   controls the offset; missing or invalid values fall back to
   `DEFAULT_STALE_AFTER_DAYS` (2).
-- `approvals.task_id` (migration 007) links an approval-gated draft
+- `approvals.task_id` links an approval-gated draft
   to the task the eventual send is meant to progress. The approvals
   executor uses it to flip the linked task to `waiting_response`
   after the realtor approves.
+- `agent_wakeups` stores future proactive work. A static Inngest cron
+  claims due rows with `claimDueAgentWakeups`; the app does not create
+  per-task infrastructure cron jobs.
 - Activity row rows returned to callers are mapped through the local
   `toActivityEvent` helper so callers receive the camelCase
   `AgentActivityEvent` shape defined in

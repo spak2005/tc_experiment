@@ -19,6 +19,8 @@ elsewhere.
 | Active | [src/lib/db/repositories.ts](../src/lib/db/repositories.ts) | Single large Postgres repository file; use DB README/function search |
 | Active | [src/lib/agent/decision.ts](../src/lib/agent/decision.ts) | LLM-driven intent and action picker |
 | Active | [src/lib/agent/executor.ts](../src/lib/agent/executor.ts) | Sends emails, creates approvals, records execution |
+| Active | [src/lib/workflow/proactive.ts](../src/lib/workflow/proactive.ts) | Executes DB-backed proactive wakeups and dispatches due work |
+| Active | [src/lib/workflow/proactive-scheduling.ts](../src/lib/workflow/proactive-scheduling.ts) | Schedules/cancels wakeups and computes adaptive heartbeats |
 | Active | [src/lib/transaction-writes/executor.ts](../src/lib/transaction-writes/executor.ts) | Applies structured transaction mutations from intake and agent decisions |
 | Active | [src/lib/transaction-writes/schemas.ts](../src/lib/transaction-writes/schemas.ts) | Zod schemas for allowed transaction write tools |
 | Active | [src/lib/approvals/executor.ts](../src/lib/approvals/executor.ts) | Approve-by-reply execution for send/reject/revise realtor replies |
@@ -27,6 +29,8 @@ elsewhere.
 | Active | [src/lib/documents/attachments.ts](../src/lib/documents/attachments.ts) | Fetch / store inbound attachments and write document records |
 | Stable | [src/lib/agent/types.ts](../src/lib/agent/types.ts) | Shared types: intents, actions, context pack, decision, policy |
 | Stable | [src/lib/agent/context.ts](../src/lib/agent/context.ts) | Builds the agent context pack for one inbound email |
+| Stable | [src/lib/agent/proactive-context.ts](../src/lib/agent/proactive-context.ts) | Builds transaction-centered context without inbound email |
+| Stable | [src/lib/agent/proactive-planner.ts](../src/lib/agent/proactive-planner.ts) | LLM + fallback planner for proactive transaction wakeups |
 | Stable | [src/lib/agent/matching.ts](../src/lib/agent/matching.ts) | Scores inbound vs candidate transactions |
 | Stable | [src/lib/agent/policy.ts](../src/lib/agent/policy.ts) | V1 send policy (allow, approval_required, blocked) |
 | Stable | [src/lib/agent/response-writer.ts](../src/lib/agent/response-writer.ts) | LLM email-body composer |
@@ -62,7 +66,7 @@ elsewhere.
 ## Subsystem one-liners
 
 - `src/lib/agent` — the agent "brain": context pack, matching, decision, policy, executor, response writer, document assessment, and observability helpers. See [src/lib/agent/README.md](../src/lib/agent/README.md).
-- `src/lib/workflow` — orchestrators (intake, deadline/stale monitor, contract routing, status responder, tasks). See [src/lib/workflow/README.md](../src/lib/workflow/README.md).
+- `src/lib/workflow` — orchestrators (intake, proactive wakeups, deadline/stale monitor, contract routing, status responder, tasks). See [src/lib/workflow/README.md](../src/lib/workflow/README.md).
 - `src/lib/db` — Postgres connection pool + a single very large repositories file. See [src/lib/db/README.md](../src/lib/db/README.md).
 - `src/lib/agentmail` — inbound normalization + outbound send/reply + inbox provisioning. See [src/lib/agentmail/README.md](../src/lib/agentmail/README.md).
 - `src/lib/contracts` — extract + validate Texas residential contract facts, contacts, operational terms, and expected documents.
@@ -88,6 +92,9 @@ elsewhere.
 | Inbound event categories (`confirmation`, `document_received`, etc.) | [src/lib/agent/types.ts](../src/lib/agent/types.ts) + [src/lib/agent/decision.ts](../src/lib/agent/decision.ts) |
 | Outbound email-writer prompt or rules | [src/lib/agent/response-writer.ts](../src/lib/agent/response-writer.ts) |
 | Allow / require-approval / block rules | [src/lib/agent/policy.ts](../src/lib/agent/policy.ts) |
+| Proactive planner prompt or schema | [src/lib/agent/proactive-planner.ts](../src/lib/agent/proactive-planner.ts) + [src/lib/agent/proactive-decision.ts](../src/lib/agent/proactive-decision.ts) |
+| Wakeup scheduling / adaptive heartbeat rules | [src/lib/workflow/proactive-scheduling.ts](../src/lib/workflow/proactive-scheduling.ts) |
+| Due wakeup execution and dispatcher behavior | [src/lib/workflow/proactive.ts](../src/lib/workflow/proactive.ts) + [src/lib/inngest/functions.ts](../src/lib/inngest/functions.ts) |
 | Structured transaction write tools | [src/lib/transaction-writes/schemas.ts](../src/lib/transaction-writes/schemas.ts) + [src/lib/transaction-writes/executor.ts](../src/lib/transaction-writes/executor.ts) |
 | Approve-by-reply wording / behavior | [src/lib/approvals](../src/lib/approvals) |
 | Transaction-matching scoring | [src/lib/agent/matching.ts](../src/lib/agent/matching.ts) |
