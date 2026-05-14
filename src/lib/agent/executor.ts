@@ -14,8 +14,10 @@ import {
   updateAgentDecisionExecution
 } from "@/lib/db/repositories";
 import { approvalRequestEmail } from "@/lib/email/templates";
+import { getTemporalContext } from "@/lib/time/clock";
 import { buildStatusAnswerForTransaction } from "@/lib/workflow/status-responder";
 import { composeAgentResponse } from "@/lib/agent/response-writer";
+import { transitionOutboundTaskToWaitingResponse } from "@/lib/workflow/task-transitions";
 import { executeTransactionWrites } from "@/lib/transaction-writes/executor";
 import type { TransactionWriteResult } from "@/lib/transaction-writes/schemas";
 
@@ -70,12 +72,21 @@ function responseIsRealtorOnly(input: { context: AgentContextPack; to: string[] 
   );
 }
 
+interface ResolvedResponse {
+  subject: string;
+  body: string;
+  to: string[];
+  cc?: string[];
+  labels: string[];
+  taskId?: string;
+}
+
 async function responseForDecision(input: {
   context: AgentContextPack;
   decision: AgentDecision;
   documentAssessment?: DocumentAssessment;
   writeResults?: TransactionWriteResult[];
-}) {
+}): Promise<ResolvedResponse | undefined> {
   const { context, decision } = input;
 
   if (decision.response) {
@@ -84,7 +95,8 @@ async function responseForDecision(input: {
       body: decision.response.body,
       to: defaultRecipients(context, decision),
       cc: decision.response.cc,
-      labels: decision.response.labels ?? [decision.intent, decision.action]
+      labels: decision.response.labels ?? [decision.intent, decision.action],
+      taskId: decision.response.taskId
     };
   }
 
@@ -291,6 +303,18 @@ export async function executeAgentDecision(input: {
         }
       });
       toolResults.push({ tool: "sendResponse", result: "sent", labels: response.labels });
+      if (transactionId) {
+        const transition = await transitionOutboundTaskToWaitingResponse({
+          teamId: input.context.tcProfile.teamId,
+          transactionId,
+          taskId: response.taskId,
+          recipientEmails: response.to,
+          today: getTemporalContext().today,
+          agentDecisionId: input.decisionId,
+          outboundSubject: response.subject
+        });
+        toolResults.push({ tool: "outboundTaskTransition", result: transition });
+      }
     } else {
       toolResults.push({ tool: "sendResponse", result: "skipped", reason: "no response needed" });
     }

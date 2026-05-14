@@ -5,24 +5,38 @@ import type { AgentContextPack, AgentDecision } from "@/lib/agent/types";
 const mocks = vi.hoisted(() => ({
   composeAgentResponse: vi.fn(),
   createAgentActivityEvent: vi.fn(),
+  createApproval: vi.fn(),
   createAuditEvent: vi.fn(),
   executeTransactionWrites: vi.fn(),
+  extractAgentMailMessageMetadata: vi.fn(),
+  findOpenTasksByOwnerRole: vi.fn(),
+  findPartyRolesByEmails: vi.fn(),
+  getTaskById: vi.fn(),
   replyTcEmail: vi.fn(),
   sendTcEmail: vi.fn(),
-  updateAgentDecisionExecution: vi.fn()
+  updateAgentDecisionExecution: vi.fn(),
+  updateApprovalRequestMetadata: vi.fn(),
+  upsertTaskRecord: vi.fn()
 }));
 
 vi.mock("@/lib/agent/response-writer", () => ({
   composeAgentResponse: mocks.composeAgentResponse
 }));
 vi.mock("@/lib/agentmail/service", () => ({
+  extractAgentMailMessageMetadata: mocks.extractAgentMailMessageMetadata,
   replyTcEmail: mocks.replyTcEmail,
   sendTcEmail: mocks.sendTcEmail
 }));
 vi.mock("@/lib/db/repositories", () => ({
   createAgentActivityEvent: mocks.createAgentActivityEvent,
+  createApproval: mocks.createApproval,
   createAuditEvent: mocks.createAuditEvent,
-  updateAgentDecisionExecution: mocks.updateAgentDecisionExecution
+  findOpenTasksByOwnerRole: mocks.findOpenTasksByOwnerRole,
+  findPartyRolesByEmails: mocks.findPartyRolesByEmails,
+  getTaskById: mocks.getTaskById,
+  updateAgentDecisionExecution: mocks.updateAgentDecisionExecution,
+  updateApprovalRequestMetadata: mocks.updateApprovalRequestMetadata,
+  upsertTaskRecord: mocks.upsertTaskRecord
 }));
 vi.mock("@/lib/transaction-writes/executor", () => ({
   executeTransactionWrites: mocks.executeTransactionWrites
@@ -74,6 +88,10 @@ describe("executeAgentDecision", () => {
     mocks.createAuditEvent.mockResolvedValue({});
     mocks.updateAgentDecisionExecution.mockResolvedValue(undefined);
     mocks.replyTcEmail.mockResolvedValue({});
+    mocks.findPartyRolesByEmails.mockResolvedValue([]);
+    mocks.findOpenTasksByOwnerRole.mockResolvedValue([]);
+    mocks.getTaskById.mockResolvedValue(null);
+    mocks.upsertTaskRecord.mockResolvedValue({ id: "task-stub", inserted: false });
     mocks.executeTransactionWrites.mockResolvedValue([
       {
         name: "updateTransactionCore",
