@@ -348,6 +348,160 @@ export async function markWebhookEventProcessed(id: string) {
   );
 }
 
+export interface OutboundEmailActionRow {
+  id: string;
+  idempotency_key: string;
+  status: "pending" | "sending" | "sent" | "failed";
+  send_kind: "send" | "reply";
+  inbox_id: string;
+  message_id: string | null;
+  to_addresses: string[];
+  cc_addresses: string[];
+  bcc_addresses: string[];
+  subject: string | null;
+  text_body: string;
+  html_body: string | null;
+  labels: string[];
+  provider_message_id: string | null;
+  provider_thread_id: string | null;
+  last_error: string | null;
+}
+
+const outboundEmailActionColumns = `
+  id,
+  idempotency_key,
+  status,
+  send_kind,
+  inbox_id,
+  message_id,
+  to_addresses,
+  cc_addresses,
+  bcc_addresses,
+  subject,
+  text_body,
+  html_body,
+  labels,
+  provider_message_id,
+  provider_thread_id,
+  last_error
+`;
+
+export async function beginOutboundEmailAction(input: {
+  idempotencyKey: string;
+  sendKind: "send" | "reply";
+  inboxId: string;
+  messageId?: string;
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject?: string;
+  text: string;
+  html?: string;
+  labels?: string[];
+}) {
+  const result = await query<OutboundEmailActionRow>(
+    `insert into outbound_email_actions (
+       idempotency_key,
+       status,
+       send_kind,
+       inbox_id,
+       message_id,
+       to_addresses,
+       cc_addresses,
+       bcc_addresses,
+       subject,
+       text_body,
+       html_body,
+       labels
+     )
+     values ($1, 'sending', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+     on conflict (idempotency_key) do update
+       set status = 'sending',
+           send_kind = excluded.send_kind,
+           inbox_id = excluded.inbox_id,
+           message_id = excluded.message_id,
+           to_addresses = excluded.to_addresses,
+           cc_addresses = excluded.cc_addresses,
+           bcc_addresses = excluded.bcc_addresses,
+           subject = excluded.subject,
+           text_body = excluded.text_body,
+           html_body = excluded.html_body,
+           labels = excluded.labels,
+           last_error = null,
+           updated_at = now()
+       where outbound_email_actions.status in ('pending', 'failed')
+          or (
+            outbound_email_actions.status = 'sending'
+            and outbound_email_actions.updated_at < now() - interval '15 minutes'
+          )
+     returning ${outboundEmailActionColumns}`,
+    [
+      input.idempotencyKey,
+      input.sendKind,
+      input.inboxId,
+      input.messageId ?? null,
+      input.to,
+      input.cc ?? [],
+      input.bcc ?? [],
+      input.subject ?? null,
+      input.text,
+      input.html ?? null,
+      input.labels ?? []
+    ]
+  );
+
+  if (result.rows[0]) {
+    return { action: result.rows[0], acquired: true };
+  }
+
+  const existing = await query<OutboundEmailActionRow>(
+    `select ${outboundEmailActionColumns}
+     from outbound_email_actions
+     where idempotency_key = $1`,
+    [input.idempotencyKey]
+  );
+
+  return { action: existing.rows[0], acquired: false };
+}
+
+export async function markOutboundEmailSent(input: {
+  idempotencyKey: string;
+  providerMessageId?: string;
+  providerThreadId?: string;
+}) {
+  const result = await query<OutboundEmailActionRow>(
+    `update outbound_email_actions
+     set status = 'sent',
+         provider_message_id = coalesce($2, provider_message_id),
+         provider_thread_id = coalesce($3, provider_thread_id),
+         sent_at = now(),
+         updated_at = now(),
+         last_error = null
+     where idempotency_key = $1
+     returning ${outboundEmailActionColumns}`,
+    [input.idempotencyKey, input.providerMessageId ?? null, input.providerThreadId ?? null]
+  );
+
+  return result.rows[0] ?? null;
+}
+
+export async function markOutboundEmailFailed(input: {
+  idempotencyKey: string;
+  error: string;
+}) {
+  const result = await query<OutboundEmailActionRow>(
+    `update outbound_email_actions
+     set status = 'failed',
+         last_error = $2,
+         updated_at = now()
+     where idempotency_key = $1
+     returning ${outboundEmailActionColumns}`,
+    [input.idempotencyKey, input.error]
+  );
+
+  return result.rows[0] ?? null;
+}
+
 export async function createAuditEvent(input: {
   teamId: string;
   transactionId?: string;

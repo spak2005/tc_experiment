@@ -1,5 +1,11 @@
 import { getEnv } from "@/lib/config/env";
 import { getAgentMailClient } from "@/lib/agentmail/client";
+import {
+  beginOutboundEmailAction,
+  markOutboundEmailFailed,
+  markOutboundEmailSent,
+  type OutboundEmailActionRow
+} from "@/lib/db/repositories";
 
 export interface ProvisionTcInboxInput {
   teamId: string;
@@ -24,6 +30,10 @@ export interface SendTcEmailInput {
   labels?: string[];
 }
 
+export interface SendTcEmailOnceInput extends SendTcEmailInput {
+  idempotencyKey: string;
+}
+
 export interface ReplyTcEmailInput {
   inboxId: string;
   messageId: string;
@@ -33,6 +43,10 @@ export interface ReplyTcEmailInput {
   text: string;
   html?: string;
   labels?: string[];
+}
+
+export interface ReplyTcEmailOnceInput extends ReplyTcEmailInput {
+  idempotencyKey: string;
 }
 
 export interface CreateTcDraftInput extends SendTcEmailInput {
@@ -68,6 +82,17 @@ export function extractAgentMailMessageMetadata(value: unknown): AgentMailMessag
       asString(record.threadId) ??
       asString(record.thread_id)
   };
+}
+
+function messageMetadataFromAction(action: OutboundEmailActionRow) {
+  return {
+    messageId: action.provider_message_id ?? undefined,
+    threadId: action.provider_thread_id ?? undefined
+  };
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Unknown AgentMail send failure.";
 }
 
 function toInboxUsername(agentName: string, teamId: string): string {
@@ -121,6 +146,51 @@ export async function sendTcEmail(input: SendTcEmailInput) {
   });
 }
 
+export async function sendTcEmailOnce(input: SendTcEmailOnceInput) {
+  const { idempotencyKey, ...sendInput } = input;
+  const { action, acquired } = await beginOutboundEmailAction({
+    idempotencyKey,
+    sendKind: "send",
+    inboxId: sendInput.inboxId,
+    to: sendInput.to,
+    cc: sendInput.cc,
+    bcc: sendInput.bcc,
+    subject: sendInput.subject,
+    text: sendInput.text,
+    html: sendInput.html,
+    labels: sendInput.labels
+  });
+
+  if (!action) {
+    throw new Error(`Outbound email action ${idempotencyKey} could not be loaded.`);
+  }
+
+  if (!acquired) {
+    if (action.status === "sent") {
+      return messageMetadataFromAction(action);
+    }
+
+    throw new Error(`Outbound email action ${idempotencyKey} is already ${action.status}.`);
+  }
+
+  let sent: unknown;
+  try {
+    sent = await sendTcEmail(sendInput);
+  } catch (error) {
+    await markOutboundEmailFailed({ idempotencyKey, error: errorMessage(error) });
+    throw error;
+  }
+
+  const metadata = extractAgentMailMessageMetadata(sent);
+  await markOutboundEmailSent({
+    idempotencyKey,
+    providerMessageId: metadata.messageId,
+    providerThreadId: metadata.threadId
+  });
+
+  return sent;
+}
+
 export async function replyTcEmail(input: ReplyTcEmailInput) {
   const client = getAgentMailClient();
 
@@ -132,6 +202,52 @@ export async function replyTcEmail(input: ReplyTcEmailInput) {
     html: input.html,
     labels: input.labels
   });
+}
+
+export async function replyTcEmailOnce(input: ReplyTcEmailOnceInput) {
+  const { idempotencyKey, ...replyInput } = input;
+  const { action, acquired } = await beginOutboundEmailAction({
+    idempotencyKey,
+    sendKind: "reply",
+    inboxId: replyInput.inboxId,
+    messageId: replyInput.messageId,
+    to: replyInput.to ?? [],
+    cc: replyInput.cc,
+    bcc: replyInput.bcc,
+    subject: undefined,
+    text: replyInput.text,
+    html: replyInput.html,
+    labels: replyInput.labels
+  });
+
+  if (!action) {
+    throw new Error(`Outbound email action ${idempotencyKey} could not be loaded.`);
+  }
+
+  if (!acquired) {
+    if (action.status === "sent") {
+      return messageMetadataFromAction(action);
+    }
+
+    throw new Error(`Outbound email action ${idempotencyKey} is already ${action.status}.`);
+  }
+
+  let sent: unknown;
+  try {
+    sent = await replyTcEmail(replyInput);
+  } catch (error) {
+    await markOutboundEmailFailed({ idempotencyKey, error: errorMessage(error) });
+    throw error;
+  }
+
+  const metadata = extractAgentMailMessageMetadata(sent);
+  await markOutboundEmailSent({
+    idempotencyKey,
+    providerMessageId: metadata.messageId,
+    providerThreadId: metadata.threadId
+  });
+
+  return sent;
 }
 
 export async function createTcDraft(input: CreateTcDraftInput) {

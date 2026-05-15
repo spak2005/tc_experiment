@@ -55,7 +55,7 @@ create table outbound_email_actions (
   updated_at timestamptz not null default now(),
   sent_at timestamptz,
   constraint outbound_email_actions_status_check check (
-    status in ('pending', 'sent', 'failed')
+    status in ('pending', 'sending', 'sent', 'failed')
   ),
   constraint outbound_email_actions_send_kind_check check (
     send_kind in ('send', 'reply')
