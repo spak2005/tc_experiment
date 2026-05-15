@@ -37,6 +37,10 @@ export function isUnsafeEvidence(text: string) {
   return unsafePatterns.some((pattern) => pattern.test(text));
 }
 
+export function shouldSkipCompletionEvidence(item: EvidenceItem) {
+  return Boolean(item.negated) || item.type === "negative_or_blocker" || isUnsafeEvidence(item.text);
+}
+
 function signalValues(record: Record<string, unknown>) {
   const metadata = recordValue(record.metadata);
   return [
@@ -56,11 +60,11 @@ export function resolveCompletionEvidence(input: {
   const writes: ReconciliationAppliedWrite[] = [];
   const skipped: string[] = [];
   const positive = input.evidence.filter(
-    (item) => item.type === "party_confirmation" && !item.negated && !isUnsafeEvidence(item.text)
+    (item) => item.type === "party_confirmation" && !shouldSkipCompletionEvidence(item)
   );
 
   for (const item of input.evidence) {
-    if (item.negated || isUnsafeEvidence(item.text)) {
+    if (shouldSkipCompletionEvidence(item)) {
       skipped.push(`Skipped unsafe or negated evidence: ${item.text.slice(0, 120)}`);
     }
   }
