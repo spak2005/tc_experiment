@@ -6,8 +6,8 @@ const mocks = vi.hoisted(() => ({
   claimDueAgentWakeups: vi.fn(),
   completeAgentWakeup: vi.fn(),
   createAgentActivityEvent: vi.fn(),
-  createAgentDecision: vi.fn(),
-  createApproval: vi.fn(),
+  createAgentDecisionOnce: vi.fn(),
+  createApprovalOnce: vi.fn(),
   createAuditEvent: vi.fn(),
   failAgentWakeup: vi.fn(),
   updateAgentDecisionExecution: vi.fn(),
@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   buildProactiveAgentContext: vi.fn(),
   decideProactiveAction: vi.fn(),
   executeTransactionWrites: vi.fn(),
-  sendTcEmail: vi.fn(),
+  sendTcEmailOnce: vi.fn(),
   extractAgentMailMessageMetadata: vi.fn(),
   transitionOutboundTaskToWaitingResponse: vi.fn(),
   scheduleAgentWakeup: vi.fn(),
@@ -28,8 +28,8 @@ vi.mock("@/lib/db/repositories", () => ({
   claimDueAgentWakeups: mocks.claimDueAgentWakeups,
   completeAgentWakeup: mocks.completeAgentWakeup,
   createAgentActivityEvent: mocks.createAgentActivityEvent,
-  createAgentDecision: mocks.createAgentDecision,
-  createApproval: mocks.createApproval,
+  createAgentDecisionOnce: mocks.createAgentDecisionOnce,
+  createApprovalOnce: mocks.createApprovalOnce,
   createAuditEvent: mocks.createAuditEvent,
   failAgentWakeup: mocks.failAgentWakeup,
   updateAgentDecisionExecution: mocks.updateAgentDecisionExecution,
@@ -49,7 +49,7 @@ vi.mock("@/lib/transaction-writes/executor", () => ({
 }));
 
 vi.mock("@/lib/agentmail/service", () => ({
-  sendTcEmail: mocks.sendTcEmail,
+  sendTcEmailOnce: mocks.sendTcEmailOnce,
   extractAgentMailMessageMetadata: mocks.extractAgentMailMessageMetadata
 }));
 
@@ -128,7 +128,7 @@ describe("processDueAgentWakeups", () => {
     for (const mock of Object.values(mocks)) {
       mock.mockReset();
     }
-    mocks.createAgentDecision.mockResolvedValue({ id: "decision-1" });
+    mocks.createAgentDecisionOnce.mockResolvedValue({ id: "decision-1" });
     mocks.executeTransactionWrites.mockResolvedValue([]);
     mocks.completeAgentWakeup.mockResolvedValue(wakeup({ status: "completed" }));
     mocks.scheduleNextHeartbeat.mockResolvedValue(undefined);
@@ -226,8 +226,8 @@ describe("processDueAgentWakeups", () => {
       },
       transactionWrites: []
     });
-    mocks.createApproval.mockResolvedValue({ id: "approval-1" });
-    mocks.sendTcEmail.mockResolvedValue({ id: "request-message" });
+    mocks.createApprovalOnce.mockResolvedValue({ id: "approval-1" });
+    mocks.sendTcEmailOnce.mockResolvedValue({ id: "request-message" });
     mocks.extractAgentMailMessageMetadata.mockReturnValue({
       messageId: "request-message",
       threadId: "request-thread"
@@ -238,14 +238,16 @@ describe("processDueAgentWakeups", () => {
       workerId: "worker-1"
     });
 
-    expect(mocks.createApproval).toHaveBeenCalledWith(
+    expect(mocks.createApprovalOnce).toHaveBeenCalledWith(
       expect.objectContaining({
+        idempotencyKey: expect.stringContaining("approval:decision-1:"),
         taskId,
         proposedTo: ["title@example.com"]
       })
     );
-    expect(mocks.sendTcEmail).toHaveBeenCalledWith(
+    expect(mocks.sendTcEmailOnce).toHaveBeenCalledWith(
       expect.objectContaining({
+        idempotencyKey: "approval:approval-1:request",
         to: ["agent@example.com"],
         labels: ["approval_request", "proactive", "draft_external_email"]
       })
