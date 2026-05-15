@@ -8,7 +8,7 @@ import {
 } from "@/lib/agentmail/service";
 import {
   createAgentActivityEvent,
-  createApproval,
+  createApprovalOnce,
   createAuditEvent,
   updateApprovalRequestMetadata,
   updateAgentDecisionExecution
@@ -70,6 +70,21 @@ function responseIsRealtorOnly(input: { context: AgentContextPack; to: string[] 
     input.to.length > 0 &&
     input.to.every((recipient) => normalizeEmail(recipient) === realtorEmail)
   );
+}
+
+function approvalIdempotencyKey(input: {
+  decisionId: string;
+  taskId?: string;
+  to: string[];
+  subject: string;
+}) {
+  return [
+    "approval",
+    input.decisionId,
+    input.taskId ?? "transaction",
+    input.to.map(normalizeEmail).sort().join(","),
+    input.subject
+  ].join(":");
 }
 
 interface ResolvedResponse {
@@ -213,10 +228,16 @@ export async function executeAgentDecision(input: {
           reason: "approval requires a transaction"
         });
       } else {
-        const approval = await createApproval({
+        const approval = await createApprovalOnce({
           transactionId,
           agentDecisionId: input.decisionId,
           taskId: response.taskId,
+          idempotencyKey: approvalIdempotencyKey({
+            decisionId: input.decisionId,
+            taskId: response.taskId,
+            to: response.to,
+            subject: response.subject
+          }),
           proposedSubject: response.subject,
           proposedBody: response.body,
           proposedTo: response.to,

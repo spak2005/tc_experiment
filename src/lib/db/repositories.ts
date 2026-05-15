@@ -2388,6 +2388,7 @@ export async function createApproval(input: {
   transactionId: string;
   agentDecisionId?: string;
   taskId?: string;
+  idempotencyKey?: string;
   proposedSubject: string;
   proposedBody: string;
   proposedTo: string[];
@@ -2399,18 +2400,63 @@ export async function createApproval(input: {
        transaction_id,
        agent_decision_id,
        task_id,
+       idempotency_key,
        proposed_subject,
        proposed_body,
        proposed_to,
        proposed_cc,
        expires_at
      )
-     values ($1, $2, $3, $4, $5, $6, $7, $8)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      returning id`,
     [
       input.transactionId,
       input.agentDecisionId ?? null,
       input.taskId ?? null,
+      input.idempotencyKey ?? null,
+      input.proposedSubject,
+      input.proposedBody,
+      input.proposedTo,
+      input.proposedCc,
+      input.expiresAt ?? null
+    ]
+  );
+
+  return result.rows[0];
+}
+
+export async function createApprovalOnce(input: {
+  transactionId: string;
+  agentDecisionId?: string;
+  taskId?: string;
+  idempotencyKey: string;
+  proposedSubject: string;
+  proposedBody: string;
+  proposedTo: string[];
+  proposedCc: string[];
+  expiresAt?: Date;
+}) {
+  const result = await query<{ id: string }>(
+    `insert into approvals (
+       transaction_id,
+       agent_decision_id,
+       task_id,
+       idempotency_key,
+       proposed_subject,
+       proposed_body,
+       proposed_to,
+       proposed_cc,
+       expires_at
+     )
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     on conflict (idempotency_key) where idempotency_key is not null do update
+       set idempotency_key = excluded.idempotency_key
+     returning id`,
+    [
+      input.transactionId,
+      input.agentDecisionId ?? null,
+      input.taskId ?? null,
+      input.idempotencyKey,
       input.proposedSubject,
       input.proposedBody,
       input.proposedTo,

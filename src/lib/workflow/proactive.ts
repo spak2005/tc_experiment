@@ -10,7 +10,7 @@ import {
   completeAgentWakeup,
   createAgentActivityEvent,
   createAgentDecisionOnce,
-  createApproval,
+  createApprovalOnce,
   createAuditEvent,
   failAgentWakeup,
   updateAgentDecisionExecution,
@@ -44,6 +44,21 @@ function wakeupDedupeKey(input: {
   taskId?: string;
 }) {
   return [input.transactionId, input.actionType, input.taskId].filter(Boolean).join(":");
+}
+
+function approvalIdempotencyKey(input: {
+  decisionId: string;
+  taskId?: string;
+  to: string[];
+  subject: string;
+}) {
+  return [
+    "approval",
+    input.decisionId,
+    input.taskId ?? "transaction",
+    input.to.map(normalizeEmail).sort().join(","),
+    input.subject
+  ].join(":");
 }
 
 export async function executeAgentWakeup(wakeup: AgentWakeup) {
@@ -219,10 +234,16 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
 
     if (needsApproval) {
       policyResult = "approval_required";
-      const approval = await createApproval({
+      const approval = await createApprovalOnce({
         transactionId: context.transactionId,
         agentDecisionId: decisionRecord.id,
         taskId: decision.taskId,
+        idempotencyKey: approvalIdempotencyKey({
+          decisionId: decisionRecord.id,
+          taskId: decision.taskId,
+          to: response.to,
+          subject: response.subject
+        }),
         proposedSubject: response.subject,
         proposedBody: response.body,
         proposedTo: response.to,
