@@ -1,6 +1,7 @@
 import type { NormalizedInboundEmail } from "@/lib/agentmail/inbound";
 import type { TemporalContext } from "@/lib/time/clock";
 import type { TransactionWrite } from "@/lib/transaction-writes/schemas";
+import type { DealMemory } from "@/lib/agent/memory";
 
 export type AgentIntent =
   | "new_contract"
@@ -74,6 +75,7 @@ export interface TransactionContext {
   messages: Array<Record<string, unknown>>;
   blockers: Array<Record<string, unknown>>;
   memory?: Record<string, unknown>;
+  dealMemory: DealMemory;
   recentDecisions: Array<Record<string, unknown>>;
   nextMilestone?: Record<string, unknown>;
   missingItems: string[];

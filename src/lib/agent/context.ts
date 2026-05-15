@@ -5,6 +5,7 @@ import {
   getTransactionContextData
 } from "@/lib/db/repositories";
 import { matchInboundToTransaction } from "@/lib/agent/matching";
+import { buildDealMemory } from "@/lib/agent/memory";
 import { getTemporalContext } from "@/lib/time/clock";
 
 export function buildInboundEmailText(inbound: Pick<NormalizedInboundEmail, "subject" | "text" | "html">) {
@@ -71,6 +72,7 @@ export async function getTransactionContext(
     messages: data.messages,
     blockers: data.blockers,
     memory: data.memory ? { ...data.memory } : undefined,
+    dealMemory: buildDealMemory(data.memory ? { ...data.memory } : undefined),
     recentDecisions: data.recentDecisions,
     nextMilestone: firstOpenMilestone(data.milestones),
     missingItems: deriveMissingItems({
