@@ -111,7 +111,7 @@ function deterministicClassification(input: ClassifyDocumentInput): DocumentClas
   return {
     documentId: input.documentId,
     filename: input.filename,
-    categoryKey: keyword?.key ?? documentMetadataKey(best),
+    categoryKey: keyword?.key ?? (best ? documentMetadataKey(best) : undefined),
     categoryLabel: keyword?.label ?? best?.name,
     matchedDocumentId: best?.id,
     matchedDocumentName: best?.name,
