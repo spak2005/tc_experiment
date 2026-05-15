@@ -5,15 +5,15 @@ import type { AgentContextPack, AgentDecision } from "@/lib/agent/types";
 const mocks = vi.hoisted(() => ({
   composeAgentResponse: vi.fn(),
   createAgentActivityEvent: vi.fn(),
-  createApproval: vi.fn(),
+  createApprovalOnce: vi.fn(),
   createAuditEvent: vi.fn(),
   executeTransactionWrites: vi.fn(),
   extractAgentMailMessageMetadata: vi.fn(),
   findOpenTasksByOwnerRole: vi.fn(),
   findPartyRolesByEmails: vi.fn(),
   getTaskById: vi.fn(),
-  replyTcEmail: vi.fn(),
-  sendTcEmail: vi.fn(),
+  replyTcEmailOnce: vi.fn(),
+  sendTcEmailOnce: vi.fn(),
   updateAgentDecisionExecution: vi.fn(),
   updateApprovalRequestMetadata: vi.fn(),
   upsertTaskRecord: vi.fn()
@@ -24,12 +24,12 @@ vi.mock("@/lib/agent/response-writer", () => ({
 }));
 vi.mock("@/lib/agentmail/service", () => ({
   extractAgentMailMessageMetadata: mocks.extractAgentMailMessageMetadata,
-  replyTcEmail: mocks.replyTcEmail,
-  sendTcEmail: mocks.sendTcEmail
+  replyTcEmailOnce: mocks.replyTcEmailOnce,
+  sendTcEmailOnce: mocks.sendTcEmailOnce
 }));
 vi.mock("@/lib/db/repositories", () => ({
   createAgentActivityEvent: mocks.createAgentActivityEvent,
-  createApproval: mocks.createApproval,
+  createApprovalOnce: mocks.createApprovalOnce,
   createAuditEvent: mocks.createAuditEvent,
   findOpenTasksByOwnerRole: mocks.findOpenTasksByOwnerRole,
   findPartyRolesByEmails: mocks.findPartyRolesByEmails,
@@ -87,7 +87,7 @@ describe("executeAgentDecision", () => {
     mocks.createAgentActivityEvent.mockResolvedValue({});
     mocks.createAuditEvent.mockResolvedValue({});
     mocks.updateAgentDecisionExecution.mockResolvedValue(undefined);
-    mocks.replyTcEmail.mockResolvedValue({});
+    mocks.replyTcEmailOnce.mockResolvedValue({});
     mocks.findPartyRolesByEmails.mockResolvedValue([]);
     mocks.findOpenTasksByOwnerRole.mockResolvedValue([]);
     mocks.getTaskById.mockResolvedValue(null);
@@ -160,8 +160,8 @@ describe("executeAgentDecision", () => {
 
   it("forwards the decision taskId onto approval requests for external recipients", async () => {
     const taskId = "22222222-2222-4222-8222-222222222222";
-    mocks.createApproval.mockResolvedValueOnce({ id: "approval-99" });
-    mocks.sendTcEmail.mockResolvedValueOnce({
+    mocks.createApprovalOnce.mockResolvedValueOnce({ id: "approval-99" });
+    mocks.sendTcEmailOnce.mockResolvedValueOnce({
       messageId: "request-1",
       threadId: "thread-1"
     });
@@ -198,10 +198,11 @@ describe("executeAgentDecision", () => {
       policy: { result: "allowed", reasons: ["Allowed"] }
     });
 
-    expect(mocks.createApproval).toHaveBeenCalledWith(
+    expect(mocks.createApprovalOnce).toHaveBeenCalledWith(
       expect.objectContaining({
         transactionId,
         agentDecisionId: "decision-2",
+        idempotencyKey: expect.stringContaining("approval:decision-2:"),
         taskId,
         proposedSubject: "Title commitment status",
         proposedTo: ["title@example.com"]
@@ -251,8 +252,10 @@ describe("executeAgentDecision", () => {
       policy: { result: "allowed", reasons: ["Allowed"] }
     });
 
-    expect(mocks.createApproval).not.toHaveBeenCalled();
-    expect(mocks.replyTcEmail).toHaveBeenCalled();
+    expect(mocks.createApprovalOnce).not.toHaveBeenCalled();
+    expect(mocks.replyTcEmailOnce).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: "decision:decision-3:response:message-1" })
+    );
     expect(mocks.upsertTaskRecord).not.toHaveBeenCalled();
     const skipped = mocks.createAgentActivityEvent.mock.calls.find(
       ([event]) => event.eventType === "outbound_task_transition_skipped"

@@ -10,8 +10,8 @@ const mocks = vi.hoisted(() => ({
   findOpenTasksByOwnerRole: vi.fn(),
   findPartyRolesByEmails: vi.fn(),
   getTaskById: vi.fn(),
-  replyTcEmail: vi.fn(),
-  sendTcEmail: vi.fn(),
+  replyTcEmailOnce: vi.fn(),
+  sendTcEmailOnce: vi.fn(),
   updateApprovalDraft: vi.fn(),
   updateApprovalRequestMetadata: vi.fn(),
   updateApprovalSentMetadata: vi.fn(),
@@ -28,8 +28,8 @@ vi.mock("@/lib/agentmail/service", () => ({
     const record = value as Record<string, string | undefined>;
     return { messageId: record?.messageId, threadId: record?.threadId };
   },
-  replyTcEmail: mocks.replyTcEmail,
-  sendTcEmail: mocks.sendTcEmail
+  replyTcEmailOnce: mocks.replyTcEmailOnce,
+  sendTcEmailOnce: mocks.sendTcEmailOnce
 }));
 
 vi.mock("@/lib/db/repositories", () => ({
@@ -79,8 +79,8 @@ describe("executeApprovalReply", () => {
     vi.clearAllMocks();
     mocks.createAgentActivityEvent.mockResolvedValue({});
     mocks.createAuditEvent.mockResolvedValue({});
-    mocks.replyTcEmail.mockResolvedValue({ messageId: "reply-out-1", threadId: "thread-1" });
-    mocks.sendTcEmail.mockResolvedValue({ messageId: "sent-1", threadId: "sent-thread-1" });
+    mocks.replyTcEmailOnce.mockResolvedValue({ messageId: "reply-out-1", threadId: "thread-1" });
+    mocks.sendTcEmailOnce.mockResolvedValue({ messageId: "sent-1", threadId: "sent-thread-1" });
     mocks.updateApprovalDraft.mockResolvedValue({ ...approval, proposed_body: "Revised body." });
     mocks.updateApprovalRequestMetadata.mockResolvedValue(undefined);
     mocks.updateApprovalSentMetadata.mockResolvedValue(undefined);
@@ -101,14 +101,17 @@ describe("executeApprovalReply", () => {
     await executeApprovalReply({ approval, inbound });
 
     expect(mocks.updateApprovalStatus).toHaveBeenCalledWith("approval-1", "approved");
-    expect(mocks.sendTcEmail).toHaveBeenCalledWith(
+    expect(mocks.sendTcEmailOnce).toHaveBeenCalledWith(
       expect.objectContaining({
+        idempotencyKey: "approval:approval-1:approved-send",
         to: ["title@example.com"],
         subject: "Title update",
         text: "Please confirm receipt."
       })
     );
-    expect(mocks.replyTcEmail).toHaveBeenCalledWith(expect.objectContaining({ text: "Sent." }));
+    expect(mocks.replyTcEmailOnce).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: "approval:approval-1:approved-ack", text: "Sent." })
+    );
   });
 
   it("rejects without sending externally when the realtor holds", async () => {
@@ -121,8 +124,8 @@ describe("executeApprovalReply", () => {
     await executeApprovalReply({ approval, inbound });
 
     expect(mocks.updateApprovalStatus).toHaveBeenCalledWith("approval-1", "rejected");
-    expect(mocks.sendTcEmail).not.toHaveBeenCalled();
-    expect(mocks.replyTcEmail).toHaveBeenCalledWith(
+    expect(mocks.sendTcEmailOnce).not.toHaveBeenCalled();
+    expect(mocks.replyTcEmailOnce).toHaveBeenCalledWith(
       expect.objectContaining({ text: "Got it. I will not send it." })
     );
   });
@@ -141,10 +144,10 @@ describe("executeApprovalReply", () => {
     expect(mocks.updateApprovalDraft).toHaveBeenCalledWith(
       expect.objectContaining({ id: "approval-1", proposedBody: "Revised body." })
     );
-    expect(mocks.sendTcEmail).toHaveBeenCalledWith(
+    expect(mocks.sendTcEmailOnce).toHaveBeenCalledWith(
       expect.objectContaining({ text: "Revised body.", labels: ["approved-send", "revised"] })
     );
-    expect(mocks.replyTcEmail).toHaveBeenCalledWith(
+    expect(mocks.replyTcEmailOnce).toHaveBeenCalledWith(
       expect.objectContaining({ text: "Updated and sent." })
     );
   });
@@ -161,8 +164,8 @@ describe("executeApprovalReply", () => {
 
     expect(mocks.updateApprovalDraft).toHaveBeenCalled();
     expect(mocks.updateApprovalStatus).not.toHaveBeenCalled();
-    expect(mocks.sendTcEmail).not.toHaveBeenCalled();
-    expect(mocks.replyTcEmail).toHaveBeenCalledWith(
+    expect(mocks.sendTcEmailOnce).not.toHaveBeenCalled();
+    expect(mocks.replyTcEmailOnce).toHaveBeenCalledWith(
       expect.objectContaining({ text: expect.stringContaining("Is this okay to send") })
     );
   });
@@ -253,8 +256,8 @@ describe("executeApprovalReply", () => {
     await executeApprovalReply({ approval, inbound });
 
     expect(mocks.updateApprovalStatus).not.toHaveBeenCalled();
-    expect(mocks.sendTcEmail).not.toHaveBeenCalled();
-    expect(mocks.replyTcEmail).toHaveBeenCalledWith(
+    expect(mocks.sendTcEmailOnce).not.toHaveBeenCalled();
+    expect(mocks.replyTcEmailOnce).toHaveBeenCalledWith(
       expect.objectContaining({ text: "Should I send this?" })
     );
   });
