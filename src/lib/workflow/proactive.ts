@@ -20,6 +20,7 @@ import type { AgentWakeup } from "@/lib/domain/types";
 import { approvalRequestEmail } from "@/lib/email/templates";
 import { getTemporalContext } from "@/lib/time/clock";
 import { executeTransactionWrites } from "@/lib/transaction-writes/executor";
+import { reconcileTransactionEvidence } from "@/lib/workflow/evidence-reconciliation";
 import {
   cancelScheduledWakeups,
   scheduleAgentWakeup,
@@ -45,7 +46,7 @@ function wakeupDedupeKey(input: {
 }
 
 export async function executeAgentWakeup(wakeup: AgentWakeup) {
-  const context = await buildProactiveAgentContext(wakeup.transactionId);
+  let context = await buildProactiveAgentContext(wakeup.transactionId);
   if (!context) {
     await createAgentActivityEvent({
       teamId: wakeup.teamId,
@@ -82,8 +83,26 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
       actionType: wakeup.actionType,
       taskId: wakeup.taskId,
       attemptCount: wakeup.attemptCount
-    }
+      }
+    });
+
+  const reconciliation = await reconcileTransactionEvidence({
+    teamId: context.tcProfile.teamId,
+    transactionId: context.transactionId,
+    context: context.transactionContext,
+    trigger: { type: "heartbeat" }
   });
+  if (reconciliation.appliedWrites.length > 0) {
+    context = await buildProactiveAgentContext(wakeup.transactionId);
+    if (!context) {
+      await completeAgentWakeup({
+        id: wakeup.id,
+        status: "skipped",
+        payload: { skippedReason: "missing_transaction_context_after_reconciliation" }
+      });
+      return { status: "skipped", reason: "missing_transaction_context_after_reconciliation" };
+    }
+  }
 
   const decision = await decideProactiveAction({ context });
   const decisionRecord = await createAgentDecision({
