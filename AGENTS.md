@@ -87,6 +87,9 @@ pipeline doc instead.
 - [docs/transaction-memory.md](docs/transaction-memory.md) explains the
   concise deal brief / active questions memory contract layered above
   the structured transaction file.
+- [docs/agent-reliability.md](docs/agent-reliability.md) explains the
+  idempotency rules that keep retries from duplicating real-world agent
+  actions such as emails, approvals, documents, and blockers.
 - [docs/v1-coordination-plan.md](docs/v1-coordination-plan.md) captures
   the current V1 product loop: operational intake, event updates, and
   stale-response monitoring.

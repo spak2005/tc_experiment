@@ -71,6 +71,9 @@ instead of scanning the whole codebase:
 - [docs/transaction-memory.md](docs/transaction-memory.md) — the deal
   brief and active questions/warnings memory contract used in agent
   prompts.
+- [docs/agent-reliability.md](docs/agent-reliability.md) — idempotency
+  rules for retries, outbound email sends, documents, approvals, decisions,
+  and blocker creation.
 - [docs/v1-coordination-plan.md](docs/v1-coordination-plan.md) — concise
   product loop for operational intake and monitoring.
 
