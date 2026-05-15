@@ -1691,6 +1691,7 @@ export async function getTransactionContextData(transactionId: string) {
       [transactionId]
     ),
     query<{
+      id: string;
       key: string;
       title: string;
       phase: string;
@@ -1700,7 +1701,7 @@ export async function getTransactionContextData(transactionId: string) {
       completed_at: string | null;
       metadata: unknown;
     }>(
-      `select key, title, phase, due_date::text, source_reference, risk_level, completed_at::text, metadata
+      `select id, key, title, phase, due_date::text, source_reference, risk_level, completed_at::text, metadata
        from milestones
        where transaction_id = $1
        order by due_date nulls last, title`,
@@ -1761,9 +1762,11 @@ export async function getTransactionContextData(transactionId: string) {
       details: string;
       risk_level: string;
       responsible_party_role: string | null;
+      deadline_id: string | null;
+      task_id: string | null;
       created_at: string;
     }>(
-      `select id, title, details, risk_level, responsible_party_role, created_at::text
+      `select id, title, details, risk_level, responsible_party_role, deadline_id, task_id, created_at::text
        from blockers
        where transaction_id = $1
          and resolved_at is null
