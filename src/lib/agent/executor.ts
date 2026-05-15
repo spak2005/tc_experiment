@@ -3,8 +3,8 @@ import type { DocumentAssessment } from "@/lib/agent/document-assessment";
 import { safeBodyPreview } from "@/lib/agent/activity";
 import {
   extractAgentMailMessageMetadata,
-  replyTcEmail,
-  sendTcEmail
+  replyTcEmailOnce,
+  sendTcEmailOnce
 } from "@/lib/agentmail/service";
 import {
   createAgentActivityEvent,
@@ -24,14 +24,23 @@ import type { TransactionWriteResult } from "@/lib/transaction-writes/schemas";
 async function sendDecisionResponse(input: {
   context: AgentContextPack;
   decision: AgentDecision;
+  decisionId: string;
   subject: string;
   body: string;
   to: string[];
   cc?: string[];
   labels: string[];
 }) {
+  const idempotencyKey = [
+    "decision",
+    input.decisionId,
+    "response",
+    input.context.inbound.messageId ?? input.subject
+  ].join(":");
+
   if (input.context.inbound.messageId) {
-    return replyTcEmail({
+    return replyTcEmailOnce({
+      idempotencyKey,
       inboxId: input.context.tcProfile.inboxId,
       messageId: input.context.inbound.messageId,
       to: input.to,
@@ -41,7 +50,8 @@ async function sendDecisionResponse(input: {
     });
   }
 
-  return sendTcEmail({
+  return sendTcEmailOnce({
+    idempotencyKey,
     inboxId: input.context.tcProfile.inboxId,
     to: input.to,
     cc: input.cc,
@@ -267,7 +277,8 @@ export async function executeAgentDecision(input: {
           proposedTo: response.to
         });
 
-        const requestMessage = await sendTcEmail({
+        const requestMessage = await sendTcEmailOnce({
+          idempotencyKey: `approval:${approval.id}:request`,
           inboxId: input.context.tcProfile.inboxId,
           to: [input.context.tcProfile.escalationEmail],
           subject: request.subject,
@@ -306,6 +317,7 @@ export async function executeAgentDecision(input: {
       await sendDecisionResponse({
         context: input.context,
         decision: input.decision,
+        decisionId: input.decisionId,
         ...response
       });
       await createAgentActivityEvent({

@@ -1,8 +1,8 @@
 import { safeBodyPreview } from "@/lib/agent/activity";
 import {
   extractAgentMailMessageMetadata,
-  replyTcEmail,
-  sendTcEmail
+  replyTcEmailOnce,
+  sendTcEmailOnce
 } from "@/lib/agentmail/service";
 import type { NormalizedInboundEmail } from "@/lib/agentmail/inbound";
 import {
@@ -29,11 +29,13 @@ function inboundReplyText(inbound: NormalizedInboundEmail) {
 async function replyToRealtor(input: {
   approval: ApprovalExecutionRow;
   inbound: NormalizedInboundEmail;
+  idempotencyKey: string;
   text: string;
   labels: string[];
 }) {
   if (input.inbound.messageId) {
-    return replyTcEmail({
+    return replyTcEmailOnce({
+      idempotencyKey: input.idempotencyKey,
       inboxId: input.approval.inbox_id,
       messageId: input.inbound.messageId,
       to: [input.approval.escalation_email],
@@ -42,7 +44,8 @@ async function replyToRealtor(input: {
     });
   }
 
-  return sendTcEmail({
+  return sendTcEmailOnce({
+    idempotencyKey: input.idempotencyKey,
     inboxId: input.approval.inbox_id,
     to: [input.approval.escalation_email],
     subject: `Re: ${input.inbound.subject}`,
@@ -55,7 +58,8 @@ export async function sendApprovedApproval(input: {
   approval: ApprovalExecutionRow;
   labels?: string[];
 }) {
-  const sent = await sendTcEmail({
+  const sent = await sendTcEmailOnce({
+    idempotencyKey: `approval:${input.approval.id}:approved-send`,
     inboxId: input.approval.inbox_id,
     to: input.approval.proposed_to,
     cc: input.approval.proposed_cc,
@@ -188,6 +192,7 @@ async function sendRevisedApprovalRequest(input: {
   const response = await replyToRealtor({
     approval: input.approval,
     inbound: input.inbound,
+    idempotencyKey: `approval:${input.approval.id}:revision-request`,
     text: request.text,
     labels: ["approval_request", "approval_revised"]
   });
@@ -235,6 +240,7 @@ export async function executeApprovalReply(input: {
     await replyToRealtor({
       approval: approved,
       inbound: input.inbound,
+      idempotencyKey: `approval:${approved.id}:approved-ack`,
       text: "Sent.",
       labels: ["approval_reply", "approved"]
     });
@@ -255,6 +261,7 @@ export async function executeApprovalReply(input: {
     await replyToRealtor({
       approval: rejected,
       inbound: input.inbound,
+      idempotencyKey: `approval:${rejected.id}:rejected-ack`,
       text: "Got it. I will not send it.",
       labels: ["approval_reply", "rejected"]
     });
@@ -278,6 +285,7 @@ export async function executeApprovalReply(input: {
     await replyToRealtor({
       approval: approved,
       inbound: input.inbound,
+      idempotencyKey: `approval:${approved.id}:revised-approved-ack`,
       text: "Updated and sent.",
       labels: ["approval_reply", "revised", "approved"]
     });
@@ -310,6 +318,7 @@ export async function executeApprovalReply(input: {
   await replyToRealtor({
     approval: input.approval,
     inbound: input.inbound,
+    idempotencyKey: `approval:${input.approval.id}:clarification`,
     text: decision.question ?? "Did you want me to send this draft, make changes, or wait?",
     labels: ["approval_reply", "clarification"]
   });
