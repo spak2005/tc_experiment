@@ -2063,6 +2063,7 @@ export async function createAgentDecision(input: {
   transactionId?: string;
   inboundMessageId?: string;
   inboundThreadId?: string;
+  idempotencyKey?: string;
   intent: string;
   action: string;
   confidence: number;
@@ -2078,6 +2079,7 @@ export async function createAgentDecision(input: {
        transaction_id,
        inbound_message_id,
        inbound_thread_id,
+       idempotency_key,
        intent,
        action,
        confidence,
@@ -2087,13 +2089,69 @@ export async function createAgentDecision(input: {
        context_summary,
        tool_plan
      )
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
      returning id`,
     [
       input.teamId,
       input.transactionId ?? null,
       input.inboundMessageId ?? null,
       input.inboundThreadId ?? null,
+      input.idempotencyKey ?? null,
+      input.intent,
+      input.action,
+      input.confidence,
+      input.matchConfidence ?? null,
+      input.requiresApproval,
+      input.rationale,
+      toJsonb(input.contextSummary ?? {}),
+      toJsonb(input.toolPlan ?? [])
+    ]
+  );
+
+  return result.rows[0];
+}
+
+export async function createAgentDecisionOnce(input: {
+  teamId: string;
+  transactionId?: string;
+  inboundMessageId?: string;
+  inboundThreadId?: string;
+  idempotencyKey: string;
+  intent: string;
+  action: string;
+  confidence: number;
+  matchConfidence?: number;
+  requiresApproval: boolean;
+  rationale: string;
+  contextSummary?: Record<string, unknown>;
+  toolPlan?: unknown;
+}) {
+  const result = await query<{ id: string }>(
+    `insert into agent_decisions (
+       team_id,
+       transaction_id,
+       inbound_message_id,
+       inbound_thread_id,
+       idempotency_key,
+       intent,
+       action,
+       confidence,
+       match_confidence,
+       requires_approval,
+       rationale,
+       context_summary,
+       tool_plan
+     )
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+     on conflict (idempotency_key) where idempotency_key is not null do update
+       set idempotency_key = excluded.idempotency_key
+     returning id`,
+    [
+      input.teamId,
+      input.transactionId ?? null,
+      input.inboundMessageId ?? null,
+      input.inboundThreadId ?? null,
+      input.idempotencyKey,
       input.intent,
       input.action,
       input.confidence,

@@ -9,7 +9,7 @@ import {
   claimDueAgentWakeups,
   completeAgentWakeup,
   createAgentActivityEvent,
-  createAgentDecision,
+  createAgentDecisionOnce,
   createApproval,
   createAuditEvent,
   failAgentWakeup,
@@ -122,9 +122,10 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
   }
 
   const decision = await decideProactiveAction({ context });
-  const decisionRecord = await createAgentDecision({
+  const decisionRecord = await createAgentDecisionOnce({
     teamId: context.tcProfile.teamId,
     transactionId: context.transactionId,
+    idempotencyKey: `wakeup:${wakeup.id}:decision`,
     intent: "proactive_review",
     action: decision.action,
     confidence: decision.confidence,

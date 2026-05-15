@@ -14,7 +14,7 @@ import { buildExpectedDocumentChecklist } from "@/lib/contracts/checklist";
 import { getStringFact, type ContractFacts, type ExtractedValue } from "@/lib/contracts/facts";
 import {
   createAgentActivityEvent,
-  createAgentDecision,
+  createAgentDecisionOnce,
   createAuditEvent,
   createMessage,
   findOrCreateTransactionForIntake,
@@ -1114,11 +1114,12 @@ export async function processAgentMailInbound(input: {
       matchConfidence: context.match.confidence
     };
   }
-  const decisionRecord = await createAgentDecision({
+  const decisionRecord = await createAgentDecisionOnce({
     teamId: context.tcProfile.teamId,
     transactionId: decision.transactionId,
     inboundMessageId: inbound.messageId || inbound.eventId,
     inboundThreadId: inbound.threadId,
+    idempotencyKey: `inbound:${input.webhookEventId}:decision`,
     intent: decision.intent,
     action: decision.action,
     confidence: decision.confidence,
