@@ -33,6 +33,10 @@ function context(overrides: Partial<ProactiveAgentContext["transactionContext"]>
       documents: [],
       messages: [],
       blockers: [],
+      dealMemory: {
+        dealBrief: "",
+        activeQuestionsAndWarnings: []
+      },
       recentDecisions: [],
       missingItems: [],
       ...overrides

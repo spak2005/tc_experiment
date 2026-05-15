@@ -53,6 +53,10 @@ function context(overrides: Partial<ProactiveAgentContext> = {}): ProactiveAgent
       documents: [],
       messages: [],
       blockers: [],
+      dealMemory: {
+        dealBrief: "",
+        activeQuestionsAndWarnings: []
+      },
       recentDecisions: [],
       missingItems: []
     },

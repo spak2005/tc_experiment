@@ -23,6 +23,10 @@ function context(overrides: Partial<TransactionContext> = {}): TransactionContex
     documents: [],
     messages: [],
     blockers: [],
+    dealMemory: {
+      dealBrief: "",
+      activeQuestionsAndWarnings: []
+    },
     recentDecisions: [],
     missingItems: [],
     ...overrides

@@ -28,6 +28,10 @@ describe("classifyEvidenceDocuments", () => {
       ],
       messages: [],
       blockers: [],
+      dealMemory: {
+        dealBrief: "",
+        activeQuestionsAndWarnings: []
+      },
       recentDecisions: [],
       missingItems: []
     } satisfies TransactionContext;

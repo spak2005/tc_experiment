@@ -36,6 +36,10 @@ function context(): TransactionContext {
     documents: [],
     messages: [],
     blockers: [],
+    dealMemory: {
+      dealBrief: "",
+      activeQuestionsAndWarnings: []
+    },
     recentDecisions: [],
     missingItems: []
   };
