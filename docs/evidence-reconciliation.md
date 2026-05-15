@@ -2,7 +2,7 @@
 
 Evidence reconciliation closes the loop between inbound evidence and the
 transaction file. It runs before agent decisioning so routine confirmations and
-documents update tasks, milestones, documents, blockers, memory, and phase
+documents update tasks, milestones, documents, blockers, and phase
 before the agent decides what to do next.
 
 ## Inputs
@@ -37,11 +37,15 @@ The resolver reads task and milestone metadata such as `completionSignals` and
 - set milestone `completedAt`,
 - mark expected documents `received`,
 - resolve linked blockers,
-- append a transaction-memory note,
 - advance transaction phase to the earliest open milestone phase.
 
 It does not auto-close/terminate files, accept amendments, waive deadlines, or
 change contract terms.
+
+Evidence reconciliation does not maintain the deal brief directly. When it
+applies writes, the caller refreshes transaction memory through
+`src/lib/workflow/memory-refresh.ts` so memory is rewritten from the latest
+transaction context instead of accumulating generic reconciliation notes.
 
 ## Observability
 

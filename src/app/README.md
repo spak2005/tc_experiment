@@ -19,7 +19,7 @@ every UI surface lives here.
 | `GET /` | [page.tsx](page.tsx) + [signup-form.tsx](signup-form.tsx) | Marketing copy + signup form (client component) |
 | `GET /dashboard/[teamId]` | [dashboard/[teamId]/page.tsx](dashboard/%5BteamId%5D/page.tsx) | Server component; calls `getDashboardSnapshot`. Shows Transactions, Blockers, Approvals. |
 | `GET /observability/[teamId]` | [observability/[teamId]/page.tsx](observability/%5BteamId%5D/page.tsx) | Server component; calls `getTeamActivityTimeline`. Renders [components/activity-debugger.tsx](components/activity-debugger.tsx) team-wide. Internal/dev surface, not customer product. |
-| `GET /transactions/[transactionId]` | [transactions/[transactionId]/page.tsx](transactions/%5BtransactionId%5D/page.tsx) | Server component; calls `getTransactionDetail`. Renders the activity debugger filtered to one transaction plus milestone, task, document, message, facts, and audit panels. |
+| `GET /transactions/[transactionId]` | [transactions/[transactionId]/page.tsx](transactions/%5BtransactionId%5D/page.tsx) | Server component; calls `getTransactionDetail`. Renders the activity debugger filtered to one transaction plus milestone, task, document, message, facts, deal memory, and audit panels. |
 
 ## Shared bits
 

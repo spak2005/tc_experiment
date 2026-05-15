@@ -23,6 +23,7 @@ file, so the latest agent movement is always at the top:
 - contract extraction and validation
 - milestones and tasks generated
 - evidence reconciliation and document classification
+- transaction memory refreshed
 - agent intent/action selected
 - policy evaluated
 - email sent, approval requested, blocker created, or escalation sent
@@ -88,3 +89,7 @@ Evidence reconciliation uses these event names:
 - `reconciliation_write_applied`
 - `reconciliation_skipped`
 - `phase_advanced`
+
+Transaction memory refresh uses:
+
+- `transaction_memory_refreshed`

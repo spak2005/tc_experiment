@@ -26,7 +26,7 @@ all behavior lives in `intake.ts`.
 | --- | --- |
 | Top | Imports and small helpers (`isoDateOrUndefined`, `normalizeEmail`, `isFromTcInbox`) |
 | Logging helpers | `ActivityContext` + `logActivity` wrapper used throughout the file |
-| Context helpers | `withTransactionContext` and `documentStatusForUsability` |
+| Context helpers | `withTransactionContext`, `refreshDealMemory`, and `documentStatusForUsability` |
 | Contract persistence | `persistContractAssessment` writes facts, contacts, checklist, milestones, tasks, memory, audit |
 | Attachment persistence | `storeInboundAttachments` loops over inbound attachments and persists each |
 | Entry point | `processAgentMailInbound` runs the actual pipeline |
@@ -39,15 +39,16 @@ Numbered by the order operations run.
 | --- | --- |
 | 1 | Normalize the AgentMail event and find the TC profile by inbox id |
 | 2 | Ignore unknown inboxes and self-authored TC mail |
-| 3 | Approval-by-reply shortcut: realtor replies in pending approval threads go to `executeApprovalReply` and skip generic decisioning |
+| 3 | Approval-by-reply shortcut: realtor replies in pending approval threads go to `executeApprovalReply`, refresh transaction memory, and skip generic decisioning |
 | 4 | Build the agent context pack and log inbound/matching activity |
 | 5 | If attachments exist, log each attachment and assess the first PDF as a possible contract |
 | 6 | Route usable contract PDFs to create/update/clarify transaction identity |
 | 7 | Store inbound attachments; if this is contract intake, persist facts, contacts, checklist documents, milestones, tasks, memory, and audit |
 | 8 | If non-PDF attachments arrive on a matched transaction, store them as transaction documents |
 | 9 | Persist the inbound message |
-| 10 | Call `decideNextAction`; it returns intent/action, inbound event category, optional response (with an optional `taskId` linking the send to an open task), and structured transaction writes |
-| 11 | Persist the decision, evaluate policy, execute allowed/approval-gated work, mark the webhook processed, and return. The executor flips the matched task to `waiting_response` on the actual send via [../../src/lib/workflow/task-transitions.ts](../../src/lib/workflow/task-transitions.ts) (directly for inline sends, or through `sendApprovedApproval` once the realtor approves an approval-gated draft) |
+| 10 | Reconcile routine inbound evidence into transaction writes; if anything changed, refresh the deal brief / active questions memory and rebuild context |
+| 11 | Call `decideNextAction`; it returns intent/action, inbound event category, optional response (with an optional `taskId` linking the send to an open task), and structured transaction writes |
+| 12 | Persist the decision, evaluate policy, execute allowed/approval-gated work, refresh transaction memory, mark the webhook processed, and return. The executor flips the matched task to `waiting_response` on the actual send via [../../src/lib/workflow/task-transitions.ts](../../src/lib/workflow/task-transitions.ts) (directly for inline sends, or through `sendApprovedApproval` once the realtor approves an approval-gated draft) |
 
 ## Tips for changing this file
 
@@ -59,6 +60,10 @@ Numbered by the order operations run.
   belong in `persistContractAssessment`, not in the main pipeline.
 - Contact/checklist persistence is driven by `canonicalFactWrites` in
   this file plus `src/lib/transaction-writes`.
+- Deal memory refresh belongs in
+  [../../src/lib/workflow/memory-refresh.ts](../../src/lib/workflow/memory-refresh.ts).
+  Intake calls it after approval replies, evidence reconciliation, and
+  decision execution so the next agent run sees a current deal brief.
 - Behavior changes for matching belong in
   [../../src/lib/agent/matching.ts](../../src/lib/agent/matching.ts) and
   [../../src/lib/workflow/contract-routing.ts](../../src/lib/workflow/contract-routing.ts), not here.
@@ -84,6 +89,7 @@ Numbered by the order operations run.
 - [../../src/lib/documents/attachments.ts](../../src/lib/documents/attachments.ts) — `fetchIncomingAttachment`, `storeIncomingAttachment`, `markStoredAttachmentProcessed`
 - [../../src/lib/milestones/engine.ts](../../src/lib/milestones/engine.ts) — `generateTexasMilestones`
 - [../../src/lib/workflow/tasks.ts](../../src/lib/workflow/tasks.ts) — `createOpeningTasks`, `createTasksForMilestone`
+- [../../src/lib/workflow/memory-refresh.ts](../../src/lib/workflow/memory-refresh.ts) — rewrites the prompt-facing deal brief and active questions/warnings
 - [../../src/lib/agent/decision.ts](../../src/lib/agent/decision.ts) — `decideNextAction`
 - [../../src/lib/agent/policy.ts](../../src/lib/agent/policy.ts) — `evaluateActionPolicy`
 - [../../src/lib/agent/executor.ts](../../src/lib/agent/executor.ts) — `executeAgentDecision`

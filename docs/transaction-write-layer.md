@@ -23,8 +23,10 @@ result in both `transaction_change_events` and `agent_activity_events`.
   due date, and metadata.
 - `upsertBlocker`: creates, updates, or resolves blockers, including
   task-linked stale-response blockers.
-- `appendTransactionMemory`: appends deal notes, open questions, and known
-  context without deleting prior memory.
+- `appendTransactionMemory`: compatibility tool for exceptional concise
+  memory notes. The deal brief itself is refreshed separately by
+  `src/lib/workflow/memory-refresh.ts`; agents should prefer structured
+  writes for state changes.
 
 ## Safety Rules
 
@@ -55,5 +57,7 @@ decision id when available.
 
 `extracted_contract_facts` remains an immutable extraction snapshot. The living
 transaction file is represented by `transactions`, `parties`, `milestones`,
-`tasks`, `documents`, `blockers`, `transaction_memory`, and canonical
-`transaction_facts`.
+`tasks`, `documents`, `blockers`, and canonical `transaction_facts`.
+`transaction_memory` is prompt-facing operating memory: `summary` is the deal
+brief, `open_questions` are active questions/warnings, and `known_context`
+stores refresh metadata.
