@@ -22,6 +22,7 @@ file, so the latest agent movement is always at the top:
 - attachments fetched and stored
 - contract extraction and validation
 - milestones and tasks generated
+- evidence reconciliation and document classification
 - agent intent/action selected
 - policy evaluated
 - email sent, approval requested, blocker created, or escalation sent
@@ -78,3 +79,12 @@ where `transaction_id` is null. That makes pre-file inbox behavior visible.
 - Use clear event names such as `contract_extraction_started` or
   `approval_request_sent`.
 - Link decision-related events with `agentDecisionId` whenever available.
+
+Evidence reconciliation uses these event names:
+
+- `evidence_reconciliation_started`
+- `document_classified`
+- `evidence_matched`
+- `reconciliation_write_applied`
+- `reconciliation_skipped`
+- `phase_advanced`
