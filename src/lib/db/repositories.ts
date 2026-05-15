@@ -2532,6 +2532,7 @@ export async function getTransactionDetail(transactionId: string) {
     messages,
     auditEvents,
     facts,
+    memory,
     agentDecisions,
     approvals,
     activityEvents
@@ -2641,6 +2642,18 @@ export async function getTransactionDetail(transactionId: string) {
         [transactionId]
       ),
       query<{
+        summary: string;
+        open_questions: unknown;
+        known_context: unknown;
+        last_inbound_at: string | null;
+        updated_at: string;
+      }>(
+        `select summary, open_questions, known_context, last_inbound_at::text, updated_at::text
+         from transaction_memory
+         where transaction_id = $1`,
+        [transactionId]
+      ),
+      query<{
         intent: string;
         action: string;
         confidence: string;
@@ -2740,6 +2753,7 @@ export async function getTransactionDetail(transactionId: string) {
     messages: messages.rows,
     auditEvents: auditEvents.rows,
     facts: facts.rows[0] ?? null,
+    memory: memory.rows[0] ?? null,
     agentDecisions: agentDecisions.rows,
     approvals: approvals.rows,
     activityTimeline

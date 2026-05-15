@@ -83,6 +83,27 @@ export default async function TransactionDetailPage({
           <pre>{JSON.stringify(detail.facts?.facts ?? {}, null, 2)}</pre>
         </Panel>
 
+        <Panel title="Deal Memory">
+          <article className="row">
+            <strong>Deal brief</strong>
+            <span>{detail.memory?.summary || "No deal brief recorded yet."}</span>
+            <small>Updated {detail.memory?.updated_at ?? "never"}</small>
+          </article>
+          <article className="row">
+            <strong>Active questions and warnings</strong>
+            {Array.isArray(detail.memory?.open_questions) &&
+            detail.memory.open_questions.length > 0 ? (
+              <ul>
+                {detail.memory.open_questions.map((question, index) => (
+                  <li key={`${question}-${index}`}>{String(question)}</li>
+                ))}
+              </ul>
+            ) : (
+              <span>None recorded.</span>
+            )}
+          </article>
+        </Panel>
+
         <Panel title="Audit Trail">
           {detail.auditEvents.map((event) => (
             <article className="row" key={`${event.event_type}-${event.created_at}`}>
