@@ -19,7 +19,7 @@ decision pipeline.
 
 | Step | File | What it does |
 | --- | --- | --- |
-| 1. Build context | [context.ts](context.ts) | Gathers everything the agent needs for one email: normalized inbound, match candidates, current transaction context (milestones, tasks, documents, messages, blockers, memory), and a temporal context line. |
+| 1. Build context | [context.ts](context.ts), [memory.ts](memory.ts) | Gathers everything the agent needs for one email: normalized inbound, match candidates, current transaction context (milestones, tasks, documents, messages, blockers), prompt-facing deal memory, and a temporal context line. |
 | 2. Match | [matching.ts](matching.ts) | Scores each candidate transaction against the email (thread id, party email, property tokens, recent subjects, etc.) and returns a `DealMatchResult` with confidence + ambiguity flag. |
 | 3. Assess document | [document-assessment.ts](document-assessment.ts) | If the email carries a PDF, classifies it (contract vs other), extracts facts (Anthropic PDF mode with regex fallback), and decides `usable / unusable / needs_info`. |
 | 4. Decide | [decision.ts](decision.ts) | Asks Anthropic to pick an `AgentIntent`, `AgentAction`, inbound event category, optional response, and structured transaction writes. Falls back to a deterministic decision if the LLM call fails. |
@@ -52,6 +52,14 @@ See [../../../docs/activity-debugger.md](../../../docs/activity-debugger.md)
 for the broader observability contract (statuses, source types,
 logging rules).
 
+## Deal memory
+
+[memory.ts](memory.ts) maps `transaction_memory` into prompt-facing
+`dealMemory`: an always-included deal brief plus active open
+questions/warnings. The structured transaction file is still the source
+of truth; memory summarizes current operating posture. See
+[../../../docs/transaction-memory.md](../../../docs/transaction-memory.md).
+
 ## Common changes
 
 | Change | File |
@@ -59,6 +67,7 @@ logging rules).
 | Add a new intent or action | [types.ts](types.ts) + [decision.ts](decision.ts) (schema + system prompt) + maybe [executor.ts](executor.ts) (handling) |
 | Add a new inbound event category | [types.ts](types.ts) + [decision.ts](decision.ts) |
 | Tweak the decision rules / system prompt | [decision.ts](decision.ts) |
+| Change prompt-facing deal memory shape | [memory.ts](memory.ts) + [../workflow/memory-refresh.ts](../workflow/memory-refresh.ts) |
 | Add or change state mutation tools | [../transaction-writes/schemas.ts](../transaction-writes/schemas.ts) + [../transaction-writes/executor.ts](../transaction-writes/executor.ts) |
 | Tweak how outbound emails are written | [response-writer.ts](response-writer.ts) |
 | Tighten or loosen the send policy | [policy.ts](policy.ts) |

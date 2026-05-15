@@ -84,6 +84,9 @@ pipeline doc instead.
 - [docs/transaction-write-layer.md](docs/transaction-write-layer.md)
   explains the structured write layer the agent uses to mutate the
   transaction file.
+- [docs/transaction-memory.md](docs/transaction-memory.md) explains the
+  concise deal brief / active questions memory contract layered above
+  the structured transaction file.
 - [docs/v1-coordination-plan.md](docs/v1-coordination-plan.md) captures
   the current V1 product loop: operational intake, event updates, and
   stale-response monitoring.

@@ -66,6 +66,11 @@ end-to-end. Use the function names below with `rg` to jump.
   `toActivityEvent` helper so callers receive the camelCase
   `AgentActivityEvent` shape defined in
   [../agent/activity.ts](../agent/activity.ts).
+- `transaction_memory.summary` is the prompt-facing deal brief, not an
+  append-only log. `transaction_memory.open_questions` stores active
+  open questions and warnings. `known_context` is reserved for machine
+  metadata such as memory refresh source/time. See
+  [../../../docs/transaction-memory.md](../../../docs/transaction-memory.md).
 
 ## Common changes
 

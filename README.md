@@ -68,6 +68,9 @@ instead of scanning the whole codebase:
   `/observability/[teamId]` and `/transactions/[transactionId]`.
 - [docs/transaction-write-layer.md](docs/transaction-write-layer.md) —
   structured write tools for transaction state.
+- [docs/transaction-memory.md](docs/transaction-memory.md) — the deal
+  brief and active questions/warnings memory contract used in agent
+  prompts.
 - [docs/v1-coordination-plan.md](docs/v1-coordination-plan.md) — concise
   product loop for operational intake and monitoring.
 
