@@ -1439,6 +1439,7 @@ export async function createDocumentRecord(input: {
   status: string;
   blobKey?: string;
   sourceMessageId?: string;
+  sourceAttachmentKey?: string;
   ownerRole?: string;
   dueDate?: string | null;
   metadata?: Record<string, unknown>;
@@ -1451,11 +1452,12 @@ export async function createDocumentRecord(input: {
        status,
        blob_key,
        source_message_id,
+       source_attachment_key,
        owner_role,
        due_date,
        metadata
      )
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      returning id`,
     [
       input.transactionId,
@@ -1464,6 +1466,81 @@ export async function createDocumentRecord(input: {
       input.status,
       input.blobKey ?? null,
       input.sourceMessageId ?? null,
+      input.sourceAttachmentKey ?? null,
+      input.ownerRole ?? null,
+      input.dueDate ?? null,
+      toJsonb(input.metadata ?? {})
+    ]
+  );
+
+  return result.rows[0];
+}
+
+export async function findDocumentBySourceAttachmentKey(sourceAttachmentKey: string) {
+  const result = await query<{
+    id: string;
+    transaction_id: string;
+    type: string;
+    name: string;
+    status: string;
+    blob_key: string | null;
+    source_message_id: string | null;
+    source_attachment_key: string | null;
+  }>(
+    `select id,
+            transaction_id,
+            type,
+            name,
+            status,
+            blob_key,
+            source_message_id,
+            source_attachment_key
+     from documents
+     where source_attachment_key = $1
+     limit 1`,
+    [sourceAttachmentKey]
+  );
+
+  return result.rows[0] ?? null;
+}
+
+export async function createDocumentRecordOnce(input: {
+  transactionId: string;
+  type: string;
+  name: string;
+  status: string;
+  blobKey?: string;
+  sourceMessageId?: string;
+  sourceAttachmentKey: string;
+  ownerRole?: string;
+  dueDate?: string | null;
+  metadata?: Record<string, unknown>;
+}) {
+  const result = await query<{ id: string; inserted: boolean; blob_key: string | null }>(
+    `insert into documents (
+       transaction_id,
+       type,
+       name,
+       status,
+       blob_key,
+       source_message_id,
+       source_attachment_key,
+       owner_role,
+       due_date,
+       metadata
+     )
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+     on conflict (source_attachment_key) where source_attachment_key is not null do update
+       set source_attachment_key = excluded.source_attachment_key
+     returning id, (xmax = 0) as inserted, blob_key`,
+    [
+      input.transactionId,
+      input.type,
+      input.name,
+      input.status,
+      input.blobKey ?? null,
+      input.sourceMessageId ?? null,
+      input.sourceAttachmentKey,
       input.ownerRole ?? null,
       input.dueDate ?? null,
       toJsonb(input.metadata ?? {})

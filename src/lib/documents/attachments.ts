@@ -1,7 +1,8 @@
 import { getTcAttachment } from "@/lib/agentmail/service";
 import {
   createAgentActivityEvent,
-  createDocumentRecord,
+  createDocumentRecordOnce,
+  findDocumentBySourceAttachmentKey,
   updateDocumentStatus
 } from "@/lib/db/repositories";
 import { storePrivateDocument } from "@/lib/storage/blob";
@@ -95,6 +96,11 @@ export async function storeIncomingAttachment(input: {
   attachment: IncomingAttachment;
   fetched?: FetchedAttachment;
 }): Promise<StoredAttachment> {
+  const sourceAttachmentKey = [
+    input.inboxId,
+    input.messageId,
+    input.attachment.id
+  ].join(":");
   const fetched =
     input.fetched ??
     (await fetchIncomingAttachment({
@@ -104,6 +110,33 @@ export async function storeIncomingAttachment(input: {
       messageId: input.messageId,
       attachment: input.attachment
     }));
+  const existing = await findDocumentBySourceAttachmentKey(sourceAttachmentKey);
+  if (existing?.blob_key) {
+    await createAgentActivityEvent({
+      teamId: input.teamId,
+      transactionId: input.transactionId,
+      sourceType: "document",
+      eventType: "document_record_reused",
+      title: "Reused document record",
+      summary: `Reused existing document record for ${input.attachment.filename}.`,
+      status: "completed",
+      metadata: {
+        documentId: existing.id,
+        filename: input.attachment.filename,
+        sourceAttachmentKey,
+        blobKey: existing.blob_key
+      }
+    });
+
+    return {
+      documentId: existing.id,
+      filename: fetched.filename,
+      contentType: fetched.contentType,
+      body: fetched.body,
+      blobKey: existing.blob_key
+    };
+  }
+
   const stored = await storePrivateDocument({
     teamId: input.teamId,
     transactionId: input.transactionId,
@@ -125,13 +158,14 @@ export async function storeIncomingAttachment(input: {
       blobKey: stored.key
     }
   });
-  const document = await createDocumentRecord({
+  const document = await createDocumentRecordOnce({
     transactionId: input.transactionId,
     type: isPdfAttachment(input.attachment) ? "contract" : "attachment",
     name: input.attachment.filename,
     status: "under_review",
     blobKey: stored.key,
-    sourceMessageId: input.messageId
+    sourceMessageId: input.messageId,
+    sourceAttachmentKey
   });
   await createAgentActivityEvent({
     teamId: input.teamId,
@@ -148,7 +182,9 @@ export async function storeIncomingAttachment(input: {
       filename: input.attachment.filename,
       type: isPdfAttachment(input.attachment) ? "contract" : "attachment",
       status: "under_review",
-      blobKey: stored.key
+      blobKey: document.blob_key ?? stored.key,
+      sourceAttachmentKey,
+      reused: !document.inserted
     }
   });
 
@@ -157,7 +193,7 @@ export async function storeIncomingAttachment(input: {
     filename: fetched.filename,
     contentType: fetched.contentType,
     body: fetched.body,
-    blobKey: stored.key
+    blobKey: document.blob_key ?? stored.key
   };
 }
 
