@@ -1722,6 +1722,7 @@ export async function getTransactionContextData(transactionId: string) {
       [transactionId]
     ),
     query<{
+      id: string;
       type: string;
       name: string;
       status: string;
@@ -1731,7 +1732,7 @@ export async function getTransactionContextData(transactionId: string) {
       metadata: unknown;
       created_at: string;
     }>(
-      `select type, name, status, blob_key, owner_role, due_date::text, metadata, created_at::text
+      `select id, type, name, status, blob_key, owner_role, due_date::text, metadata, created_at::text
        from documents
        where transaction_id = $1
        order by created_at desc`,
