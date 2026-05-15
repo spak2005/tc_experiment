@@ -2458,6 +2458,72 @@ export async function createBlocker(input: {
   return result.rows[0];
 }
 
+export async function createOrGetOpenDeadlineBlocker(input: {
+  transactionId: string;
+  title: string;
+  details: string;
+  riskLevel: string;
+  deadlineId: string;
+}) {
+  const result = await query<{ id: string; inserted: boolean }>(
+    `insert into blockers (
+       transaction_id,
+       title,
+       details,
+       risk_level,
+       deadline_id
+     )
+     values ($1, $2, $3, $4, $5)
+     on conflict (deadline_id) where resolved_at is null and deadline_id is not null do update
+       set title = excluded.title,
+           details = excluded.details,
+           risk_level = excluded.risk_level
+     returning id, (xmax = 0) as inserted`,
+    [
+      input.transactionId,
+      input.title,
+      input.details,
+      input.riskLevel,
+      input.deadlineId
+    ]
+  );
+
+  return result.rows[0];
+}
+
+export async function createOrGetOpenTaskBlocker(input: {
+  transactionId: string;
+  title: string;
+  details: string;
+  riskLevel: string;
+  taskId: string;
+}) {
+  const result = await query<{ id: string; inserted: boolean }>(
+    `insert into blockers (
+       transaction_id,
+       title,
+       details,
+       risk_level,
+       task_id
+     )
+     values ($1, $2, $3, $4, $5)
+     on conflict (task_id) where resolved_at is null and task_id is not null do update
+       set title = excluded.title,
+           details = excluded.details,
+           risk_level = excluded.risk_level
+     returning id, (xmax = 0) as inserted`,
+    [
+      input.transactionId,
+      input.title,
+      input.details,
+      input.riskLevel,
+      input.taskId
+    ]
+  );
+
+  return result.rows[0];
+}
+
 export async function upsertBlockerRecord(input: {
   transactionId: string;
   id?: string;

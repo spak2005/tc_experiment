@@ -1,12 +1,13 @@
 import {
   createAgentActivityEvent,
   createAuditEvent,
-  createBlocker,
+  createOrGetOpenDeadlineBlocker,
+  createOrGetOpenTaskBlocker,
   findAtRiskMilestones,
   findStaleResponseTasks
 } from "@/lib/db/repositories";
 import { agentEscalationEmail } from "@/lib/email/templates";
-import { sendTcEmail } from "@/lib/agentmail/service";
+import { sendTcEmailOnce } from "@/lib/agentmail/service";
 import { getTemporalContext } from "@/lib/time/clock";
 
 export async function checkDeadlineRisk() {
@@ -31,30 +32,6 @@ export async function checkDeadlineRisk() {
         riskLevel: milestone.risk_level
       }
     });
-    const blocker = await createBlocker({
-      transactionId: milestone.transaction_id,
-      title: `Deadline at risk: ${milestone.title}`,
-      details: `${milestone.title} is due on ${milestone.due_date}. The TC should confirm completion or escalate.`,
-      riskLevel: milestone.risk_level === "critical" ? "critical" : "urgent",
-      deadlineId: milestone.milestone_id
-    });
-    await createAgentActivityEvent({
-      teamId: milestone.team_id,
-      transactionId: milestone.transaction_id,
-      sourceType: "deadline",
-      eventType: "deadline_blocker_created",
-      title: "Created deadline blocker",
-      summary: `Created a blocker for ${milestone.title}.`,
-      status: "completed",
-      metadata: {
-        milestoneId: milestone.milestone_id,
-        blockerId: blocker.id,
-        title: milestone.title,
-        dueDate: milestone.due_date,
-        riskLevel: milestone.risk_level
-      }
-    });
-
     const escalation = agentEscalationEmail({
       propertyAddress: milestone.property_address ?? "this transaction",
       deadlineTitle: milestone.title,
@@ -63,7 +40,8 @@ export async function checkDeadlineRisk() {
       neededAction: "Please intervene or confirm this item is complete."
     });
 
-    await sendTcEmail({
+    await sendTcEmailOnce({
+      idempotencyKey: `deadline:${milestone.milestone_id}:escalation`,
       inboxId: milestone.inbox_id,
       to: [milestone.escalation_email],
       subject: escalation.subject,
@@ -80,9 +58,33 @@ export async function checkDeadlineRisk() {
       status: "sent",
       metadata: {
         milestoneId: milestone.milestone_id,
-        blockerId: blocker.id,
         to: [milestone.escalation_email],
         subject: escalation.subject,
+        dueDate: milestone.due_date,
+        riskLevel: milestone.risk_level
+      }
+    });
+
+    const blocker = await createOrGetOpenDeadlineBlocker({
+      transactionId: milestone.transaction_id,
+      title: `Deadline at risk: ${milestone.title}`,
+      details: `${milestone.title} is due on ${milestone.due_date}. The TC should confirm completion or escalate.`,
+      riskLevel: milestone.risk_level === "critical" ? "critical" : "urgent",
+      deadlineId: milestone.milestone_id
+    });
+    await createAgentActivityEvent({
+      teamId: milestone.team_id,
+      transactionId: milestone.transaction_id,
+      sourceType: "deadline",
+      eventType: "deadline_blocker_created",
+      title: blocker.inserted ? "Created deadline blocker" : "Reused deadline blocker",
+      summary: `${blocker.inserted ? "Created" : "Reused"} a blocker for ${milestone.title}.`,
+      status: "completed",
+      metadata: {
+        milestoneId: milestone.milestone_id,
+        blockerId: blocker.id,
+        inserted: blocker.inserted,
+        title: milestone.title,
         dueDate: milestone.due_date,
         riskLevel: milestone.risk_level
       }
@@ -121,29 +123,6 @@ export async function checkDeadlineRisk() {
         followUpDueDate: task.follow_up_due_date
       }
     });
-    const blocker = await createBlocker({
-      transactionId: task.transaction_id,
-      title: `Stale response: ${task.title}`,
-      details: `${task.title} is waiting on ${task.owner_role} and needs follow-up.`,
-      riskLevel: "urgent",
-      taskId: task.task_id
-    });
-    await createAgentActivityEvent({
-      teamId: task.team_id,
-      transactionId: task.transaction_id,
-      sourceType: "deadline",
-      eventType: "stale_response_blocker_created",
-      title: "Created stale-response blocker",
-      summary: `Created a blocker for ${task.title}.`,
-      status: "completed",
-      metadata: {
-        taskId: task.task_id,
-        blockerId: blocker.id,
-        ownerRole: task.owner_role,
-        followUpDueDate: task.follow_up_due_date
-      }
-    });
-
     const escalation = agentEscalationEmail({
       propertyAddress: task.property_address ?? "this transaction",
       deadlineTitle: task.title,
@@ -153,7 +132,8 @@ export async function checkDeadlineRisk() {
       neededAction: "Please intervene or confirm this response has arrived."
     });
 
-    await sendTcEmail({
+    await sendTcEmailOnce({
+      idempotencyKey: `task:${task.task_id}:stale-escalation`,
       inboxId: task.inbox_id,
       to: [task.escalation_email],
       subject: escalation.subject,
@@ -170,9 +150,32 @@ export async function checkDeadlineRisk() {
       status: "sent",
       metadata: {
         taskId: task.task_id,
-        blockerId: blocker.id,
         to: [task.escalation_email],
         subject: escalation.subject,
+        followUpDueDate: task.follow_up_due_date
+      }
+    });
+
+    const blocker = await createOrGetOpenTaskBlocker({
+      transactionId: task.transaction_id,
+      title: `Stale response: ${task.title}`,
+      details: `${task.title} is waiting on ${task.owner_role} and needs follow-up.`,
+      riskLevel: "urgent",
+      taskId: task.task_id
+    });
+    await createAgentActivityEvent({
+      teamId: task.team_id,
+      transactionId: task.transaction_id,
+      sourceType: "deadline",
+      eventType: "stale_response_blocker_created",
+      title: blocker.inserted ? "Created stale-response blocker" : "Reused stale-response blocker",
+      summary: `${blocker.inserted ? "Created" : "Reused"} a blocker for ${task.title}.`,
+      status: "completed",
+      metadata: {
+        taskId: task.task_id,
+        blockerId: blocker.id,
+        inserted: blocker.inserted,
+        ownerRole: task.owner_role,
         followUpDueDate: task.follow_up_due_date
       }
     });
