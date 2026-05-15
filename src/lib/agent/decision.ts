@@ -91,7 +91,7 @@ function compactContext(context: AgentContextPack, assessment?: DocumentAssessme
           blockers: context.transactionContext.blockers,
           documents: context.transactionContext.documents,
           recentMessages: context.transactionContext.messages.slice(0, 5),
-          memory: context.transactionContext.memory
+          dealMemory: context.transactionContext.dealMemory
         }
       : undefined,
     documentAssessment: assessment
@@ -177,6 +177,8 @@ Use transactionWrites for any structured update to the transaction file. Do not 
 Only use the listed transactionWrites tools. Never invent table names, SQL, or unsupported tools.
 If no transaction is confidently identified, leave transactionWrites empty and ask for clarification.
 High-impact changes such as termination, closed status, cancellation, or conflicting facts can be proposed, but the app may require approval.
+Treat transactionContext.dealMemory as the current operating posture of the file. The structured transaction fields remain authoritative if they conflict with memory.
+Do not use appendTransactionMemory to maintain the deal brief or general posture. Use it only for exceptional concise notes that are not captured by structured writes; the app refreshes the deal brief separately.
 Classify the inbound email as exactly one inboundEvent:
 - confirmation: a party confirms something is done or received.
 - document_received: a document or attachment arrived or a party says they sent one.

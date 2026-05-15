@@ -61,7 +61,7 @@ function compactResponseContext(input: {
           nextMilestone: input.context.transactionContext.nextMilestone,
           blockers: input.context.transactionContext.blockers,
           recentMessages: input.context.transactionContext.messages.slice(0, 5),
-          memory: input.context.transactionContext.memory
+          dealMemory: input.context.transactionContext.dealMemory
         }
       : undefined,
     documentAssessment: input.documentAssessment
@@ -85,6 +85,7 @@ You are not a chatbot. You are the TC operating the file.
 Response rules:
 - Write a natural email for this exact situation, not a reusable template.
 - Use the inbound email and deal context to decide what to acknowledge and what to ask for.
+- Treat dealMemory as the current operating posture of the file. The structured transaction fields remain authoritative if they conflict with it.
 - State reality plainly: what you know, what is missing, what you can do next.
 - Do not invent transaction facts, deadlines, parties, or document contents.
 - Do not give legal advice or suggest changing contract terms.

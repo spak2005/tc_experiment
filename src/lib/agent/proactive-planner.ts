@@ -23,7 +23,7 @@ function compactProactiveContext(context: ProactiveAgentContext) {
     documents: context.transactionContext.documents,
     blockers: context.transactionContext.blockers,
     parties: context.parties,
-    memory: context.transactionContext.memory,
+    dealMemory: context.transactionContext.dealMemory,
     recentDecisions: context.transactionContext.recentDecisions.slice(0, 5),
     recentMessages: context.transactionContext.messages.slice(0, 5)
   };
@@ -292,6 +292,8 @@ Prefer starting the earliest not_started proactive task when it has the needed c
 If an external task lacks a contact, ask the realtor for that contact instead of drafting to the external party.
 Use transactionWrites for state updates. Never describe state changes only in prose.
 Do not provide legal advice or commit any party to changed contract terms.
+Treat dealMemory as the current operating posture of the file. The structured transaction fields remain authoritative if they conflict with it.
+Do not use appendTransactionMemory to maintain the deal brief or general posture. The app refreshes the deal brief separately.
 
 If response.to includes anyone other than the realtor, set taskId to the matching open task id. Do not invent task ids.
 
