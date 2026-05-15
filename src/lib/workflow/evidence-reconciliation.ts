@@ -109,27 +109,6 @@ export async function reconcileTransactionEvidence(input: {
   }
 
   if (appliedWrites.length > 0) {
-    appliedWrites.push({
-      reason: "Recorded reconciliation summary in transaction memory.",
-      write: {
-        name: "appendTransactionMemory",
-        input: {
-          transactionId: input.transactionId,
-          summary: `Evidence reconciliation applied ${appliedWrites.length} update(s) from ${input.trigger.type}.`,
-          knownContext: {
-            lastReconciliationAt: nowIso,
-            lastReconciliationTrigger: input.trigger.type,
-            appliedWriteCount: appliedWrites.length
-          }
-        },
-        source: {
-          sourceType: "system",
-          sourceReference: "evidence_reconciliation",
-          confidence: 0.9,
-          rationale: "Preserve a concise reconciliation audit note in transaction memory."
-        }
-      }
-    });
     await executeTransactionWrites({
       teamId: input.teamId,
       writes: appliedWrites.map((write) => write.write)
