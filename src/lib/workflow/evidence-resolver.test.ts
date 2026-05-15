@@ -88,6 +88,25 @@ describe("resolveCompletionEvidence", () => {
     expect(result.writes).toHaveLength(0);
     expect(result.skipped[0]).toContain("Skipped unsafe or negated evidence");
   });
+
+  it("skips unsafe high-impact evidence", () => {
+    const result = resolveCompletionEvidence({
+      transactionId: "tx-1",
+      context: context(),
+      nowIso: "2026-05-14T15:00:00.000Z",
+      evidence: [
+        {
+          type: "party_confirmation",
+          text: "The buyer wants to terminate and waive the deadline.",
+          source: "email",
+          confidence: 0.8
+        }
+      ]
+    });
+
+    expect(result.writes).toHaveLength(0);
+    expect(result.skipped[0]).toContain("Skipped unsafe or negated evidence");
+  });
 });
 
 describe("resolveDocumentEvidence", () => {
