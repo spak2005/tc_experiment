@@ -3,7 +3,7 @@ import { buildProactiveAgentContext } from "@/lib/agent/proactive-context";
 import { decideProactiveAction } from "@/lib/agent/proactive-planner";
 import {
   extractAgentMailMessageMetadata,
-  sendTcEmail
+  sendTcEmailOnce
 } from "@/lib/agentmail/service";
 import {
   claimDueAgentWakeups,
@@ -254,7 +254,8 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
         proposedBody: response.body,
         proposedTo: response.to
       });
-      const requestMessage = await sendTcEmail({
+      const requestMessage = await sendTcEmailOnce({
+        idempotencyKey: `approval:${approval.id}:request`,
         inboxId: context.tcProfile.inboxId,
         to: [context.tcProfile.escalationEmail],
         subject: request.subject,
@@ -289,7 +290,8 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
       executionStatus = "waiting_approval";
       toolResults.push({ tool: "createApproval", result: "created", approvalId: approval.id });
     } else {
-      await sendTcEmail({
+      await sendTcEmailOnce({
+        idempotencyKey: `wakeup:${wakeup.id}:response`,
         inboxId: context.tcProfile.inboxId,
         to: response.to,
         cc: response.cc,
