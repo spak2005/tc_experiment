@@ -42,6 +42,7 @@ import type { TransactionWrite } from "@/lib/transaction-writes/schemas";
 import { routeContractIntake, type ContractRoutingDecision } from "@/lib/workflow/contract-routing";
 import type { EvidenceDocumentInput } from "@/lib/workflow/evidence-types";
 import { reconcileTransactionEvidence } from "@/lib/workflow/evidence-reconciliation";
+import { refreshTransactionMemory } from "@/lib/workflow/memory-refresh";
 import { scheduleAgentWakeup } from "@/lib/workflow/proactive-scheduling";
 import { createOpeningTasks, createTasksForMilestone } from "@/lib/workflow/tasks";
 
@@ -101,6 +102,26 @@ async function withTransactionContext(input: {
     },
     transactionContext
   } satisfies AgentContextPack;
+}
+
+async function refreshDealMemory(input: {
+  teamId: string;
+  transactionId: string;
+  reason: string;
+  sourceReference?: string;
+  lastInboundAt?: Date;
+}) {
+  const transactionContext = await getTransactionContext(input.transactionId);
+  if (!transactionContext) return;
+
+  await refreshTransactionMemory({
+    teamId: input.teamId,
+    transactionId: input.transactionId,
+    context: transactionContext,
+    reason: input.reason,
+    sourceReference: input.sourceReference,
+    lastInboundAt: input.lastInboundAt
+  });
 }
 
 function documentStatusForUsability(usability: string) {
@@ -644,6 +665,13 @@ export async function processAgentMailInbound(input: {
       approval: pendingApproval,
       inbound
     });
+    await refreshDealMemory({
+      teamId: tcProfile.team_id,
+      transactionId: pendingApproval.transaction_id,
+      reason: "approval_reply_processed",
+      sourceReference: inbound.messageId || inbound.eventId,
+      lastInboundAt: new Date()
+    });
     await createAgentActivityEvent({
       teamId: tcProfile.team_id,
       transactionId: pendingApproval.transaction_id,
@@ -1049,6 +1077,13 @@ export async function processAgentMailInbound(input: {
       }
     });
     if (reconciliation.appliedWrites.length > 0) {
+      await refreshDealMemory({
+        teamId: context.tcProfile.teamId,
+        transactionId,
+        reason: "evidence_reconciliation",
+        sourceReference: inbound.messageId || inbound.eventId,
+        lastInboundAt: new Date()
+      });
       context = await withTransactionContext({
         context,
         transactionId,
@@ -1183,6 +1218,17 @@ export async function processAgentMailInbound(input: {
       toolResults: execution.toolResults
     }
   });
+
+  const memoryTransactionId = decision.transactionId ?? transactionId;
+  if (memoryTransactionId) {
+    await refreshDealMemory({
+      teamId: context.tcProfile.teamId,
+      transactionId: memoryTransactionId,
+      reason: `decision_execution_${execution.status}`,
+      sourceReference: decisionRecord.id,
+      lastInboundAt: new Date()
+    });
+  }
 
   await markWebhookEventProcessed(input.webhookEventId);
 

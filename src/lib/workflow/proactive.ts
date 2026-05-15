@@ -21,6 +21,7 @@ import { approvalRequestEmail } from "@/lib/email/templates";
 import { getTemporalContext } from "@/lib/time/clock";
 import { executeTransactionWrites } from "@/lib/transaction-writes/executor";
 import { reconcileTransactionEvidence } from "@/lib/workflow/evidence-reconciliation";
+import { refreshTransactionMemory } from "@/lib/workflow/memory-refresh";
 import {
   cancelScheduledWakeups,
   scheduleAgentWakeup,
@@ -93,6 +94,22 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
     trigger: { type: "heartbeat" }
   });
   if (reconciliation.appliedWrites.length > 0) {
+    const reconciledContext = await buildProactiveAgentContext(wakeup.transactionId);
+    if (!reconciledContext) {
+      await completeAgentWakeup({
+        id: wakeup.id,
+        status: "skipped",
+        payload: { skippedReason: "missing_transaction_context_after_reconciliation" }
+      });
+      return { status: "skipped", reason: "missing_transaction_context_after_reconciliation" };
+    }
+    await refreshTransactionMemory({
+      teamId: reconciledContext.tcProfile.teamId,
+      transactionId: reconciledContext.transactionId,
+      context: reconciledContext.transactionContext,
+      reason: "heartbeat_reconciliation",
+      sourceReference: wakeup.id
+    });
     context = await buildProactiveAgentContext(wakeup.transactionId);
     if (!context) {
       await completeAgentWakeup({
@@ -382,6 +399,17 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
       toolResults
     }
   });
+
+  const refreshedContext = await buildProactiveAgentContext(wakeup.transactionId);
+  if (refreshedContext) {
+    await refreshTransactionMemory({
+      teamId: refreshedContext.tcProfile.teamId,
+      transactionId: refreshedContext.transactionId,
+      context: refreshedContext.transactionContext,
+      reason: `proactive_wakeup_${executionStatus}`,
+      sourceReference: decisionRecord.id
+    });
+  }
 
   return {
     status: executionStatus,

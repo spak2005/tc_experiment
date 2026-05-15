@@ -20,7 +20,8 @@ const mocks = vi.hoisted(() => ({
   transitionOutboundTaskToWaitingResponse: vi.fn(),
   scheduleAgentWakeup: vi.fn(),
   scheduleNextHeartbeat: vi.fn(),
-  cancelScheduledWakeups: vi.fn()
+  cancelScheduledWakeups: vi.fn(),
+  refreshTransactionMemory: vi.fn()
 }));
 
 vi.mock("@/lib/db/repositories", () => ({
@@ -60,6 +61,10 @@ vi.mock("@/lib/workflow/proactive-scheduling", () => ({
   scheduleAgentWakeup: mocks.scheduleAgentWakeup,
   scheduleNextHeartbeat: mocks.scheduleNextHeartbeat,
   cancelScheduledWakeups: mocks.cancelScheduledWakeups
+}));
+
+vi.mock("@/lib/workflow/memory-refresh", () => ({
+  refreshTransactionMemory: mocks.refreshTransactionMemory
 }));
 
 function wakeup(overrides: Partial<AgentWakeup> = {}): AgentWakeup {
@@ -108,6 +113,10 @@ function proactiveContext() {
       documents: [],
       messages: [],
       blockers: [],
+      dealMemory: {
+        dealBrief: "",
+        activeQuestionsAndWarnings: []
+      },
       recentDecisions: [],
       missingItems: []
     }
