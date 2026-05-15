@@ -40,6 +40,8 @@ import { generateTexasMilestones } from "@/lib/milestones/engine";
 import { executeTransactionWrites } from "@/lib/transaction-writes/executor";
 import type { TransactionWrite } from "@/lib/transaction-writes/schemas";
 import { routeContractIntake, type ContractRoutingDecision } from "@/lib/workflow/contract-routing";
+import type { EvidenceDocumentInput } from "@/lib/workflow/evidence-types";
+import { reconcileTransactionEvidence } from "@/lib/workflow/evidence-reconciliation";
 import { scheduleAgentWakeup } from "@/lib/workflow/proactive-scheduling";
 import { createOpeningTasks, createTasksForMilestone } from "@/lib/workflow/tasks";
 
@@ -736,6 +738,7 @@ export async function processAgentMailInbound(input: {
   let contractRouting: ContractRoutingDecision | undefined;
   let shouldPersistContractAssessment = false;
   const fetchedAttachments: Record<string, FetchedAttachment> = {};
+  const evidenceDocuments: EvidenceDocumentInput[] = [];
 
   if (inbound.attachments.length > 0) {
     for (const attachment of inbound.attachments) {
@@ -892,6 +895,15 @@ export async function processAgentMailInbound(input: {
           transactionId,
           fetchedAttachments
         });
+        evidenceDocuments.push(
+          ...storedAttachments.map((attachment) => ({
+            documentId: attachment.documentId,
+            filename: attachment.filename,
+            contentType: attachment.contentType,
+            blobKey: attachment.blobKey,
+            body: attachment.body
+          }))
+        );
         const storedPdfAttachment = storedAttachments.find(
           (attachment) => attachment.filename === pdfAttachment.filename && isPdfAttachment(attachment)
         );
@@ -964,6 +976,15 @@ export async function processAgentMailInbound(input: {
           transactionId,
           fetchedAttachments
         });
+        evidenceDocuments.push(
+          ...storedAttachments.map((attachment) => ({
+            documentId: attachment.documentId,
+            filename: attachment.filename,
+            contentType: attachment.contentType,
+            blobKey: attachment.blobKey,
+            body: attachment.body
+          }))
+        );
         await logActivity(activityContext, {
           sourceType: "document",
           eventType: "non_contract_attachments_stored",
@@ -1006,6 +1027,36 @@ export async function processAgentMailInbound(input: {
       transactionId
     }
   });
+
+  if (transactionId) {
+    context = await withTransactionContext({
+      context,
+      transactionId,
+      confidence: context.match.confidence,
+      reasons: context.match.reasons
+    });
+    const reconciliation = await reconcileTransactionEvidence({
+      teamId: context.tcProfile.teamId,
+      transactionId,
+      context: context.transactionContext!,
+      trigger: {
+        type: "inbound_email",
+        emailText: context.emailText,
+        subject: inbound.subject,
+        from: inbound.from,
+        threadId: inbound.threadId,
+        documents: evidenceDocuments
+      }
+    });
+    if (reconciliation.appliedWrites.length > 0) {
+      context = await withTransactionContext({
+        context,
+        transactionId,
+        confidence: context.match.confidence,
+        reasons: context.match.reasons
+      });
+    }
+  }
 
   await logActivity(activityContext, {
     sourceType: "decision",
