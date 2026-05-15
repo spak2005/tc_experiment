@@ -665,6 +665,7 @@ export async function createTransaction(input: {
   effectiveDate?: string;
   closingDate?: string;
   status?: string;
+  intakeSourceKey?: string;
 }) {
   const result = await query<{ id: string }>(
     `insert into transactions (
@@ -674,9 +675,10 @@ export async function createTransaction(input: {
        side,
        status,
        effective_date,
-       closing_date
+       closing_date,
+       intake_source_key
      )
-     values ($1, $2, $3, $4, $5, $6, $7)
+     values ($1, $2, $3, $4, $5, $6, $7, $8)
      returning id`,
     [
       input.teamId,
@@ -685,7 +687,48 @@ export async function createTransaction(input: {
       input.side ?? "unknown",
       input.status ?? "intake_processing",
       input.effectiveDate ?? null,
-      input.closingDate ?? null
+      input.closingDate ?? null,
+      input.intakeSourceKey ?? null
+    ]
+  );
+
+  return result.rows[0];
+}
+
+export async function findOrCreateTransactionForIntake(input: {
+  teamId: string;
+  tcProfileId: string;
+  intakeSourceKey: string;
+  propertyAddress?: string;
+  side?: string;
+  effectiveDate?: string;
+  closingDate?: string;
+  status?: string;
+}) {
+  const result = await query<{ id: string }>(
+    `insert into transactions (
+       team_id,
+       tc_profile_id,
+       property_address,
+       side,
+       status,
+       effective_date,
+       closing_date,
+       intake_source_key
+     )
+     values ($1, $2, $3, $4, $5, $6, $7, $8)
+     on conflict (intake_source_key) where intake_source_key is not null do update
+       set intake_source_key = excluded.intake_source_key
+     returning id`,
+    [
+      input.teamId,
+      input.tcProfileId,
+      input.propertyAddress ?? null,
+      input.side ?? "unknown",
+      input.status ?? "intake_processing",
+      input.effectiveDate ?? null,
+      input.closingDate ?? null,
+      input.intakeSourceKey
     ]
   );
 

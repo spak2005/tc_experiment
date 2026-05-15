@@ -17,7 +17,7 @@ import {
   createAgentDecision,
   createAuditEvent,
   createMessage,
-  createTransaction,
+  findOrCreateTransactionForIntake,
   findPendingApprovalByReply,
   findTransactionMatchCandidates,
   findTcProfileByInbox,
@@ -877,9 +877,10 @@ export async function processAgentMailInbound(input: {
         activityContext.transactionId = transactionId;
         shouldPersistContractAssessment = true;
       } else if (contractRouting.action === "create_transaction") {
-        const transaction = await createTransaction({
+        const transaction = await findOrCreateTransactionForIntake({
           teamId: tcProfile.team_id,
           tcProfileId: tcProfile.id,
+          intakeSourceKey: `inbound:${input.webhookEventId}:transaction`,
           propertyAddress: getStringFact(documentAssessment.facts.propertyAddress),
           effectiveDate: isoDateOrUndefined(getStringFact(documentAssessment.facts.effectiveDate)),
           closingDate: isoDateOrUndefined(getStringFact(documentAssessment.facts.closingDate)),
