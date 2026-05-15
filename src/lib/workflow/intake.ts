@@ -592,6 +592,7 @@ export async function processAgentMailInbound(input: {
   const tcProfile = await findTcProfileByInbox(inbound.inboxId);
 
   if (!tcProfile) {
+    await markWebhookEventProcessed(input.webhookEventId);
     return { status: "ignored", reason: "unknown_inbox" };
   }
 
