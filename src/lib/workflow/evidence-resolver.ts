@@ -59,6 +59,8 @@ export function resolveCompletionEvidence(input: {
 }): { writes: ReconciliationAppliedWrite[]; skipped: string[] } {
   const writes: ReconciliationAppliedWrite[] = [];
   const skipped: string[] = [];
+  const completedTaskIds = new Set<string>();
+  const completedMilestoneIds = new Set<string>();
   const positive = input.evidence.filter(
     (item) => item.type === "party_confirmation" && !shouldSkipCompletionEvidence(item)
   );
@@ -79,6 +81,8 @@ export function resolveCompletionEvidence(input: {
     if (task.status === "complete" || task.status === "cancelled") continue;
     const signals = signalValues(task);
     if (!textIncludesAny(positiveText, signals)) continue;
+    const taskId = stringValue(task.id);
+    if (taskId) completedTaskIds.add(taskId);
 
     writes.push({
       reason: `Evidence matched task "${task.title}".`,
@@ -88,7 +92,7 @@ export function resolveCompletionEvidence(input: {
           transactionId: input.transactionId,
           tasks: [
             {
-              id: stringValue(task.id),
+              id: taskId,
               status: "complete",
               metadata: {
                 reconciledAt: input.nowIso,
@@ -111,6 +115,8 @@ export function resolveCompletionEvidence(input: {
     if (milestone.completed_at) continue;
     const signals = signalValues(milestone);
     if (!textIncludesAny(positiveText, signals)) continue;
+    const milestoneId = stringValue(milestone.id);
+    if (milestoneId) completedMilestoneIds.add(milestoneId);
 
     writes.push({
       reason: `Evidence matched milestone "${milestone.title}".`,
@@ -141,6 +147,43 @@ export function resolveCompletionEvidence(input: {
           sourceReference: "evidence_reconciliation",
           confidence: 0.82,
           rationale: `Routine evidence matched milestone completion signals for ${milestone.title}.`
+        }
+      }
+    });
+  }
+
+  for (const blocker of input.context.blockers) {
+    const blockerId = stringValue(blocker.id);
+    const taskId = stringValue(blocker.task_id);
+    const deadlineId = stringValue(blocker.deadline_id);
+    if (
+      !blockerId ||
+      (!taskId || !completedTaskIds.has(taskId)) &&
+        (!deadlineId || !completedMilestoneIds.has(deadlineId))
+    ) {
+      continue;
+    }
+
+    writes.push({
+      reason: `Resolved blocker "${blocker.title}" because linked evidence was completed.`,
+      write: {
+        name: "upsertBlocker",
+        input: {
+          transactionId: input.transactionId,
+          id: blockerId,
+          title: String(blocker.title),
+          details: String(blocker.details),
+          riskLevel: (blocker.risk_level as never) ?? "watch",
+          responsiblePartyRole: stringValue(blocker.responsible_party_role) as never,
+          deadlineId: deadlineId,
+          taskId: taskId,
+          resolved: true
+        },
+        source: {
+          sourceType: "system",
+          sourceReference: "evidence_reconciliation",
+          confidence: 0.82,
+          rationale: "Routine evidence completed the blocker-linked task or milestone."
         }
       }
     });
@@ -193,6 +236,35 @@ export function resolveDocumentEvidence(input: {
         }
       }
     });
+
+    if (classification.documentId) {
+      writes.push({
+        reason: `Stored classification metadata for ${classification.filename}.`,
+        write: {
+          name: "updateDocuments",
+          input: {
+            transactionId: input.transactionId,
+            documents: [
+              {
+                id: classification.documentId,
+                status: "received",
+                metadata: {
+                  classification,
+                  linkedExpectedDocumentId: classification.matchedDocumentId,
+                  receivedAt: input.nowIso
+                }
+              }
+            ]
+          },
+          source: {
+            sourceType: "system",
+            sourceReference: "evidence_reconciliation",
+            confidence: classification.confidence,
+            rationale: "Stored classification metadata on the raw received document."
+          }
+        }
+      });
+    }
   }
 
   return { writes, skipped };
