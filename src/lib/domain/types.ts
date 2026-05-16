@@ -121,7 +121,7 @@ export type AgentWakeupStatus =
 
 export interface AgentWakeup {
   id: ID;
-  teamId: ID;
+  userId: ID;
   transactionId: ID;
   taskId?: ID;
   actionType: AgentWakeupActionType;
@@ -144,24 +144,18 @@ export interface AgentWakeup {
 
 export interface User {
   id: ID;
-  teamId: ID;
+  authUserId: ID;
   name: string;
   email: string;
   phone?: string;
-  createdAt: Date;
-}
-
-export interface Team {
-  id: ID;
-  name: string;
-  market: Market;
   brokerage?: string;
+  market: Market;
   createdAt: Date;
 }
 
 export interface TcProfile {
   id: ID;
-  teamId: ID;
+  userId: ID;
   displayName: string;
   inboxAddress: string;
   agentMailPodId?: string;
@@ -174,7 +168,7 @@ export interface TcProfile {
 
 export interface Transaction {
   id: ID;
-  teamId: ID;
+  userId: ID;
   tcProfileId: ID;
   propertyAddress?: string;
   market: Market;
