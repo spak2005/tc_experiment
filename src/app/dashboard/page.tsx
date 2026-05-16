@@ -1,11 +1,18 @@
 import { requireCurrentUser } from "@/lib/auth/current-user";
-import { getDashboardSnapshotForUser } from "@/lib/db/repositories";
+import {
+  findTcProfileByUser,
+  getDashboardSnapshotForUser
+} from "@/lib/db/repositories";
 import { LogoutButton } from "@/app/components/logout-button";
+import { TcEmailActions } from "@/app/components/tc-email-actions";
 import Link from "next/link";
 
 export default async function DashboardPage() {
   const user = await requireCurrentUser();
-  const snapshot = await getDashboardSnapshotForUser(user.id);
+  const [snapshot, tcProfile] = await Promise.all([
+    getDashboardSnapshotForUser(user.id),
+    findTcProfileByUser(user.id)
+  ]);
 
   return (
     <main className="dashboard">
@@ -21,6 +28,18 @@ export default async function DashboardPage() {
       </header>
 
       <section className="dashboard-grid">
+        <Panel title="Stephanie">
+          <article className="row">
+            <strong>{tcProfile?.display_name ?? "Stephanie"}</strong>
+            <span className="tc-email">
+              {tcProfile?.inbox_address ?? "Provisioning your TC email..."}
+            </span>
+            {tcProfile?.inbox_address ? (
+              <TcEmailActions email={tcProfile.inbox_address} />
+            ) : null}
+          </article>
+        </Panel>
+
         <Panel title="Transactions">
           {snapshot.transactions.map((transaction) => (
             <article className="row" key={transaction.id}>

@@ -104,6 +104,15 @@ button:disabled {
   opacity: 0.7;
 }
 
+.utility-button {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--foreground);
+  font-weight: 700;
+  padding: 10px 12px;
+}
+
 .tc-email {
   background: #eef5f0;
   border: 1px solid #c9dfd4;
@@ -223,6 +232,12 @@ button:disabled {
   font-weight: 700;
   padding: 10px 12px;
   text-decoration: none;
+}
+
+.tc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .activity-debugger {
