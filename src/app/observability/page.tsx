@@ -1,14 +1,11 @@
 import Link from "next/link";
 import { ActivityDebugger } from "@/app/components/activity-debugger";
-import { getTeamActivityTimeline } from "@/lib/db/repositories";
+import { requireCurrentUser } from "@/lib/auth/current-user";
+import { getUserActivityTimeline } from "@/lib/db/repositories";
 
-export default async function ObservabilityPage({
-  params
-}: {
-  params: Promise<{ teamId: string }>;
-}) {
-  const { teamId } = await params;
-  const activity = await getTeamActivityTimeline(teamId);
+export default async function ObservabilityPage() {
+  const user = await requireCurrentUser();
+  const activity = await getUserActivityTimeline(user.id);
 
   return (
     <main className="dashboard">
@@ -17,10 +14,10 @@ export default async function ObservabilityPage({
           <p className="eyebrow">Agent observability</p>
           <h1>Watch the agent work.</h1>
           <p className="lede compact">
-            Team {teamId} · {activity.length} recent events · newest first
+            {activity.length} recent events · newest first
           </p>
         </div>
-        <Link className="utility-link" href={`/dashboard/${teamId}`}>
+        <Link className="utility-link" href="/dashboard">
           Back to dashboard
         </Link>
       </header>

@@ -1,4 +1,5 @@
-import { getTransactionDetail } from "@/lib/db/repositories";
+import { requireCurrentUser } from "@/lib/auth/current-user";
+import { getTransactionDetailForUser } from "@/lib/db/repositories";
 import { ActivityDebugger } from "@/app/components/activity-debugger";
 
 export default async function TransactionDetailPage({
@@ -7,7 +8,8 @@ export default async function TransactionDetailPage({
   params: Promise<{ transactionId: string }>;
 }) {
   const { transactionId } = await params;
-  const detail = await getTransactionDetail(transactionId);
+  const user = await requireCurrentUser();
+  const detail = await getTransactionDetailForUser({ transactionId, userId: user.id });
 
   if (!detail.transaction) {
     return (

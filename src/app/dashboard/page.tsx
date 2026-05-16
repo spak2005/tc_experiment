@@ -1,13 +1,10 @@
-import { getDashboardSnapshot } from "@/lib/db/repositories";
+import { requireCurrentUser } from "@/lib/auth/current-user";
+import { getDashboardSnapshotForUser } from "@/lib/db/repositories";
 import Link from "next/link";
 
-export default async function DashboardPage({
-  params
-}: {
-  params: Promise<{ teamId: string }>;
-}) {
-  const { teamId } = await params;
-  const snapshot = await getDashboardSnapshot(teamId);
+export default async function DashboardPage() {
+  const user = await requireCurrentUser();
+  const snapshot = await getDashboardSnapshotForUser(user.id);
 
   return (
     <main className="dashboard">
@@ -15,7 +12,7 @@ export default async function DashboardPage({
         <p className="eyebrow">TC control room</p>
         <h1>Active files, blockers, and approvals.</h1>
         <p className="lede compact">
-          <Link className="utility-link" href={`/observability/${teamId}`}>
+          <Link className="utility-link" href="/observability">
             Open agent observability
           </Link>
         </p>
