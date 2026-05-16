@@ -12,7 +12,7 @@ function context(overrides: Partial<ProactiveAgentContext["transactionContext"]>
     },
     tcProfile: {
       id: "tc-1",
-      userId: "team-1",
+      userId: "user-1",
       displayName: "TC",
       inboxAddress: "tc@example.com",
       inboxId: "inbox-1",

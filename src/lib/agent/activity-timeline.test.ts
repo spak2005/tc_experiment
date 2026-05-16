@@ -211,7 +211,7 @@ describe("activity timeline legacy mappers", () => {
     });
   });
 
-  it("sorts team observability events newest first when requested", () => {
+  it("sorts user observability events newest first when requested", () => {
     const base = {
       userId: "user-1",
       sourceType: "email",

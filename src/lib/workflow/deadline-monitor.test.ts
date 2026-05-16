@@ -46,7 +46,7 @@ describe("checkDeadlineRisk", () => {
     vi.mocked(findStaleResponseTasks).mockResolvedValue([
       {
         transaction_id: "tx-1",
-        user_id: "team-1",
+        user_id: "user-1",
         property_address: "123 Main St",
         task_id: "task-1",
         title: "Confirm title receipt",
@@ -81,7 +81,7 @@ describe("checkDeadlineRisk", () => {
     vi.mocked(findStaleResponseTasks).mockResolvedValue([
       {
         transaction_id: "tx-1",
-        user_id: "team-1",
+        user_id: "user-1",
         property_address: "123 Main St",
         task_id: "task-1",
         title: "Confirm title receipt",

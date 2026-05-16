@@ -47,7 +47,7 @@ describe("executeTransactionWrites", () => {
     mocks.updateTransactionCoreFields.mockResolvedValue({ id: transactionId });
 
     const results = await executeTransactionWrites({
-      userId: "team-1",
+      userId: "user-1",
       agentDecisionId: "decision-1",
       writes: [
         {
@@ -84,7 +84,7 @@ describe("executeTransactionWrites", () => {
     });
 
     const results = await executeTransactionWrites({
-      userId: "team-1",
+      userId: "user-1",
       writes: [
         {
           name: "updateTransactionCore",
@@ -105,7 +105,7 @@ describe("executeTransactionWrites", () => {
     });
 
     const results = await executeTransactionWrites({
-      userId: "team-1",
+      userId: "user-1",
       writes: [
         {
           name: "upsertTransactionFact",
@@ -123,7 +123,7 @@ describe("executeTransactionWrites", () => {
     mocks.upsertParty.mockResolvedValue({ id: "party-1", inserted: true });
 
     const results = await executeTransactionWrites({
-      userId: "team-1",
+      userId: "user-1",
       writes: [
         {
           name: "upsertParties",

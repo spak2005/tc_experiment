@@ -78,7 +78,7 @@ describe("refreshTransactionMemory", () => {
 
   it("falls back to a concise deal brief and active questions", async () => {
     const result = await refreshTransactionMemory({
-      userId: "team-1",
+      userId: "user-1",
       transactionId: "tx-1",
       context: context(),
       reason: "test_refresh",
