@@ -19,7 +19,7 @@ function toJsonb(value: unknown) {
 
 function toActivityEvent(row: {
   id: string;
-  team_id: string;
+  user_id: string;
   transaction_id: string | null;
   property_address?: string | null;
   transaction_status?: string | null;
@@ -34,7 +34,7 @@ function toActivityEvent(row: {
 }): AgentActivityEvent {
   return {
     id: row.id,
-    teamId: row.team_id,
+    userId: row.user_id,
     transactionId: row.transaction_id ?? undefined,
     transaction: row.transaction_id
       ? {
@@ -59,7 +59,7 @@ function toActivityEvent(row: {
 
 type AgentWakeupRow = {
   id: string;
-  team_id: string;
+  user_id: string;
   transaction_id: string;
   task_id: string | null;
   action_type: AgentWakeupActionType;
@@ -83,7 +83,7 @@ type AgentWakeupRow = {
 function toAgentWakeup(row: AgentWakeupRow): AgentWakeup {
   return {
     id: row.id,
-    teamId: row.team_id,
+    userId: row.user_id,
     transactionId: row.transaction_id,
     taskId: row.task_id ?? undefined,
     actionType: row.action_type,
@@ -111,21 +111,17 @@ function toAgentWakeup(row: AgentWakeupRow): AgentWakeup {
   };
 }
 
-export interface CreateTeamInput {
-  name: string;
-  market: "TX";
-  brokerage?: string;
-}
-
 export interface CreateUserInput {
-  teamId: string;
+  authUserId: string;
   name: string;
   email: string;
   phone?: string;
+  brokerage?: string;
+  market: "TX";
 }
 
 export interface CreateTcProfileInput {
-  teamId: string;
+  userId: string;
   displayName: string;
   inboxAddress: string;
   agentMailPodId?: string;
@@ -140,7 +136,7 @@ export async function createAgentActivityEvent(
   const db = client ?? { query };
   const result = await db.query<{
     id: string;
-    team_id: string;
+    user_id: string;
     transaction_id: string | null;
     agent_decision_id: string | null;
     source_type: AgentActivityEvent["sourceType"];
@@ -152,7 +148,7 @@ export async function createAgentActivityEvent(
     occurred_at: string;
   }>(
     `insert into agent_activity_events (
-       team_id,
+       user_id,
        transaction_id,
        agent_decision_id,
        source_type,
@@ -166,7 +162,7 @@ export async function createAgentActivityEvent(
      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, coalesce($10, now()))
      returning
        id,
-       team_id,
+       user_id,
        transaction_id,
        agent_decision_id,
        source_type,
@@ -177,7 +173,7 @@ export async function createAgentActivityEvent(
        metadata,
        occurred_at::text`,
     [
-      input.teamId,
+      input.userId,
       input.transactionId ?? null,
       input.agentDecisionId ?? null,
       input.sourceType,
@@ -196,7 +192,7 @@ export async function createAgentActivityEvent(
 export async function getTransactionActivityEvents(transactionId: string) {
   const result = await query<{
     id: string;
-    team_id: string;
+    user_id: string;
     transaction_id: string | null;
     agent_decision_id: string | null;
     source_type: AgentActivityEvent["sourceType"];
@@ -209,7 +205,7 @@ export async function getTransactionActivityEvents(transactionId: string) {
   }>(
     `select
        id,
-       team_id,
+       user_id,
        transaction_id,
        agent_decision_id,
        source_type,
@@ -228,10 +224,10 @@ export async function getTransactionActivityEvents(transactionId: string) {
   return result.rows.map(toActivityEvent);
 }
 
-export async function getTeamActivityTimeline(teamId: string, limit = 100) {
+export async function getUserActivityTimeline(userId: string, limit = 100) {
   const result = await query<{
     id: string;
-    team_id: string;
+    user_id: string;
     transaction_id: string | null;
     property_address: string | null;
     transaction_status: string | null;
@@ -246,7 +242,7 @@ export async function getTeamActivityTimeline(teamId: string, limit = 100) {
   }>(
     `select
        e.id,
-       e.team_id,
+       e.user_id,
        e.transaction_id,
        t.property_address,
        t.status as transaction_status,
@@ -260,37 +256,72 @@ export async function getTeamActivityTimeline(teamId: string, limit = 100) {
        e.occurred_at::text
      from agent_activity_events e
      left join transactions t on t.id = e.transaction_id
-     where e.team_id = $1
+     where e.user_id = $1
      order by e.occurred_at desc, e.id desc
      limit $2`,
-    [teamId, limit]
+    [userId, limit]
   );
 
   return result.rows.map(toActivityEvent);
 }
 
-export async function createTeam(input: CreateTeamInput, client?: PoolClientLike) {
+export async function createUser(input: CreateUserInput, client?: PoolClientLike) {
   const db = client ?? { query };
   const result = await db.query<{ id: string }>(
-    `insert into teams (name, market, brokerage)
-     values ($1, $2, $3)
+    `insert into users (auth_user_id, name, email, phone, brokerage, market)
+     values ($1, $2, $3, $4, $5, $6)
      returning id`,
-    [input.name, input.market, input.brokerage ?? null]
+    [
+      input.authUserId,
+      input.name,
+      input.email,
+      input.phone ?? null,
+      input.brokerage ?? null,
+      input.market
+    ]
   );
 
   return result.rows[0];
 }
 
-export async function createUser(input: CreateUserInput, client?: PoolClientLike) {
-  const db = client ?? { query };
-  const result = await db.query<{ id: string }>(
-    `insert into users (team_id, name, email, phone)
-     values ($1, $2, $3, $4)
-     returning id`,
-    [input.teamId, input.name, input.email, input.phone ?? null]
+export async function findUserByAuthUserId(authUserId: string) {
+  const result = await query<{
+    id: string;
+    auth_user_id: string;
+    name: string;
+    email: string;
+    phone: string | null;
+    brokerage: string | null;
+    market: "TX";
+  }>(
+    `select id, auth_user_id, name, email, phone, brokerage, market
+     from users
+     where auth_user_id = $1
+     limit 1`,
+    [authUserId]
   );
 
-  return result.rows[0];
+  return result.rows[0] ?? null;
+}
+
+export async function findUserByEmail(email: string) {
+  const result = await query<{
+    id: string;
+    auth_user_id: string;
+    name: string;
+    email: string;
+    phone: string | null;
+    brokerage: string | null;
+    market: "TX";
+  }>(
+    `select id, auth_user_id, name, email, phone, brokerage, market
+     from users
+     where lower(email) = lower($1)
+     limit 1`,
+    [email]
+  );
+
+  return result.rows[0] ?? null;
 }
 
 export async function createTcProfile(
@@ -300,7 +331,7 @@ export async function createTcProfile(
   const db = client ?? { query };
   const result = await db.query<{ id: string; inbox_address: string }>(
     `insert into tc_profiles (
-       team_id,
+       user_id,
        display_name,
        inbox_address,
        agentmail_pod_id,
@@ -310,7 +341,7 @@ export async function createTcProfile(
      values ($1, $2, $3, $4, $5, $6)
      returning id, inbox_address`,
     [
-      input.teamId,
+      input.userId,
       input.displayName,
       input.inboxAddress,
       input.agentMailPodId ?? null,
@@ -503,17 +534,17 @@ export async function markOutboundEmailFailed(input: {
 }
 
 export async function createAuditEvent(input: {
-  teamId: string;
+  userId: string;
   transactionId?: string;
   actor: string;
   eventType: string;
   payload?: Record<string, unknown>;
 }) {
   await query(
-    `insert into audit_events (team_id, transaction_id, actor, event_type, payload)
+    `insert into audit_events (user_id, transaction_id, actor, event_type, payload)
      values ($1, $2, $3, $4, $5)`,
     [
-      input.teamId,
+      input.userId,
       input.transactionId ?? null,
       input.actor,
       input.eventType,
@@ -524,7 +555,7 @@ export async function createAuditEvent(input: {
 
 const agentWakeupColumns = `
   id,
-  team_id,
+  user_id,
   transaction_id,
   task_id,
   action_type,
@@ -546,7 +577,7 @@ const agentWakeupColumns = `
 `;
 
 export async function createAgentWakeup(input: {
-  teamId: string;
+  userId: string;
   transactionId: string;
   taskId?: string;
   actionType: AgentWakeupActionType;
@@ -559,7 +590,7 @@ export async function createAgentWakeup(input: {
 }) {
   const result = await query<AgentWakeupRow>(
     `insert into agent_wakeups (
-       team_id,
+       user_id,
        transaction_id,
        task_id,
        action_type,
@@ -580,7 +611,7 @@ export async function createAgentWakeup(input: {
            updated_at = now()
      returning ${agentWakeupColumns}`,
     [
-      input.teamId,
+      input.userId,
       input.transactionId,
       input.taskId ?? null,
       input.actionType,
@@ -719,7 +750,7 @@ export async function claimDueAgentWakeups(input: {
        where wakeup.id = due.id
        returning
          wakeup.id,
-         wakeup.team_id,
+         wakeup.user_id,
          wakeup.transaction_id,
          wakeup.task_id,
          wakeup.action_type,
@@ -748,13 +779,13 @@ export async function claimDueAgentWakeups(input: {
 export async function findTcProfileByInbox(inboxAddress: string) {
   const result = await query<{
     id: string;
-    team_id: string;
+    user_id: string;
     inbox_address: string;
     agentmail_inbox_id: string | null;
     escalation_email: string;
     display_name: string;
   }>(
-    `select id, team_id, inbox_address, agentmail_inbox_id, escalation_email, display_name
+    `select id, user_id, inbox_address, agentmail_inbox_id, escalation_email, display_name
      from tc_profiles
      where inbox_address = $1 or agentmail_inbox_id = $1
      limit 1`,
@@ -767,7 +798,7 @@ export async function findTcProfileByInbox(inboxAddress: string) {
 export async function findTcProfileByTransaction(transactionId: string) {
   const result = await query<{
     id: string;
-    team_id: string;
+    user_id: string;
     inbox_address: string;
     agentmail_inbox_id: string | null;
     escalation_email: string;
@@ -775,7 +806,7 @@ export async function findTcProfileByTransaction(transactionId: string) {
   }>(
     `select
        tc.id,
-       tc.team_id,
+       tc.user_id,
        tc.inbox_address,
        tc.agentmail_inbox_id,
        tc.escalation_email,
@@ -785,6 +816,26 @@ export async function findTcProfileByTransaction(transactionId: string) {
      where t.id = $1
      limit 1`,
     [transactionId]
+  );
+
+  return result.rows[0] ?? null;
+}
+
+export async function findTcProfileByUser(userId: string) {
+  const result = await query<{
+    id: string;
+    user_id: string;
+    inbox_address: string;
+    agentmail_inbox_id: string | null;
+    escalation_email: string;
+    display_name: string;
+  }>(
+    `select id, user_id, inbox_address, agentmail_inbox_id, escalation_email, display_name
+     from tc_profiles
+     where user_id = $1
+     order by created_at desc
+     limit 1`,
+    [userId]
   );
 
   return result.rows[0] ?? null;
@@ -812,7 +863,7 @@ export async function getTransactionParties(transactionId: string) {
 }
 
 export async function createTransaction(input: {
-  teamId: string;
+  userId: string;
   tcProfileId: string;
   propertyAddress?: string;
   side?: string;
@@ -823,7 +874,7 @@ export async function createTransaction(input: {
 }) {
   const result = await query<{ id: string }>(
     `insert into transactions (
-       team_id,
+       user_id,
        tc_profile_id,
        property_address,
        side,
@@ -835,7 +886,7 @@ export async function createTransaction(input: {
      values ($1, $2, $3, $4, $5, $6, $7, $8)
      returning id`,
     [
-      input.teamId,
+      input.userId,
       input.tcProfileId,
       input.propertyAddress ?? null,
       input.side ?? "unknown",
@@ -850,7 +901,7 @@ export async function createTransaction(input: {
 }
 
 export async function findOrCreateTransactionForIntake(input: {
-  teamId: string;
+  userId: string;
   tcProfileId: string;
   intakeSourceKey: string;
   propertyAddress?: string;
@@ -861,7 +912,7 @@ export async function findOrCreateTransactionForIntake(input: {
 }) {
   const result = await query<{ id: string }>(
     `insert into transactions (
-       team_id,
+       user_id,
        tc_profile_id,
        property_address,
        side,
@@ -875,7 +926,7 @@ export async function findOrCreateTransactionForIntake(input: {
        set intake_source_key = excluded.intake_source_key
      returning id`,
     [
-      input.teamId,
+      input.userId,
       input.tcProfileId,
       input.propertyAddress ?? null,
       input.side ?? "unknown",
@@ -1868,7 +1919,7 @@ export async function updateDocumentRecord(input: {
   return inserted.rows[0] ?? null;
 }
 
-export async function findTransactionMatchCandidates(teamId: string) {
+export async function findTransactionMatchCandidates(userId: string) {
   const result = await query<{
     id: string;
     property_address: string | null;
@@ -1906,12 +1957,12 @@ export async function findTransactionMatchCandidates(teamId: string) {
      ) f on true
      left join parties p on p.transaction_id = t.id
      left join messages m on m.transaction_id = t.id
-     where t.team_id = $1
+     where t.user_id = $1
        and t.status not in ('closed', 'terminated')
      group by t.id, f.facts
      order by t.updated_at desc
      limit 25`,
-    [teamId]
+    [userId]
   );
 
   return result.rows;
@@ -1933,7 +1984,7 @@ export async function getTransactionContextData(transactionId: string) {
   ] = await Promise.all([
     query<{
       id: string;
-      team_id: string;
+      user_id: string;
       property_address: string | null;
       status: string;
       phase: string | null;
@@ -1944,7 +1995,7 @@ export async function getTransactionContextData(transactionId: string) {
     }>(
       `select
          id,
-         team_id,
+         user_id,
          property_address,
          status,
          phase,
@@ -2213,7 +2264,7 @@ export async function appendTransactionMemory(input: {
 }
 
 export async function createAgentDecision(input: {
-  teamId: string;
+  userId: string;
   transactionId?: string;
   inboundMessageId?: string;
   inboundThreadId?: string;
@@ -2229,7 +2280,7 @@ export async function createAgentDecision(input: {
 }) {
   const result = await query<{ id: string }>(
     `insert into agent_decisions (
-       team_id,
+       user_id,
        transaction_id,
        inbound_message_id,
        inbound_thread_id,
@@ -2246,7 +2297,7 @@ export async function createAgentDecision(input: {
      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
      returning id`,
     [
-      input.teamId,
+      input.userId,
       input.transactionId ?? null,
       input.inboundMessageId ?? null,
       input.inboundThreadId ?? null,
@@ -2266,7 +2317,7 @@ export async function createAgentDecision(input: {
 }
 
 export async function createAgentDecisionOnce(input: {
-  teamId: string;
+  userId: string;
   transactionId?: string;
   inboundMessageId?: string;
   inboundThreadId?: string;
@@ -2282,7 +2333,7 @@ export async function createAgentDecisionOnce(input: {
 }) {
   const result = await query<{ id: string }>(
     `insert into agent_decisions (
-       team_id,
+       user_id,
        transaction_id,
        inbound_message_id,
        inbound_thread_id,
@@ -2301,7 +2352,7 @@ export async function createAgentDecisionOnce(input: {
        set idempotency_key = excluded.idempotency_key
      returning id`,
     [
-      input.teamId,
+      input.userId,
       input.transactionId ?? null,
       input.inboundMessageId ?? null,
       input.inboundThreadId ?? null,
@@ -2352,7 +2403,7 @@ export async function updateDocumentStatus(input: {
 export async function findAtRiskMilestones(daysAhead: number, today: string) {
   const result = await query<{
     transaction_id: string;
-    team_id: string;
+    user_id: string;
     property_address: string | null;
     milestone_id: string;
     title: string;
@@ -2363,7 +2414,7 @@ export async function findAtRiskMilestones(daysAhead: number, today: string) {
   }>(
     `select
        t.id as transaction_id,
-       t.team_id,
+       t.user_id,
        t.property_address,
        m.id as milestone_id,
        m.title,
@@ -2389,7 +2440,7 @@ export async function findAtRiskMilestones(daysAhead: number, today: string) {
 export async function findStaleResponseTasks(today: string) {
   const result = await query<{
     transaction_id: string;
-    team_id: string;
+    user_id: string;
     property_address: string | null;
     task_id: string;
     title: string;
@@ -2401,7 +2452,7 @@ export async function findStaleResponseTasks(today: string) {
   }>(
     `select
        t.id as transaction_id,
-       t.team_id,
+       t.user_id,
        t.property_address,
        task.id as task_id,
        task.title,
@@ -2691,7 +2742,7 @@ export async function createApprovalOnce(input: {
 export interface ApprovalExecutionRow {
   id: string;
   transaction_id: string;
-  team_id: string;
+  user_id: string;
   agent_decision_id: string | null;
   task_id: string | null;
   proposed_subject: string;
@@ -2707,7 +2758,7 @@ export interface ApprovalExecutionRow {
 const approvalExecutionSelect = `
   a.id,
   a.transaction_id,
-  t.team_id,
+  t.user_id,
   a.agent_decision_id,
   a.task_id,
   a.proposed_subject,
@@ -2772,7 +2823,7 @@ export async function updateApprovalDraft(input: {
 }
 
 export async function findPendingApprovalByReply(input: {
-  teamId: string;
+  userId: string;
   realtorEmail: string;
   threadId?: string;
   messageId?: string;
@@ -2786,7 +2837,7 @@ export async function findPendingApprovalByReply(input: {
      from approvals a
      join transactions t on t.id = a.transaction_id
      join tc_profiles p on p.id = t.tc_profile_id
-     where t.team_id = $1
+     where t.user_id = $1
        and a.status = 'pending'
        and lower(p.escalation_email) = lower($2)
        and (
@@ -2796,7 +2847,7 @@ export async function findPendingApprovalByReply(input: {
      order by a.created_at desc
      limit 1`,
     [
-      input.teamId,
+      input.userId,
       input.realtorEmail,
       input.threadId ?? null,
       input.messageId ?? null
@@ -2844,7 +2895,7 @@ export async function updateApprovalStatus(id: string, status: string) {
   return result.rows[0] ?? null;
 }
 
-export async function getDashboardSnapshot(teamId: string) {
+export async function getDashboardSnapshotForUser(userId: string) {
   const [transactions, blockers, approvals] = await Promise.all([
     query<{
       id: string;
@@ -2856,10 +2907,10 @@ export async function getDashboardSnapshot(teamId: string) {
     }>(
       `select id, property_address, status, phase, current_risk, closing_date::text
        from transactions
-       where team_id = $1
+       where user_id = $1
        order by updated_at desc
        limit 20`,
-      [teamId]
+      [userId]
     ),
     query<{
       id: string;
@@ -2871,10 +2922,10 @@ export async function getDashboardSnapshot(teamId: string) {
       `select b.id, b.transaction_id, b.title, b.risk_level, b.created_at::text
        from blockers b
        join transactions t on t.id = b.transaction_id
-       where t.team_id = $1 and b.resolved_at is null
+       where t.user_id = $1 and b.resolved_at is null
        order by b.created_at desc
        limit 20`,
-      [teamId]
+      [userId]
     ),
     query<{
       id: string;
@@ -2885,10 +2936,10 @@ export async function getDashboardSnapshot(teamId: string) {
       `select a.id, a.transaction_id, a.proposed_subject, a.created_at::text
        from approvals a
        join transactions t on t.id = a.transaction_id
-       where t.team_id = $1 and a.status = 'pending'
+       where t.user_id = $1 and a.status = 'pending'
        order by a.created_at desc
        limit 20`,
-      [teamId]
+      [userId]
     )
   ]);
 
@@ -2899,7 +2950,7 @@ export async function getDashboardSnapshot(teamId: string) {
   };
 }
 
-export async function findLatestOpenTransaction(teamId: string) {
+export async function findLatestOpenTransaction(userId: string) {
   const result = await query<{
     id: string;
     property_address: string | null;
@@ -2910,11 +2961,11 @@ export async function findLatestOpenTransaction(teamId: string) {
   }>(
     `select id, property_address, status, phase, current_risk, closing_date::text
      from transactions
-     where team_id = $1
+     where user_id = $1
        and status not in ('closed', 'terminated')
      order by updated_at desc
      limit 1`,
-    [teamId]
+    [userId]
   );
 
   return result.rows[0] ?? null;
@@ -2967,7 +3018,11 @@ export async function getTransactionStatusSummary(transactionId: string) {
   };
 }
 
-export async function getTransactionDetail(transactionId: string) {
+export async function getTransactionDetailForUser(input: {
+  transactionId: string;
+  userId: string;
+}) {
+  const { transactionId, userId } = input;
   const [
     transaction,
     milestones,
@@ -2983,7 +3038,7 @@ export async function getTransactionDetail(transactionId: string) {
   ] = await Promise.all([
       query<{
         id: string;
-        team_id: string;
+        user_id: string;
         property_address: string | null;
         status: string;
         phase: string | null;
@@ -2995,7 +3050,7 @@ export async function getTransactionDetail(transactionId: string) {
       }>(
         `select
            id,
-           team_id,
+           user_id,
            property_address,
            status,
            phase,
@@ -3005,8 +3060,8 @@ export async function getTransactionDetail(transactionId: string) {
            created_at::text,
            updated_at::text
          from transactions
-         where id = $1`,
-        [transactionId]
+         where id = $1 and user_id = $2`,
+        [transactionId, userId]
       ),
       query<{
         key: string;
@@ -3147,7 +3202,7 @@ export async function getTransactionDetail(transactionId: string) {
       ),
       query<{
         id: string;
-        team_id: string;
+        user_id: string;
         transaction_id: string | null;
         agent_decision_id: string | null;
         source_type: AgentActivityEvent["sourceType"];
@@ -3160,7 +3215,7 @@ export async function getTransactionDetail(transactionId: string) {
       }>(
         `select
            id,
-           team_id,
+           user_id,
            transaction_id,
            agent_decision_id,
            source_type,
