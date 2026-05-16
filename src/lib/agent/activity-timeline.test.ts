@@ -40,7 +40,7 @@ describe("activity timeline legacy mappers", () => {
         type: "contract",
         name: "contract.pdf",
         status: "needs_correction",
-        blob_key: "teams/team-1/contract.pdf",
+        blob_key: "users/user-1/contract.pdf",
         created_at: "2026-05-12T10:01:00Z"
       },
       0
@@ -126,7 +126,7 @@ describe("activity timeline legacy mappers", () => {
 
   it("sorts mixed real and synthetic activity by timestamp", () => {
     const base = {
-      userId: "team-1",
+      userId: "user-1",
       sourceType: "system",
       eventType: "test_event",
       title: "Test",
@@ -154,7 +154,7 @@ describe("activity timeline legacy mappers", () => {
 
   it("can sort activity newest first", () => {
     const base = {
-      userId: "team-1",
+      userId: "user-1",
       sourceType: "system",
       eventType: "test_event",
       title: "Test",
@@ -213,7 +213,7 @@ describe("activity timeline legacy mappers", () => {
 
   it("sorts team observability events newest first when requested", () => {
     const base = {
-      userId: "team-1",
+      userId: "user-1",
       sourceType: "email",
       eventType: "inbound_email_received",
       title: "Received inbound email",

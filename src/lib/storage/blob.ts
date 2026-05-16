@@ -1,7 +1,7 @@
 import { put } from "@vercel/blob";
 
 export interface StoreDocumentInput {
-  teamId: string;
+  userId: string;
   transactionId?: string;
   filename: string;
   contentType: string;
@@ -18,8 +18,8 @@ function normalizeFilename(filename: string): string {
 
 export async function storePrivateDocument(input: StoreDocumentInput) {
   const keyParts = [
-    "teams",
-    input.teamId,
+    "users",
+    input.userId,
     input.transactionId ? `transactions/${input.transactionId}` : "intake",
     `${Date.now()}-${normalizeFilename(input.filename)}`
   ];

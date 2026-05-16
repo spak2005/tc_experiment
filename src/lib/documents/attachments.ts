@@ -52,7 +52,7 @@ export function isPdfAttachment(attachment: Pick<IncomingAttachment, "contentTyp
 }
 
 export async function fetchIncomingAttachment(input: {
-  teamId: string;
+  userId: string;
   transactionId?: string;
   inboxId: string;
   messageId: string;
@@ -64,7 +64,7 @@ export async function fetchIncomingAttachment(input: {
     attachmentId: input.attachment.id
   });
   await createAgentActivityEvent({
-    teamId: input.teamId,
+    userId: input.userId,
     transactionId: input.transactionId,
     sourceType: "document",
     eventType: "attachment_fetched",
@@ -89,7 +89,7 @@ export async function fetchIncomingAttachment(input: {
 }
 
 export async function storeIncomingAttachment(input: {
-  teamId: string;
+  userId: string;
   transactionId: string;
   inboxId: string;
   messageId: string;
@@ -104,7 +104,7 @@ export async function storeIncomingAttachment(input: {
   const fetched =
     input.fetched ??
     (await fetchIncomingAttachment({
-      teamId: input.teamId,
+      userId: input.userId,
       transactionId: input.transactionId,
       inboxId: input.inboxId,
       messageId: input.messageId,
@@ -113,7 +113,7 @@ export async function storeIncomingAttachment(input: {
   const existing = await findDocumentBySourceAttachmentKey(sourceAttachmentKey);
   if (existing?.blob_key) {
     await createAgentActivityEvent({
-      teamId: input.teamId,
+      userId: input.userId,
       transactionId: input.transactionId,
       sourceType: "document",
       eventType: "document_record_reused",
@@ -138,14 +138,14 @@ export async function storeIncomingAttachment(input: {
   }
 
   const stored = await storePrivateDocument({
-    teamId: input.teamId,
+    userId: input.userId,
     transactionId: input.transactionId,
     filename: fetched.filename,
     contentType: fetched.contentType,
     body: fetched.body
   });
   await createAgentActivityEvent({
-    teamId: input.teamId,
+    userId: input.userId,
     transactionId: input.transactionId,
     sourceType: "storage",
     eventType: "document_stored",
@@ -168,7 +168,7 @@ export async function storeIncomingAttachment(input: {
     sourceAttachmentKey
   });
   await createAgentActivityEvent({
-    teamId: input.teamId,
+    userId: input.userId,
     transactionId: input.transactionId,
     sourceType: "document",
     eventType: "document_record_created",
@@ -201,7 +201,7 @@ export async function markStoredAttachmentProcessed(
   attachment: StoredAttachment,
   status: "approved" | "needs_correction" | "rejected",
   context?: {
-    teamId: string;
+    userId: string;
     transactionId: string;
   }
 ) {
@@ -212,7 +212,7 @@ export async function markStoredAttachmentProcessed(
 
   if (context) {
     await createAgentActivityEvent({
-      teamId: context.teamId,
+      userId: context.userId,
       transactionId: context.transactionId,
       sourceType: "document",
       eventType: "document_status_updated",

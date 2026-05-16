@@ -60,7 +60,7 @@ describe("storeIncomingAttachment", () => {
     });
 
     const stored = await storeIncomingAttachment({
-      teamId: "team-1",
+      userId: "user-1",
       transactionId: "tx-1",
       inboxId: "inbox-1",
       messageId: "message-1",
@@ -77,7 +77,7 @@ describe("storeIncomingAttachment", () => {
 
   it("creates a document with a stable source attachment key", async () => {
     await storeIncomingAttachment({
-      teamId: "team-1",
+      userId: "user-1",
       transactionId: "tx-1",
       inboxId: "inbox-1",
       messageId: "message-1",
