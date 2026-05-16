@@ -22,7 +22,7 @@ describe("buildAgentContextPack", () => {
       },
       tcProfile: {
         id: "tc-1",
-        team_id: "team-1",
+        user_id: "team-1",
         display_name: "Maria's TC",
         inbox_address: "tc@example.com",
         agentmail_inbox_id: "tc@example.com",

@@ -276,7 +276,7 @@ export interface Blocker {
 export interface AuditEvent {
   id: ID;
   transactionId?: ID;
-  teamId: ID;
+  userId: ID;
   actor: "system" | "tc_agent" | "agent" | "external_party";
   eventType: string;
   payload: Record<string, unknown>;

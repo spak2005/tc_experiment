@@ -66,7 +66,7 @@ const context: AgentContextPack = {
   },
   tcProfile: {
     id: "tc-1",
-    teamId: "team-1",
+    userId: "team-1",
     displayName: "Agent's TC",
     inboxAddress: "tc@example.com",
     inboxId: "tc@example.com",
@@ -145,7 +145,7 @@ describe("executeAgentDecision", () => {
     });
 
     expect(mocks.executeTransactionWrites).toHaveBeenCalledWith({
-      teamId: "team-1",
+      userId: "team-1",
       agentDecisionId: "decision-1",
       writes: decision.transactionWrites
     });

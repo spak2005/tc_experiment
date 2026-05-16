@@ -74,7 +74,7 @@ export async function sendApprovedApproval(input: {
     sentThreadId: sentMetadata.threadId
   });
   await createAgentActivityEvent({
-    teamId: input.approval.team_id,
+    userId: input.approval.user_id,
     transactionId: input.approval.transaction_id,
     agentDecisionId: input.approval.agent_decision_id ?? undefined,
     sourceType: "email",
@@ -95,7 +95,7 @@ export async function sendApprovedApproval(input: {
     }
   });
   await transitionOutboundTaskToWaitingResponse({
-    teamId: input.approval.team_id,
+    userId: input.approval.user_id,
     transactionId: input.approval.transaction_id,
     taskId: input.approval.task_id ?? undefined,
     recipientEmails: input.approval.proposed_to,
@@ -113,7 +113,7 @@ async function logReplyDecision(input: {
   decision: ApprovalReplyDecision;
 }) {
   await createAgentActivityEvent({
-    teamId: input.approval.team_id,
+    userId: input.approval.user_id,
     transactionId: input.approval.transaction_id,
     agentDecisionId: input.approval.agent_decision_id ?? undefined,
     sourceType: "approval",
@@ -158,7 +158,7 @@ async function reviseApprovalDraft(input: {
 
   if (revised) {
     await createAgentActivityEvent({
-      teamId: revised.team_id,
+      userId: revised.user_id,
       transactionId: revised.transaction_id,
       agentDecisionId: revised.agent_decision_id ?? undefined,
       sourceType: "approval",
@@ -203,7 +203,7 @@ async function sendRevisedApprovalRequest(input: {
     requestThreadId: metadata.threadId ?? input.approval.request_thread_id ?? input.inbound.threadId
   });
   await createAgentActivityEvent({
-    teamId: input.approval.team_id,
+    userId: input.approval.user_id,
     transactionId: input.approval.transaction_id,
     agentDecisionId: input.approval.agent_decision_id ?? undefined,
     sourceType: "approval",
@@ -245,7 +245,7 @@ export async function executeApprovalReply(input: {
       labels: ["approval_reply", "approved"]
     });
     await createAuditEvent({
-      teamId: approved.team_id,
+      userId: approved.user_id,
       transactionId: approved.transaction_id,
       actor: "agent",
       eventType: "approval_reply_approved",
@@ -266,7 +266,7 @@ export async function executeApprovalReply(input: {
       labels: ["approval_reply", "rejected"]
     });
     await createAuditEvent({
-      teamId: rejected.team_id,
+      userId: rejected.user_id,
       transactionId: rejected.transaction_id,
       actor: "agent",
       eventType: "approval_reply_rejected",
@@ -290,7 +290,7 @@ export async function executeApprovalReply(input: {
       labels: ["approval_reply", "revised", "approved"]
     });
     await createAuditEvent({
-      teamId: approved.team_id,
+      userId: approved.user_id,
       transactionId: approved.transaction_id,
       actor: "agent",
       eventType: "approval_reply_revised_and_sent",
@@ -305,7 +305,7 @@ export async function executeApprovalReply(input: {
     if (!revised) return { status: "waiting", action: "needs_clarification" };
     await sendRevisedApprovalRequest({ approval: revised, inbound: input.inbound });
     await createAuditEvent({
-      teamId: revised.team_id,
+      userId: revised.user_id,
       transactionId: revised.transaction_id,
       actor: "agent",
       eventType: "approval_reply_revised",

@@ -126,7 +126,7 @@ describe("activity timeline legacy mappers", () => {
 
   it("sorts mixed real and synthetic activity by timestamp", () => {
     const base = {
-      teamId: "team-1",
+      userId: "team-1",
       sourceType: "system",
       eventType: "test_event",
       title: "Test",
@@ -154,7 +154,7 @@ describe("activity timeline legacy mappers", () => {
 
   it("can sort activity newest first", () => {
     const base = {
-      teamId: "team-1",
+      userId: "team-1",
       sourceType: "system",
       eventType: "test_event",
       title: "Test",
@@ -213,7 +213,7 @@ describe("activity timeline legacy mappers", () => {
 
   it("sorts team observability events newest first when requested", () => {
     const base = {
-      teamId: "team-1",
+      userId: "team-1",
       sourceType: "email",
       eventType: "inbound_email_received",
       title: "Received inbound email",

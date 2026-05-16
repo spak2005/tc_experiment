@@ -17,8 +17,8 @@ export function isStatusQuestion(text: string) {
   return statusQuestionPatterns.some((pattern) => pattern.test(text));
 }
 
-export async function buildStatusAnswer(teamId: string) {
-  const latest = await findLatestOpenTransaction(teamId);
+export async function buildStatusAnswer(userId: string) {
+  const latest = await findLatestOpenTransaction(userId);
 
   if (!latest) {
     return {

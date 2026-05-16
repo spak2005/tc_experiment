@@ -65,7 +65,7 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
   let context = await buildProactiveAgentContext(wakeup.transactionId);
   if (!context) {
     await createAgentActivityEvent({
-      teamId: wakeup.teamId,
+      userId: wakeup.userId,
       transactionId: wakeup.transactionId,
       sourceType: "system",
       eventType: "proactive_wakeup_skipped",
@@ -87,7 +87,7 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
   }
 
   await createAgentActivityEvent({
-    teamId: context.tcProfile.teamId,
+    userId: context.tcProfile.userId,
     transactionId: context.transactionId,
     sourceType: "system",
     eventType: "proactive_wakeup_claimed",
@@ -103,7 +103,7 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
     });
 
   const reconciliation = await reconcileTransactionEvidence({
-    teamId: context.tcProfile.teamId,
+    userId: context.tcProfile.userId,
     transactionId: context.transactionId,
     context: context.transactionContext,
     trigger: { type: "heartbeat" }
@@ -119,7 +119,7 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
       return { status: "skipped", reason: "missing_transaction_context_after_reconciliation" };
     }
     await refreshTransactionMemory({
-      teamId: reconciledContext.tcProfile.teamId,
+      userId: reconciledContext.tcProfile.userId,
       transactionId: reconciledContext.transactionId,
       context: reconciledContext.transactionContext,
       reason: "heartbeat_reconciliation",
@@ -138,7 +138,7 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
 
   const decision = await decideProactiveAction({ context });
   const decisionRecord = await createAgentDecisionOnce({
-    teamId: context.tcProfile.teamId,
+    userId: context.tcProfile.userId,
     transactionId: context.transactionId,
     idempotencyKey: `wakeup:${wakeup.id}:decision`,
     intent: "proactive_review",
@@ -171,7 +171,7 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
   });
 
   await createAgentActivityEvent({
-    teamId: context.tcProfile.teamId,
+    userId: context.tcProfile.userId,
     transactionId: context.transactionId,
     agentDecisionId: decisionRecord.id,
     sourceType: "decision",
@@ -191,7 +191,7 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
   const writeResults =
     decision.transactionWrites.length > 0
       ? await executeTransactionWrites({
-          teamId: context.tcProfile.teamId,
+          userId: context.tcProfile.userId,
           agentDecisionId: decisionRecord.id,
           writes: decision.transactionWrites
         })
@@ -206,7 +206,7 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
 
   if (response) {
     await createAgentActivityEvent({
-      teamId: context.tcProfile.teamId,
+      userId: context.tcProfile.userId,
       transactionId: context.transactionId,
       agentDecisionId: decisionRecord.id,
       sourceType: "email",
@@ -269,7 +269,7 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
         requestThreadId: requestMetadata.threadId
       });
       await createAgentActivityEvent({
-        teamId: context.tcProfile.teamId,
+        userId: context.tcProfile.userId,
         transactionId: context.transactionId,
         agentDecisionId: decisionRecord.id,
         sourceType: "approval",
@@ -300,7 +300,7 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
         labels: response.labels ?? ["proactive"]
       });
       await createAgentActivityEvent({
-        teamId: context.tcProfile.teamId,
+        userId: context.tcProfile.userId,
         transactionId: context.transactionId,
         agentDecisionId: decisionRecord.id,
         sourceType: "email",
@@ -318,7 +318,7 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
         }
       });
       const transition = await transitionOutboundTaskToWaitingResponse({
-        teamId: context.tcProfile.teamId,
+        userId: context.tcProfile.userId,
         transactionId: context.transactionId,
         taskId: decision.taskId,
         recipientEmails: response.to,
@@ -335,7 +335,7 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
 
   if (decision.nextWakeup) {
     const scheduled = await scheduleAgentWakeup({
-      teamId: context.tcProfile.teamId,
+      userId: context.tcProfile.userId,
       transactionId: context.transactionId,
       taskId: decision.nextWakeup.taskId,
       actionType: decision.nextWakeup.actionType,
@@ -363,7 +363,7 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
       });
     } else {
       const cancelled = await cancelScheduledWakeups({
-        teamId: context.tcProfile.teamId,
+        userId: context.tcProfile.userId,
         transactionId: context.transactionId,
         actionType: "transaction_heartbeat",
         reason: "Transaction is closed or terminated."
@@ -384,7 +384,7 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
   });
 
   await createAuditEvent({
-    teamId: context.tcProfile.teamId,
+    userId: context.tcProfile.userId,
     transactionId: context.transactionId,
     actor: "tc_agent",
     eventType: "proactive_wakeup_executed",
@@ -407,7 +407,7 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
   });
 
   await createAgentActivityEvent({
-    teamId: context.tcProfile.teamId,
+    userId: context.tcProfile.userId,
     transactionId: context.transactionId,
     agentDecisionId: decisionRecord.id,
     sourceType: "system",
@@ -427,7 +427,7 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
   const refreshedContext = await buildProactiveAgentContext(wakeup.transactionId);
   if (refreshedContext) {
     await refreshTransactionMemory({
-      teamId: refreshedContext.tcProfile.teamId,
+      userId: refreshedContext.tcProfile.userId,
       transactionId: refreshedContext.transactionId,
       context: refreshedContext.transactionContext,
       reason: `proactive_wakeup_${executionStatus}`,
@@ -488,7 +488,7 @@ export async function processDueAgentWakeups(input: {
         retryAt: retryAtForWakeup(wakeup, now)
       });
       await createAgentActivityEvent({
-        teamId: wakeup.teamId,
+        userId: wakeup.userId,
         transactionId: wakeup.transactionId,
         sourceType: "system",
         eventType: "proactive_wakeup_failed",

@@ -5,7 +5,7 @@ import type { AgentContextPack, AgentDecision } from "@/lib/agent/types";
 const context = {
   tcProfile: {
     id: "tc-1",
-    teamId: "team-1",
+    userId: "team-1",
     displayName: "Uzochukwu's TC",
     inboxAddress: "tc@agentmail.to",
     inboxId: "tc@agentmail.to",

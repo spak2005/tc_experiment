@@ -48,7 +48,7 @@ vi.mock("@/lib/db/repositories", () => ({
 const approval: ApprovalExecutionRow = {
   id: "approval-1",
   transaction_id: "tx-1",
-  team_id: "team-1",
+  user_id: "team-1",
   agent_decision_id: "decision-1",
   task_id: null,
   proposed_subject: "Title update",

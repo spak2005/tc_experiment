@@ -19,7 +19,7 @@ export function buildWakeupDedupeKey(input: {
 }
 
 export async function scheduleAgentWakeup(input: {
-  teamId: string;
+  userId: string;
   transactionId: string;
   taskId?: string;
   actionType: AgentWakeupActionType;
@@ -30,7 +30,7 @@ export async function scheduleAgentWakeup(input: {
   preconditions?: Record<string, unknown>;
 }): Promise<AgentWakeup> {
   const wakeup = await createAgentWakeup({
-    teamId: input.teamId,
+    userId: input.userId,
     transactionId: input.transactionId,
     taskId: input.taskId,
     actionType: input.actionType,
@@ -48,7 +48,7 @@ export async function scheduleAgentWakeup(input: {
   });
 
   await createAgentActivityEvent({
-    teamId: input.teamId,
+    userId: input.userId,
     transactionId: input.transactionId,
     sourceType: "system",
     eventType: "proactive_wakeup_scheduled",
@@ -152,7 +152,7 @@ export async function scheduleNextHeartbeat(input: {
   if (!next) return undefined;
 
   return scheduleAgentWakeup({
-    teamId: input.context.tcProfile.teamId,
+    userId: input.context.tcProfile.userId,
     transactionId: input.context.transactionId,
     actionType: "transaction_heartbeat",
     wakeAt: next.wakeAt,
@@ -165,7 +165,7 @@ export async function scheduleNextHeartbeat(input: {
 }
 
 export async function cancelScheduledWakeups(input: {
-  teamId: string;
+  userId: string;
   transactionId: string;
   actionType?: AgentWakeupActionType;
   taskId?: string;
@@ -180,7 +180,7 @@ export async function cancelScheduledWakeups(input: {
 
   for (const wakeup of cancelled) {
     await createAgentActivityEvent({
-      teamId: input.teamId,
+      userId: input.userId,
       transactionId: input.transactionId,
       sourceType: "system",
       eventType: "proactive_wakeup_cancelled",

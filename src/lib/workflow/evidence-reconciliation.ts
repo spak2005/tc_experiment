@@ -15,7 +15,7 @@ import {
 import { resolvePhaseAdvancement } from "@/lib/workflow/phase-advancement";
 
 async function logReconciliationActivity(input: {
-  teamId: string;
+  userId: string;
   transactionId: string;
   eventType: string;
   title: string;
@@ -24,7 +24,7 @@ async function logReconciliationActivity(input: {
   metadata?: Record<string, unknown>;
 }) {
   await createAgentActivityEvent({
-    teamId: input.teamId,
+    userId: input.userId,
     transactionId: input.transactionId,
     sourceType: "system",
     eventType: input.eventType,
@@ -36,7 +36,7 @@ async function logReconciliationActivity(input: {
 }
 
 export async function reconcileTransactionEvidence(input: {
-  teamId: string;
+  userId: string;
   transactionId: string;
   context: TransactionContext;
   trigger: EvidenceTrigger;
@@ -44,7 +44,7 @@ export async function reconcileTransactionEvidence(input: {
 }): Promise<ReconciliationResult> {
   const nowIso = (input.now ?? new Date()).toISOString();
   await logReconciliationActivity({
-    teamId: input.teamId,
+    userId: input.userId,
     transactionId: input.transactionId,
     eventType: "evidence_reconciliation_started",
     title: "Started evidence reconciliation",
@@ -61,7 +61,7 @@ export async function reconcileTransactionEvidence(input: {
   });
   for (const classification of classifications) {
     await logReconciliationActivity({
-      teamId: input.teamId,
+      userId: input.userId,
       transactionId: input.transactionId,
       eventType: "document_classified",
       title: "Classified document evidence",
@@ -98,7 +98,7 @@ export async function reconcileTransactionEvidence(input: {
 
   for (const item of evidence) {
     await logReconciliationActivity({
-      teamId: input.teamId,
+      userId: input.userId,
       transactionId: input.transactionId,
       eventType: item.type === "negative_or_blocker" ? "reconciliation_skipped" : "evidence_matched",
       title: item.type === "negative_or_blocker" ? "Skipped evidence" : "Matched evidence",
@@ -110,12 +110,12 @@ export async function reconcileTransactionEvidence(input: {
 
   if (appliedWrites.length > 0) {
     await executeTransactionWrites({
-      teamId: input.teamId,
+      userId: input.userId,
       writes: appliedWrites.map((write) => write.write)
     });
     for (const applied of appliedWrites) {
       await logReconciliationActivity({
-        teamId: input.teamId,
+        userId: input.userId,
         transactionId: input.transactionId,
         eventType:
           applied.write.name === "updateTransactionCore" ? "phase_advanced" : "reconciliation_write_applied",
@@ -135,7 +135,7 @@ export async function reconcileTransactionEvidence(input: {
 
   for (const skippedItem of skipped) {
     await logReconciliationActivity({
-      teamId: input.teamId,
+      userId: input.userId,
       transactionId: input.transactionId,
       eventType: "reconciliation_skipped",
       title: "Skipped reconciliation",

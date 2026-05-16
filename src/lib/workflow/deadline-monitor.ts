@@ -18,7 +18,7 @@ export async function checkDeadlineRisk() {
 
   for (const milestone of atRisk) {
     await createAgentActivityEvent({
-      teamId: milestone.team_id,
+      userId: milestone.user_id,
       transactionId: milestone.transaction_id,
       sourceType: "deadline",
       eventType: "at_risk_milestone_found",
@@ -49,7 +49,7 @@ export async function checkDeadlineRisk() {
       labels: ["escalation", milestone.risk_level]
     });
     await createAgentActivityEvent({
-      teamId: milestone.team_id,
+      userId: milestone.user_id,
       transactionId: milestone.transaction_id,
       sourceType: "deadline",
       eventType: "deadline_escalation_sent",
@@ -73,7 +73,7 @@ export async function checkDeadlineRisk() {
       deadlineId: milestone.milestone_id
     });
     await createAgentActivityEvent({
-      teamId: milestone.team_id,
+      userId: milestone.user_id,
       transactionId: milestone.transaction_id,
       sourceType: "deadline",
       eventType: "deadline_blocker_created",
@@ -91,7 +91,7 @@ export async function checkDeadlineRisk() {
     });
 
     await createAuditEvent({
-      teamId: milestone.team_id,
+      userId: milestone.user_id,
       transactionId: milestone.transaction_id,
       actor: "tc_agent",
       eventType: "deadline_escalated",
@@ -109,7 +109,7 @@ export async function checkDeadlineRisk() {
 
   for (const task of staleTasks) {
     await createAgentActivityEvent({
-      teamId: task.team_id,
+      userId: task.user_id,
       transactionId: task.transaction_id,
       sourceType: "deadline",
       eventType: "stale_response_task_found",
@@ -141,7 +141,7 @@ export async function checkDeadlineRisk() {
       labels: ["escalation", "stale_response"]
     });
     await createAgentActivityEvent({
-      teamId: task.team_id,
+      userId: task.user_id,
       transactionId: task.transaction_id,
       sourceType: "deadline",
       eventType: "stale_response_escalation_sent",
@@ -164,7 +164,7 @@ export async function checkDeadlineRisk() {
       taskId: task.task_id
     });
     await createAgentActivityEvent({
-      teamId: task.team_id,
+      userId: task.user_id,
       transactionId: task.transaction_id,
       sourceType: "deadline",
       eventType: "stale_response_blocker_created",
@@ -181,7 +181,7 @@ export async function checkDeadlineRisk() {
     });
 
     await createAuditEvent({
-      teamId: task.team_id,
+      userId: task.user_id,
       transactionId: task.transaction_id,
       actor: "tc_agent",
       eventType: "stale_response_escalated",

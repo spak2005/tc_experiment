@@ -94,7 +94,7 @@ describe("transitionOutboundTaskToWaitingResponse", () => {
   });
 
   const baseInput = {
-    teamId: "team-1",
+    userId: "team-1",
     transactionId: "tx-1",
     recipientEmails: ["title@example.com"],
     today: "2026-05-13",

@@ -87,7 +87,7 @@ export interface AgentContextPack {
   temporalContext: TemporalContext;
   tcProfile: {
     id: string;
-    teamId: string;
+    userId: string;
     displayName: string;
     inboxAddress: string;
     inboxId: string;

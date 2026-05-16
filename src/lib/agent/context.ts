@@ -86,7 +86,7 @@ export async function buildAgentContextPack(input: {
   inbound: NormalizedInboundEmail;
   tcProfile: {
     id: string;
-    team_id: string;
+    user_id: string;
     display_name: string;
     inbox_address: string;
     agentmail_inbox_id: string | null;
@@ -94,7 +94,7 @@ export async function buildAgentContextPack(input: {
   };
 }): Promise<AgentContextPack> {
   const emailText = buildInboundEmailText(input.inbound);
-  const candidates = await findTransactionMatchCandidates(input.tcProfile.team_id);
+  const candidates = await findTransactionMatchCandidates(input.tcProfile.user_id);
   const match = matchInboundToTransaction({
     inbound: input.inbound,
     emailText,
@@ -111,7 +111,7 @@ export async function buildAgentContextPack(input: {
     temporalContext: getTemporalContext(),
     tcProfile: {
       id: input.tcProfile.id,
-      teamId: input.tcProfile.team_id,
+      userId: input.tcProfile.user_id,
       displayName: input.tcProfile.display_name,
       inboxAddress: input.tcProfile.inbox_address,
       inboxId: input.tcProfile.agentmail_inbox_id ?? input.tcProfile.inbox_address,

@@ -23,7 +23,7 @@ export type AgentActivityStatus =
 
 export interface AgentActivityEvent {
   id: string;
-  teamId: string;
+  userId: string;
   transactionId?: string;
   transaction?: {
     id: string;
@@ -43,7 +43,7 @@ export interface AgentActivityEvent {
 }
 
 export interface CreateAgentActivityEventInput {
-  teamId: string;
+  userId: string;
   transactionId?: string;
   agentDecisionId?: string;
   sourceType: AgentActivitySource;

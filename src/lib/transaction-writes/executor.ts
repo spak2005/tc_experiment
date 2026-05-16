@@ -43,7 +43,7 @@ function highImpactCoreUpdate(field: string, value: unknown) {
 }
 
 async function recordWriteResult(input: {
-  teamId: string;
+  userId: string;
   transactionId: string;
   agentDecisionId?: string;
   result: TransactionWriteResult;
@@ -70,7 +70,7 @@ async function recordWriteResult(input: {
   });
 
   await createAgentActivityEvent({
-    teamId: input.teamId,
+    userId: input.userId,
     transactionId: input.transactionId,
     agentDecisionId: input.agentDecisionId,
     sourceType: "tool",
@@ -102,7 +102,7 @@ function result(input: TransactionWriteResult): TransactionWriteResult {
 }
 
 async function executeCoreWrite(input: {
-  teamId: string;
+  userId: string;
   agentDecisionId?: string;
   write: Extract<TransactionWrite, { name: "updateTransactionCore" }>;
 }) {
@@ -182,7 +182,7 @@ async function executeCoreWrite(input: {
 }
 
 async function executeFactWrite(input: {
-  teamId: string;
+  userId: string;
   agentDecisionId?: string;
   write: Extract<TransactionWrite, { name: "upsertTransactionFact" }>;
 }) {
@@ -250,7 +250,7 @@ async function executeFactWrite(input: {
 }
 
 async function executeUnsupportedWrite(input: {
-  teamId: string;
+  userId: string;
   agentDecisionId?: string;
   write: TransactionWrite;
 }) {
@@ -269,7 +269,7 @@ async function executeUnsupportedWrite(input: {
 }
 
 async function executePartiesWrite(input: {
-  teamId: string;
+  userId: string;
   agentDecisionId?: string;
   write: Extract<TransactionWrite, { name: "upsertParties" }>;
 }) {
@@ -304,7 +304,7 @@ async function executePartiesWrite(input: {
 }
 
 async function executeDocumentsWrite(input: {
-  teamId: string;
+  userId: string;
   agentDecisionId?: string;
   write: Extract<TransactionWrite, { name: "updateDocuments" }>;
 }) {
@@ -355,7 +355,7 @@ async function executeDocumentsWrite(input: {
 }
 
 async function executeMilestonesWrite(input: {
-  teamId: string;
+  userId: string;
   agentDecisionId?: string;
   write: Extract<TransactionWrite, { name: "upsertMilestones" }>;
 }) {
@@ -392,7 +392,7 @@ async function executeMilestonesWrite(input: {
 }
 
 async function executeTasksWrite(input: {
-  teamId: string;
+  userId: string;
   agentDecisionId?: string;
   write: Extract<TransactionWrite, { name: "updateTasks" }>;
 }) {
@@ -443,7 +443,7 @@ async function executeTasksWrite(input: {
 }
 
 async function executeBlockerWrite(input: {
-  teamId: string;
+  userId: string;
   agentDecisionId?: string;
   write: Extract<TransactionWrite, { name: "upsertBlocker" }>;
 }) {
@@ -477,7 +477,7 @@ async function executeBlockerWrite(input: {
 }
 
 async function executeMemoryWrite(input: {
-  teamId: string;
+  userId: string;
   agentDecisionId?: string;
   write: Extract<TransactionWrite, { name: "appendTransactionMemory" }>;
 }) {
@@ -507,7 +507,7 @@ async function executeMemoryWrite(input: {
 }
 
 export async function executeTransactionWrites(input: {
-  teamId: string;
+  userId: string;
   agentDecisionId?: string;
   writes: unknown;
 }) {

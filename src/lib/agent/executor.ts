@@ -189,7 +189,7 @@ export async function executeAgentDecision(input: {
     const writeResults =
       input.decision.transactionWrites.length > 0
         ? await executeTransactionWrites({
-            teamId: input.context.tcProfile.teamId,
+            userId: input.context.tcProfile.userId,
             agentDecisionId: input.decisionId,
             writes: input.decision.transactionWrites
           })
@@ -206,7 +206,7 @@ export async function executeAgentDecision(input: {
     });
     if (response) {
       await createAgentActivityEvent({
-        teamId: input.context.tcProfile.teamId,
+        userId: input.context.tcProfile.userId,
         transactionId,
         agentDecisionId: input.decisionId,
         sourceType: "email",
@@ -254,7 +254,7 @@ export async function executeAgentDecision(input: {
           proposedCc: response.cc ?? []
         });
         await createAgentActivityEvent({
-          teamId: input.context.tcProfile.teamId,
+          userId: input.context.tcProfile.userId,
           transactionId,
           agentDecisionId: input.decisionId,
           sourceType: "approval",
@@ -292,7 +292,7 @@ export async function executeAgentDecision(input: {
           requestThreadId: requestMetadata.threadId
         });
         await createAgentActivityEvent({
-          teamId: input.context.tcProfile.teamId,
+          userId: input.context.tcProfile.userId,
           transactionId,
           agentDecisionId: input.decisionId,
           sourceType: "approval",
@@ -321,7 +321,7 @@ export async function executeAgentDecision(input: {
         ...response
       });
       await createAgentActivityEvent({
-        teamId: input.context.tcProfile.teamId,
+        userId: input.context.tcProfile.userId,
         transactionId,
         agentDecisionId: input.decisionId,
         sourceType: "email",
@@ -340,7 +340,7 @@ export async function executeAgentDecision(input: {
       toolResults.push({ tool: "sendResponse", result: "sent", labels: response.labels });
       if (transactionId) {
         const transition = await transitionOutboundTaskToWaitingResponse({
-          teamId: input.context.tcProfile.teamId,
+          userId: input.context.tcProfile.userId,
           transactionId,
           taskId: response.taskId,
           recipientEmails: response.to,
@@ -363,7 +363,7 @@ export async function executeAgentDecision(input: {
   });
 
   await createAuditEvent({
-    teamId: input.context.tcProfile.teamId,
+    userId: input.context.tcProfile.userId,
     transactionId,
     actor: "tc_agent",
     eventType: "agent_decision_executed",

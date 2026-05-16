@@ -166,7 +166,7 @@ ${JSON.stringify(compactMemoryRefreshContext(input.context), null, 2)}`
 }
 
 export async function refreshTransactionMemory(input: {
-  teamId: string;
+  userId: string;
   transactionId: string;
   context: TransactionContext;
   reason: string;
@@ -205,7 +205,7 @@ export async function refreshTransactionMemory(input: {
   });
 
   await createAgentActivityEvent({
-    teamId: input.teamId,
+    userId: input.userId,
     transactionId: input.transactionId,
     sourceType: "system",
     eventType: "transaction_memory_refreshed",

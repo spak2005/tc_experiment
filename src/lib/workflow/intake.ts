@@ -68,17 +68,17 @@ function isFromTcInbox(input: {
 }
 
 type ActivityContext = {
-  teamId: string;
+  userId: string;
   transactionId?: string;
 };
 
 async function logActivity(
   context: ActivityContext,
-  input: Omit<Parameters<typeof createAgentActivityEvent>[0], "teamId">
+  input: Omit<Parameters<typeof createAgentActivityEvent>[0], "userId">
 ) {
   await createAgentActivityEvent({
     ...input,
-    teamId: context.teamId,
+    userId: context.userId,
     transactionId: input.transactionId ?? context.transactionId
   });
 }
@@ -105,7 +105,7 @@ async function withTransactionContext(input: {
 }
 
 async function refreshDealMemory(input: {
-  teamId: string;
+  userId: string;
   transactionId: string;
   reason: string;
   sourceReference?: string;
@@ -115,7 +115,7 @@ async function refreshDealMemory(input: {
   if (!transactionContext) return;
 
   await refreshTransactionMemory({
-    teamId: input.teamId,
+    userId: input.userId,
     transactionId: input.transactionId,
     context: transactionContext,
     reason: input.reason,
@@ -344,7 +344,7 @@ async function persistContractAssessment(input: {
     input.attachment,
     documentStatusForUsability(input.assessment.usability),
     {
-      teamId: input.context.tcProfile.teamId,
+      userId: input.context.tcProfile.userId,
       transactionId: input.transactionId
     }
   );
@@ -357,7 +357,7 @@ async function persistContractAssessment(input: {
     phase: "opening_file"
   });
   await logActivity(
-    { teamId: input.context.tcProfile.teamId, transactionId: input.transactionId },
+    { userId: input.context.tcProfile.userId, transactionId: input.transactionId },
     {
       sourceType: "system",
       eventType: "transaction_updated_from_facts",
@@ -380,7 +380,7 @@ async function persistContractAssessment(input: {
     validationStatus: input.assessment.validationStatus
   });
   await executeTransactionWrites({
-    teamId: input.context.tcProfile.teamId,
+    userId: input.context.tcProfile.userId,
     writes: canonicalFactWrites({
       transactionId: input.transactionId,
       facts: input.assessment.facts,
@@ -388,7 +388,7 @@ async function persistContractAssessment(input: {
     })
   });
   await logActivity(
-    { teamId: input.context.tcProfile.teamId, transactionId: input.transactionId },
+    { userId: input.context.tcProfile.userId, transactionId: input.transactionId },
     {
       sourceType: "extraction",
       eventType: "contract_facts_saved",
@@ -404,7 +404,7 @@ async function persistContractAssessment(input: {
   );
 
   await logActivity(
-    { teamId: input.context.tcProfile.teamId, transactionId: input.transactionId },
+    { userId: input.context.tcProfile.userId, transactionId: input.transactionId },
     {
       sourceType: "extraction",
       eventType: "contract_validation_completed",
@@ -424,7 +424,7 @@ async function persistContractAssessment(input: {
   );
 
   await logActivity(
-    { teamId: input.context.tcProfile.teamId, transactionId: input.transactionId },
+    { userId: input.context.tcProfile.userId, transactionId: input.transactionId },
     {
       sourceType: "extraction",
       eventType: "document_classified",
@@ -456,7 +456,7 @@ async function persistContractAssessment(input: {
 
     await insertMilestones(input.transactionId, milestones);
     await logActivity(
-      { teamId: input.context.tcProfile.teamId, transactionId: input.transactionId },
+      { userId: input.context.tcProfile.userId, transactionId: input.transactionId },
       {
         sourceType: "system",
         eventType: "milestones_generated",
@@ -480,7 +480,7 @@ async function persistContractAssessment(input: {
     );
     await insertTasks(input.transactionId, tasks);
     await logActivity(
-      { teamId: input.context.tcProfile.teamId, transactionId: input.transactionId },
+      { userId: input.context.tcProfile.userId, transactionId: input.transactionId },
       {
         sourceType: "system",
         eventType: "tasks_generated",
@@ -499,7 +499,7 @@ async function persistContractAssessment(input: {
       }
     );
     await scheduleAgentWakeup({
-      teamId: input.context.tcProfile.teamId,
+      userId: input.context.tcProfile.userId,
       transactionId: input.transactionId,
       actionType: "transaction_dispatch",
       wakeAt: new Date().toISOString(),
@@ -513,7 +513,7 @@ async function persistContractAssessment(input: {
     const firstHeartbeatAt = new Date();
     firstHeartbeatAt.setUTCHours(firstHeartbeatAt.getUTCHours() + 12);
     await scheduleAgentWakeup({
-      teamId: input.context.tcProfile.teamId,
+      userId: input.context.tcProfile.userId,
       transactionId: input.transactionId,
       actionType: "transaction_heartbeat",
       wakeAt: firstHeartbeatAt.toISOString(),
@@ -547,7 +547,7 @@ async function persistContractAssessment(input: {
     lastInboundAt: new Date()
   });
   await createAuditEvent({
-    teamId: input.context.tcProfile.teamId,
+    userId: input.context.tcProfile.userId,
     transactionId: input.transactionId,
     actor: "tc_agent",
     eventType: "contract_document_assessed",
@@ -571,7 +571,7 @@ async function storeInboundAttachments(input: {
 
   for (const attachment of input.context.inbound.attachments) {
     const storedAttachment = await storeIncomingAttachment({
-      teamId: input.context.tcProfile.teamId,
+      userId: input.context.tcProfile.userId,
       transactionId: input.transactionId,
       inboxId: input.context.inbound.inboxId,
       messageId: input.context.inbound.messageId,
@@ -604,7 +604,7 @@ export async function processAgentMailInbound(input: {
     })
   ) {
     await createAgentActivityEvent({
-      teamId: tcProfile.team_id,
+      userId: tcProfile.user_id,
       sourceType: "email",
       eventType: "self_authored_email_ignored",
       title: "Ignored self-authored email",
@@ -625,7 +625,7 @@ export async function processAgentMailInbound(input: {
   }
 
   const pendingApproval = await findPendingApprovalByReply({
-    teamId: tcProfile.team_id,
+    userId: tcProfile.user_id,
     realtorEmail: inbound.from,
     threadId: inbound.threadId,
     messageId: inbound.messageId
@@ -633,7 +633,7 @@ export async function processAgentMailInbound(input: {
 
   if (pendingApproval) {
     await createAgentActivityEvent({
-      teamId: tcProfile.team_id,
+      userId: tcProfile.user_id,
       transactionId: pendingApproval.transaction_id,
       agentDecisionId: pendingApproval.agent_decision_id ?? undefined,
       sourceType: "approval",
@@ -667,14 +667,14 @@ export async function processAgentMailInbound(input: {
       inbound
     });
     await refreshDealMemory({
-      teamId: tcProfile.team_id,
+      userId: tcProfile.user_id,
       transactionId: pendingApproval.transaction_id,
       reason: "approval_reply_processed",
       sourceReference: inbound.messageId || inbound.eventId,
       lastInboundAt: new Date()
     });
     await createAgentActivityEvent({
-      teamId: tcProfile.team_id,
+      userId: tcProfile.user_id,
       transactionId: pendingApproval.transaction_id,
       agentDecisionId: pendingApproval.agent_decision_id ?? undefined,
       sourceType: "approval",
@@ -708,7 +708,7 @@ export async function processAgentMailInbound(input: {
   let context = await buildAgentContextPack({ inbound, tcProfile });
   let transactionId = context.match.transactionId;
   const activityContext: ActivityContext = {
-    teamId: tcProfile.team_id,
+    userId: tcProfile.user_id,
     transactionId
   };
 
@@ -789,7 +789,7 @@ export async function processAgentMailInbound(input: {
 
     if (pdfAttachment) {
       const fetchedPdf = await fetchIncomingAttachment({
-        teamId: context.tcProfile.teamId,
+        userId: context.tcProfile.userId,
         transactionId,
         inboxId: context.inbound.inboxId,
         messageId: context.inbound.messageId,
@@ -844,7 +844,7 @@ export async function processAgentMailInbound(input: {
         }
       });
 
-      const candidates = await findTransactionMatchCandidates(context.tcProfile.teamId);
+      const candidates = await findTransactionMatchCandidates(context.tcProfile.userId);
       contractRouting = routeContractIntake({
         facts: documentAssessment.facts,
         candidates,
@@ -879,7 +879,7 @@ export async function processAgentMailInbound(input: {
         shouldPersistContractAssessment = true;
       } else if (contractRouting.action === "create_transaction") {
         const transaction = await findOrCreateTransactionForIntake({
-          teamId: tcProfile.team_id,
+          userId: tcProfile.user_id,
           tcProfileId: tcProfile.id,
           intakeSourceKey: `inbound:${input.webhookEventId}:transaction`,
           propertyAddress: getStringFact(documentAssessment.facts.propertyAddress),
@@ -940,7 +940,7 @@ export async function processAgentMailInbound(input: {
 
         if (storedPdfAttachment && shouldPersistContractAssessment) {
           await createAuditEvent({
-            teamId: context.tcProfile.teamId,
+            userId: context.tcProfile.userId,
             transactionId,
             actor: "tc_agent",
             eventType: "contract_pdf_received",
@@ -993,7 +993,7 @@ export async function processAgentMailInbound(input: {
         }
       });
       await createAuditEvent({
-        teamId: context.tcProfile.teamId,
+        userId: context.tcProfile.userId,
         transactionId,
         actor: "tc_agent",
         eventType: "contract_pdf_missing",
@@ -1066,7 +1066,7 @@ export async function processAgentMailInbound(input: {
       reasons: context.match.reasons
     });
     const reconciliation = await reconcileTransactionEvidence({
-      teamId: context.tcProfile.teamId,
+      userId: context.tcProfile.userId,
       transactionId,
       context: context.transactionContext!,
       trigger: {
@@ -1080,7 +1080,7 @@ export async function processAgentMailInbound(input: {
     });
     if (reconciliation.appliedWrites.length > 0) {
       await refreshDealMemory({
-        teamId: context.tcProfile.teamId,
+        userId: context.tcProfile.userId,
         transactionId,
         reason: "evidence_reconciliation",
         sourceReference: inbound.messageId || inbound.eventId,
@@ -1116,7 +1116,7 @@ export async function processAgentMailInbound(input: {
     };
   }
   const decisionRecord = await createAgentDecisionOnce({
-    teamId: context.tcProfile.teamId,
+    userId: context.tcProfile.userId,
     transactionId: decision.transactionId,
     inboundMessageId: inbound.messageId || inbound.eventId,
     inboundThreadId: inbound.threadId,
@@ -1225,7 +1225,7 @@ export async function processAgentMailInbound(input: {
   const memoryTransactionId = decision.transactionId ?? transactionId;
   if (memoryTransactionId) {
     await refreshDealMemory({
-      teamId: context.tcProfile.teamId,
+      userId: context.tcProfile.userId,
       transactionId: memoryTransactionId,
       reason: `decision_execution_${execution.status}`,
       sourceReference: decisionRecord.id,

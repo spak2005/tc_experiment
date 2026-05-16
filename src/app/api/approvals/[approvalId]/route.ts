@@ -27,7 +27,7 @@ export async function POST(
   }
 
   await createAgentActivityEvent({
-    teamId: approval.team_id,
+    userId: approval.user_id,
     transactionId: approval.transaction_id,
     sourceType: "approval",
     eventType: body.action === "approve" ? "approval_approved" : "approval_rejected",

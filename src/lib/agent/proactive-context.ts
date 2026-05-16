@@ -21,7 +21,7 @@ export interface ProactiveAgentContext {
   temporalContext: TemporalContext;
   tcProfile: {
     id: string;
-    teamId: string;
+    userId: string;
     displayName: string;
     inboxAddress: string;
     inboxId: string;
@@ -49,7 +49,7 @@ export async function buildProactiveAgentContext(
     temporalContext: getTemporalContext(),
     tcProfile: {
       id: tcProfile.id,
-      teamId: tcProfile.team_id,
+      userId: tcProfile.user_id,
       displayName: tcProfile.display_name,
       inboxAddress: tcProfile.inbox_address,
       inboxId: tcProfile.agentmail_inbox_id ?? tcProfile.inbox_address,

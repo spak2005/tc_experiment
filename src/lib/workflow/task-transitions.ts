@@ -89,7 +89,7 @@ async function resolveOutboundTask(input: {
 }
 
 export interface TransitionOutboundTaskInput {
-  teamId: string;
+  userId: string;
   transactionId: string;
   taskId?: string;
   recipientEmails: string[];
@@ -117,7 +117,7 @@ export async function transitionOutboundTaskToWaitingResponse(
 
   if (resolution.kind !== "resolved") {
     await createAgentActivityEvent({
-      teamId: input.teamId,
+      userId: input.userId,
       transactionId: input.transactionId,
       agentDecisionId: input.agentDecisionId,
       sourceType: "tool",
@@ -150,7 +150,7 @@ export async function transitionOutboundTaskToWaitingResponse(
   });
 
   await createAgentActivityEvent({
-    teamId: input.teamId,
+    userId: input.userId,
     transactionId: input.transactionId,
     agentDecisionId: input.agentDecisionId,
     sourceType: "tool",

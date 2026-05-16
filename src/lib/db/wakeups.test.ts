@@ -21,7 +21,7 @@ vi.mock("@/lib/db/client", () => ({
 function wakeupRow(overrides: Record<string, unknown> = {}) {
   return {
     id: "wake-1",
-    team_id: "team-1",
+    user_id: "team-1",
     transaction_id: "tx-1",
     task_id: null,
     action_type: "transaction_heartbeat",
@@ -55,7 +55,7 @@ describe("agent wakeup repositories", () => {
     mocks.query.mockResolvedValueOnce({ rows: [wakeupRow()] });
 
     const wakeup = await createAgentWakeup({
-      teamId: "team-1",
+      userId: "team-1",
       transactionId: "tx-1",
       actionType: "transaction_heartbeat",
       reason: "Review transaction",

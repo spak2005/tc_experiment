@@ -19,7 +19,7 @@ function context(overrides: Partial<ProactiveAgentContext> = {}): ProactiveAgent
     },
     tcProfile: {
       id: "tc-1",
-      teamId: "team-1",
+      userId: "team-1",
       displayName: "Your TC",
       inboxAddress: "tc@example.com",
       inboxId: "inbox-1",

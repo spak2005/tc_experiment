@@ -64,7 +64,7 @@ function syntheticEvent(input: {
 }): AgentActivityEvent {
   return {
     id: `synthetic:${input.debugSource}:${input.id}`,
-    teamId: "legacy",
+    userId: "legacy",
     sourceType: input.sourceType,
     eventType: input.eventType,
     title: input.title,

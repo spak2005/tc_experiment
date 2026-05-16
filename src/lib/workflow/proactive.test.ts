@@ -70,7 +70,7 @@ vi.mock("@/lib/workflow/memory-refresh", () => ({
 function wakeup(overrides: Partial<AgentWakeup> = {}): AgentWakeup {
   return {
     id: "wake-1",
-    teamId: "team-1",
+    userId: "team-1",
     transactionId: "tx-1",
     actionType: "transaction_heartbeat",
     reason: "Daily review",
@@ -96,7 +96,7 @@ function proactiveContext() {
     },
     tcProfile: {
       id: "tc-1",
-      teamId: "team-1",
+      userId: "team-1",
       displayName: "TC",
       inboxAddress: "tc@example.com",
       inboxId: "inbox-1",
