@@ -267,10 +267,18 @@ export async function getUserActivityTimeline(userId: string, limit = 100) {
 
 export async function createUser(input: CreateUserInput, client?: PoolClientLike) {
   const db = client ?? { query };
-  const result = await db.query<{ id: string }>(
+  const result = await db.query<{
+    id: string;
+    auth_user_id: string;
+    name: string;
+    email: string;
+    phone: string | null;
+    brokerage: string | null;
+    market: "TX";
+  }>(
     `insert into users (auth_user_id, name, email, phone, brokerage, market)
      values ($1, $2, $3, $4, $5, $6)
-     returning id`,
+     returning id, auth_user_id, name, email, phone, brokerage, market`,
     [
       input.authUserId,
       input.name,

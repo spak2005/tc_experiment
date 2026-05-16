@@ -1,11 +1,20 @@
 import { z } from "zod";
-import { withTransaction } from "@/lib/db/client";
-import { createTcProfile, createTeam, createUser } from "@/lib/db/repositories";
-import { provisionTcInbox } from "@/lib/agentmail/service";
+import {
+  createTcProfile,
+  createUser,
+  findTcProfileByUser,
+  findUserByAuthUserId,
+  findUserByEmail
+} from "@/lib/db/repositories";
+import {
+  provisionTcInbox,
+  STEPHANIE_TC_DISPLAY_NAME
+} from "@/lib/agentmail/service";
 
 export const signupSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
+  password: z.string().min(8),
   phone: z.string().optional(),
   brokerage: z.string().optional(),
   market: z.literal("TX").default("TX")
@@ -13,47 +22,50 @@ export const signupSchema = z.object({
 
 export type SignupInput = z.infer<typeof signupSchema>;
 
-function makeTcDisplayName(agentName: string): string {
-  const firstName = agentName.trim().split(/\s+/)[0] || "Agent";
-  return `${firstName}'s TC`;
+export const onboardingSchema = signupSchema.omit({ password: true }).extend({
+  authUserId: z.string().uuid()
+});
+
+export type OnboardingInput = z.infer<typeof onboardingSchema>;
+
+export async function assertEmailNotOnboarded(email: string) {
+  const existing = await findUserByEmail(email);
+
+  if (existing) {
+    throw new Error("A realtor account already exists for this email.");
+  }
 }
 
-export async function onboardAgent(input: SignupInput) {
-  const parsed = signupSchema.parse(input);
+export async function onboardAgent(input: OnboardingInput) {
+  const parsed = onboardingSchema.parse(input);
+  let user = await findUserByAuthUserId(parsed.authUserId);
 
-  const teamAndUser = await withTransaction(async (client) => {
-    const team = await createTeam(
-      {
-        name: `${parsed.name}'s Team`,
-        market: parsed.market,
-        brokerage: parsed.brokerage
-      },
-      client
-    );
+  if (!user) {
+    user = await createUser({
+      authUserId: parsed.authUserId,
+      name: parsed.name,
+      email: parsed.email,
+      phone: parsed.phone,
+      brokerage: parsed.brokerage,
+      market: parsed.market
+    });
+  }
 
-    const user = await createUser(
-      {
-        teamId: team.id,
-        name: parsed.name,
-        email: parsed.email,
-        phone: parsed.phone
-      },
-      client
-    );
+  const existingProfile = await findTcProfileByUser(user.id);
 
-    return { team, user };
-  });
+  if (existingProfile) {
+    return {
+      userId: user.id,
+      tcProfileId: existingProfile.id,
+      tcEmail: existingProfile.inbox_address,
+      tcDisplayName: existingProfile.display_name
+    };
+  }
 
-  const tcDisplayName = makeTcDisplayName(parsed.name);
-  const inbox = await provisionTcInbox({
-    teamId: teamAndUser.team.id,
-    agentName: parsed.name,
-    displayName: tcDisplayName
-  });
-
+  const inbox = await provisionTcInbox({ userId: user.id });
   const tcProfile = await createTcProfile({
-    teamId: teamAndUser.team.id,
-    displayName: tcDisplayName,
+    userId: user.id,
+    displayName: STEPHANIE_TC_DISPLAY_NAME,
     inboxAddress: inbox.emailAddress,
     agentMailPodId: undefined,
     agentMailInboxId: inbox.inboxId,
@@ -61,10 +73,9 @@ export async function onboardAgent(input: SignupInput) {
   });
 
   return {
-    teamId: teamAndUser.team.id,
-    userId: teamAndUser.user.id,
+    userId: user.id,
     tcProfileId: tcProfile.id,
     tcEmail: tcProfile.inbox_address,
-    tcDisplayName
+    tcDisplayName: STEPHANIE_TC_DISPLAY_NAME
   };
 }

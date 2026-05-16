@@ -5,7 +5,6 @@ import { useState } from "react";
 type SignupState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "success"; tcEmail: string; tcDisplayName: string }
   | { status: "error"; message: string };
 
 export function SignupForm() {
@@ -20,6 +19,7 @@ export function SignupForm() {
       body: JSON.stringify({
         name: formData.get("name"),
         email: formData.get("email"),
+        password: formData.get("password"),
         phone: formData.get("phone") || undefined,
         brokerage: formData.get("brokerage") || undefined,
         market: "TX"
@@ -34,30 +34,7 @@ export function SignupForm() {
       return;
     }
 
-    const data = (await response.json()) as {
-      tcEmail: string;
-      tcDisplayName: string;
-    };
-
-    setState({
-      status: "success",
-      tcEmail: data.tcEmail,
-      tcDisplayName: data.tcDisplayName
-    });
-  }
-
-  if (state.status === "success") {
-    return (
-      <div className="signup-card">
-        <p className="eyebrow">Your TC is ready</p>
-        <h2>{state.tcDisplayName}</h2>
-        <p className="tc-email">{state.tcEmail}</p>
-        <p className="helper">
-          Forward the executed contract to this address. Your TC will reply,
-          open the file, ask for missing details, and start coordinating.
-        </p>
-      </div>
-    );
+    window.location.href = "/dashboard";
   }
 
   return (
@@ -69,6 +46,10 @@ export function SignupForm() {
       <label>
         Email
         <input name="email" required type="email" placeholder="maria@example.com" />
+      </label>
+      <label>
+        Password
+        <input name="password" required minLength={8} type="password" />
       </label>
       <label>
         Phone
