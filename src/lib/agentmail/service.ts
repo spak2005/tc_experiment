@@ -8,9 +8,7 @@ import {
 } from "@/lib/db/repositories";
 
 export interface ProvisionTcInboxInput {
-  teamId: string;
-  agentName: string;
-  displayName: string;
+  userId: string;
 }
 
 export interface ProvisionedTcInbox {
@@ -95,28 +93,24 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unknown AgentMail send failure.";
 }
 
-function toInboxUsername(agentName: string, teamId: string): string {
-  const base = agentName
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 32);
+export const STEPHANIE_TC_DISPLAY_NAME = "Stephanie";
 
-  return `${base || "tc"}-${teamId.slice(0, 8)}`;
+function toInboxUsername(userId: string): string {
+  return `stephanie-${userId.slice(0, 8)}`;
 }
 
 export async function provisionTcInbox(
   input: ProvisionTcInboxInput
 ): Promise<ProvisionedTcInbox> {
   const env = getEnv();
-  const username = toInboxUsername(input.agentName, input.teamId);
+  const username = toInboxUsername(input.userId);
   const client = getAgentMailClient();
 
   const inbox = await client.inboxes.create({
     username,
     domain: env.AGENTMAIL_DOMAIN,
-    displayName: input.displayName,
-    clientId: `tc-profile-${input.teamId}`
+    displayName: STEPHANIE_TC_DISPLAY_NAME,
+    clientId: `tc-profile-${input.userId}`
   });
   const looseInbox = inbox as unknown as Record<string, string | undefined>;
 
@@ -128,7 +122,7 @@ export async function provisionTcInbox(
   return {
     inboxId,
     emailAddress: looseInbox.emailAddress ?? looseInbox.email_address ?? inboxId,
-    displayName: input.displayName
+    displayName: STEPHANIE_TC_DISPLAY_NAME
   };
 }
 
