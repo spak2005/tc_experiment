@@ -8,6 +8,7 @@ import {
 } from "@/lib/db/repositories";
 import {
   provisionTcInbox,
+  sendTcEmailOnce,
   STEPHANIE_TC_DISPLAY_NAME
 } from "@/lib/agentmail/service";
 
@@ -27,6 +28,13 @@ export const onboardingSchema = signupSchema.omit({ password: true }).extend({
 });
 
 export type OnboardingInput = z.infer<typeof onboardingSchema>;
+
+function stephanieWelcomeEmail(name: string) {
+  return `Hi ${name}, I'm Stephanie, the TC you just hired. I will help you coordinate your transaction files, track deadlines, request missing items, and flag anything that needs your attention. Forward an executed contract whenever you're ready. Looking forward to working with you.
+
+Best,
+Stephanie`;
+}
 
 export async function assertEmailNotOnboarded(email: string) {
   const existing = await findUserByEmail(email);
@@ -70,6 +78,14 @@ export async function onboardAgent(input: OnboardingInput) {
     agentMailPodId: undefined,
     agentMailInboxId: inbox.inboxId,
     escalationEmail: parsed.email
+  });
+  await sendTcEmailOnce({
+    idempotencyKey: `welcome:${user.id}`,
+    inboxId: inbox.inboxId,
+    to: [parsed.email],
+    subject: "Stephanie is ready to coordinate your files",
+    text: stephanieWelcomeEmail(parsed.name),
+    labels: ["welcome"]
   });
 
   return {
