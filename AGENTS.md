@@ -8,12 +8,13 @@ everything" before you change anything.
 ## What this is
 
 `tc-experiment` is an autonomous AI Transaction Coordinator (TC) prototype
-for Texas residential resale real estate. A realtor signs up, the app
-provisions a named AgentMail inbox for their TC, the realtor forwards an
-executed contract PDF to that inbox, and the system opens a transaction
-file, extracts a coordination payload (facts, contacts, checklist),
-generates operational milestones/tasks, drafts and sends or approval-gates
-emails, and escalates deadline or stale-response risk back to the realtor.
+for Texas residential resale real estate. A realtor signs up with Supabase
+Auth, the app provisions Stephanie's named AgentMail inbox, the realtor
+forwards an executed contract PDF to that inbox, and the system opens a
+transaction file, extracts a coordination payload (facts, contacts,
+checklist), generates operational milestones/tasks, drafts and sends or
+approval-gates emails, and escalates deadline or stale-response risk back
+to the realtor.
 
 ## System spine
 
@@ -47,9 +48,10 @@ flowchart TD
 | Inngest worker that processes that email | event `agentmail/inbound.received` | [src/lib/inngest/functions.ts](src/lib/inngest/functions.ts), then [src/lib/workflow/intake.ts](src/lib/workflow/intake.ts) |
 | Deadline/stale-response cron | `*/30 * * * *` | [src/lib/inngest/functions.ts](src/lib/inngest/functions.ts), then [src/lib/workflow/deadline-monitor.ts](src/lib/workflow/deadline-monitor.ts) |
 | Realtor signup | `POST /api/signup` | [src/app/api/signup/route.ts](src/app/api/signup/route.ts), then [src/lib/onboarding/service.ts](src/lib/onboarding/service.ts) |
+| Realtor login | `POST /api/login` | [src/app/api/login/route.ts](src/app/api/login/route.ts), then [src/lib/supabase/server.ts](src/lib/supabase/server.ts) |
 | Realtor approves or rejects a draft | `POST /api/approvals/[approvalId]` | [src/app/api/approvals/[approvalId]/route.ts](src/app/api/approvals/[approvalId]/route.ts) |
-| Realtor dashboard | `GET /dashboard/[teamId]` | [src/app/dashboard/[teamId]/page.tsx](src/app/dashboard/[teamId]/page.tsx) |
-| Internal observability stream | `GET /observability/[teamId]` | [src/app/observability/[teamId]/page.tsx](src/app/observability/[teamId]/page.tsx) |
+| Realtor dashboard | `GET /dashboard` | [src/app/dashboard/page.tsx](src/app/dashboard/page.tsx) |
+| Internal observability stream | `GET /observability` | [src/app/observability/page.tsx](src/app/observability/page.tsx) |
 | Per-transaction debug view | `GET /transactions/[transactionId]` | [src/app/transactions/[transactionId]/page.tsx](src/app/transactions/[transactionId]/page.tsx) |
 
 ## Navigation rule

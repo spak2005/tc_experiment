@@ -6,7 +6,7 @@ transactions.
 ## Product Flow
 
 1. A realtor signs up with name, email, phone, brokerage, and Texas market.
-2. The app provisions a named AgentMail inbox for their TC.
+2. Supabase Auth creates their login and the app provisions Stephanie's AgentMail inbox.
 3. The realtor forwards an executed contract to that TC email.
 4. AgentMail posts the inbound email webhook to the app.
 5. Inngest processes the email, stores attachments, extracts the coordination
@@ -23,6 +23,8 @@ transactions.
 - Vercel Blob stores private transaction documents.
 - AgentMail provides the TC inbox, inbound email, outbound email, drafts,
   attachments, and threading.
+- Supabase Auth provides email/password signup, login, and cookie-backed
+  sessions.
 
 ## Environment
 
@@ -67,7 +69,7 @@ instead of scanning the whole codebase:
   [src/lib/workflow/deadline-monitor.ts](src/lib/workflow/deadline-monitor.ts).
 - [docs/activity-debugger.md](docs/activity-debugger.md) — the
   observability contract (statuses, sources, logging rules) used by
-  `/observability/[teamId]` and `/transactions/[transactionId]`.
+  `/observability` and `/transactions/[transactionId]`.
 - [docs/transaction-write-layer.md](docs/transaction-write-layer.md) —
   structured write tools for transaction state.
 - [docs/transaction-memory.md](docs/transaction-memory.md) — the deal

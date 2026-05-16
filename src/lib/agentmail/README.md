@@ -44,7 +44,7 @@ no other path.
 
 `provisionTcInbox` is only called from [../onboarding/service.ts](../onboarding/service.ts)
 during signup. It creates an inbox with a deterministic username
-(`<sanitized agent name>-<teamId prefix>`) on `AGENTMAIL_DOMAIN`,
+(`stephanie-<userId prefix>`) on `AGENTMAIL_DOMAIN`,
 then returns `{ inboxId, emailAddress, displayName }`.
 
 ## Common changes

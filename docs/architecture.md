@@ -124,8 +124,8 @@ elsewhere.
 | Add a new SQL repository function | [src/lib/db/repositories.ts](../src/lib/db/repositories.ts) (read [src/lib/db/README.md](../src/lib/db/README.md) for the aggregate map) |
 | Add a new database table | New migration in `migrations/` + a function in `repositories.ts` |
 | Activity event types / statuses / sources | [src/lib/agent/activity.ts](../src/lib/agent/activity.ts) |
-| Dashboard panels | [src/app/dashboard/[teamId]/page.tsx](../src/app/dashboard/%5BteamId%5D/page.tsx) |
-| Observability stream UI | [src/app/observability/[teamId]/page.tsx](../src/app/observability/%5BteamId%5D/page.tsx) + [src/app/components/activity-debugger.tsx](../src/app/components/activity-debugger.tsx) |
+| Dashboard panels | [src/app/dashboard/page.tsx](../src/app/dashboard/page.tsx) |
+| Observability stream UI | [src/app/observability/page.tsx](../src/app/observability/page.tsx) + [src/app/components/activity-debugger.tsx](../src/app/components/activity-debugger.tsx) |
 | Transaction detail page | [src/app/transactions/[transactionId]/page.tsx](../src/app/transactions/%5BtransactionId%5D/page.tsx) |
 | Webhook signature verification | [src/app/api/webhooks/agentmail/route.ts](../src/app/api/webhooks/agentmail/route.ts) |
 | Anthropic model choice | [src/lib/llm/anthropic.ts](../src/lib/llm/anthropic.ts) |

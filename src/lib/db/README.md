@@ -17,8 +17,8 @@ end-to-end. Use the function names below with `rg` to jump.
 
 | Aggregate | Functions | Jump |
 | --- | --- | --- |
-| Activity events | `createAgentActivityEvent`, `getTransactionActivityEvents`, `getTeamActivityTimeline` | search by function |
-| Teams, users, TC profiles | `createTeam`, `createUser`, `createTcProfile`, `findTcProfileByInbox` | search by function |
+| Activity events | `createAgentActivityEvent`, `getTransactionActivityEvents`, `getUserActivityTimeline` | search by function |
+| Users, auth mapping, TC profiles | `createUser`, `findUserByAuthUserId`, `findUserByEmail`, `createTcProfile`, `findTcProfileByInbox`, `findTcProfileByUser` | search by function |
 | Webhook events | `recordWebhookEvent`, `markWebhookEventProcessed` | search by function |
 | Audit events | `createAuditEvent` | search by function |
 | Transactions (writes) | `createTransaction`, `updateTransactionFromFacts`, `saveExtractedContractFacts` | search by function |
@@ -31,9 +31,9 @@ end-to-end. Use the function names below with `rg` to jump.
 | Agent wakeups | `createAgentWakeup`, `claimDueAgentWakeups`, `completeAgentWakeup`, `failAgentWakeup`, `cancelPendingAgentWakeups`, `listTransactionWakeups` | search by function |
 | Deadlines + blockers | `findAtRiskMilestones`, `findStaleResponseTasks`, `createBlocker`, `upsertBlockerRecord` | search by function |
 | Approvals | `createApproval` (carries `task_id` so an approved send can transition the linked task), `updateApprovalStatus`, `findPendingApprovalByReply`, approval metadata helpers | search by function |
-| Dashboard view | `getDashboardSnapshot` | search by function |
+| Dashboard view | `getDashboardSnapshotForUser` | search by function |
 | Status view | `findLatestOpenTransaction`, `getTransactionStatusSummary` | search by function |
-| Transaction detail view | `getTransactionDetail` | search by function |
+| Transaction detail view | `getTransactionDetailForUser` | search by function |
 
 ## Conventions
 

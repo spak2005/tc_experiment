@@ -3,15 +3,15 @@
 Agent Observability is internal developer tooling for understanding and testing
 the TC agent workflow. It is not meant to be customer-facing product UI.
 
-Use `/observability/[teamId]` as the main place to watch the agent work. It
-shows team-wide activity whether or not a transaction has been created yet.
+Use `/observability` as the main place to watch the agent work. It
+shows user-scoped activity whether or not a transaction has been created yet.
 
 Use `/transactions/[transactionId]` when you want the same debugger filtered to
 one transaction file.
 
 ## How to read it
 
-Open the observability page from the dashboard. The team-wide timeline runs
+Open the observability page from the dashboard. The user-scoped timeline runs
 newest to oldest, so the latest agent behavior is always at the top.
 
 Transaction detail pages keep the same newest-first ordering, filtered to one
@@ -67,7 +67,7 @@ The transaction page also renders synthetic history from existing messages,
 documents, decisions, approvals, and audit events so older transactions still
 show context.
 
-The observability page reads real activity events by `team_id`, including rows
+The observability page reads real activity events by `user_id`, including rows
 where `transaction_id` is null. That makes pre-file inbox behavior visible.
 
 ## Logging rules
