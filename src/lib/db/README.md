@@ -84,5 +84,5 @@ end-to-end. Use the function names below with `rg` to jump.
 
 ## Related docs
 
-- The schema itself: migrations `001` through `008` in [../../../migrations](../../../migrations).
+- The schema itself: migrations `001` through `010` in [../../../migrations](../../../migrations).
 - The observability event contract: [../../../docs/activity-debugger.md](../../../docs/activity-debugger.md).

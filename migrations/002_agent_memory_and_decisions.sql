@@ -9,7 +9,7 @@ create table transaction_memory (
 
 create table agent_decisions (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references users(id) on delete cascade,
+  team_id uuid not null references teams(id) on delete cascade,
   transaction_id uuid references transactions(id) on delete set null,
   inbound_message_id text,
   inbound_thread_id text,
@@ -28,6 +28,6 @@ create table agent_decisions (
   executed_at timestamptz
 );
 
-create index agent_decisions_user_created_idx on agent_decisions(user_id, created_at desc);
+create index agent_decisions_team_created_idx on agent_decisions(team_id, created_at desc);
 create index agent_decisions_transaction_created_idx on agent_decisions(transaction_id, created_at desc);
 create index transaction_memory_updated_idx on transaction_memory(updated_at desc);

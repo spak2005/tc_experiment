@@ -1,6 +1,6 @@
 create table agent_wakeups (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references users(id) on delete cascade,
+  team_id uuid not null references teams(id) on delete cascade,
   transaction_id uuid not null references transactions(id) on delete cascade,
   task_id uuid references tasks(id) on delete set null,
   action_type text not null,
