@@ -1,5 +1,6 @@
 import { requireCurrentUser } from "@/lib/auth/current-user";
 import { getDashboardSnapshotForUser } from "@/lib/db/repositories";
+import { LogoutButton } from "@/app/components/logout-button";
 import Link from "next/link";
 
 export default async function DashboardPage() {
@@ -16,6 +17,7 @@ export default async function DashboardPage() {
             Open agent observability
           </Link>
         </p>
+        <LogoutButton />
       </header>
 
       <section className="dashboard-grid">
