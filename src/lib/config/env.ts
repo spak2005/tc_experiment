@@ -10,7 +10,9 @@ const envSchema = z.object({
   INNGEST_SIGNING_KEY: z.string().optional(),
   LLM_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().default("claude-sonnet-4-6"),
-  NEXT_PUBLIC_APP_URL: z.string().default("http://localhost:3000")
+  NEXT_PUBLIC_APP_URL: z.string().default("http://localhost:3000"),
+  NEXT_PUBLIC_SUPABASE_URL: z.string().optional(),
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().optional()
 });
 
 export type AppEnv = z.infer<typeof envSchema>;
