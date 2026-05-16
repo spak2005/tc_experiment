@@ -1,25 +1,19 @@
 create extension if not exists pgcrypto;
 
-create table teams (
-  id uuid primary key default gen_random_uuid(),
-  name text not null,
-  market text not null default 'TX',
-  brokerage text,
-  created_at timestamptz not null default now()
-);
-
 create table users (
   id uuid primary key default gen_random_uuid(),
-  team_id uuid not null references teams(id) on delete cascade,
+  auth_user_id uuid not null unique,
   name text not null,
   email text not null unique,
   phone text,
+  brokerage text,
+  market text not null default 'TX',
   created_at timestamptz not null default now()
 );
 
 create table tc_profiles (
   id uuid primary key default gen_random_uuid(),
-  team_id uuid not null references teams(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
   display_name text not null,
   inbox_address text not null unique,
   agentmail_pod_id text,
@@ -32,7 +26,7 @@ create table tc_profiles (
 
 create table transactions (
   id uuid primary key default gen_random_uuid(),
-  team_id uuid not null references teams(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
   tc_profile_id uuid not null references tc_profiles(id) on delete restrict,
   property_address text,
   market text not null default 'TX',
@@ -154,14 +148,14 @@ create table webhook_events (
 create table audit_events (
   id uuid primary key default gen_random_uuid(),
   transaction_id uuid references transactions(id) on delete set null,
-  team_id uuid not null references teams(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
   actor text not null,
   event_type text not null,
   payload jsonb not null default '{}',
   created_at timestamptz not null default now()
 );
 
-create index transactions_team_status_idx on transactions(team_id, status);
+create index transactions_user_status_idx on transactions(user_id, status);
 create index milestones_due_idx on milestones(due_date) where completed_at is null;
 create index tasks_status_due_idx on tasks(status, due_date);
 create index messages_thread_idx on messages(thread_id);
