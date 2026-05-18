@@ -30,7 +30,13 @@ export const onboardingSchema = signupSchema.omit({ password: true }).extend({
 export type OnboardingInput = z.infer<typeof onboardingSchema>;
 
 function stephanieWelcomeEmail(name: string) {
-  return `Hi ${name}, I'm Stephanie, the TC you just hired. I will help you coordinate your transaction files, track deadlines, request missing items, and flag anything that needs your attention. Forward an executed contract whenever you're ready. Looking forward to working with you.
+  return `Hi ${name}, I'm Stephanie, your transaction coordinator.
+
+Forward me an executed contract when you're ready. I will open the file, pull out the key dates and parties, build the deadline timeline, request missing items, and flag anything that needs your attention.
+
+I work through this inbox, so you can assign me a file by forwarding it here. I'm software-powered, which lets me monitor files continuously, and you stay in control of approvals before external messages go out.
+
+Looking forward to working with you.
 
 Best,
 Stephanie`;
@@ -83,7 +89,7 @@ export async function onboardAgent(input: OnboardingInput) {
     idempotencyKey: `welcome:${user.id}`,
     inboxId: inbox.inboxId,
     to: [parsed.email],
-    subject: "Stephanie is ready to coordinate your files",
+    subject: "Stephanie is ready for her first file",
     text: stephanieWelcomeEmail(parsed.name),
     labels: ["welcome"]
   });
