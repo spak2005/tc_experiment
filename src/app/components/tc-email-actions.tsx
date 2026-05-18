@@ -14,10 +14,10 @@ export function TcEmailActions({ email }: { email: string }) {
   return (
     <div className="tc-actions">
       <button className="utility-button" onClick={copyEmail} type="button">
-        {copied ? "Copied" : "Copy email"}
+        {copied ? "Copied" : "Copy Stephanie's email"}
       </button>
       <a className="utility-link" href={`mailto:${email}`}>
-        Email Stephanie
+        Send Stephanie a file
       </a>
     </div>
   );
