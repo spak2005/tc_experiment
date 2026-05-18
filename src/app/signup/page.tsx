@@ -14,10 +14,15 @@ export default async function SignupPage() {
     <main className="shell">
       <section className="hero">
         <p className="eyebrow">Hire Stephanie</p>
-        <h1>Create your AI TC account.</h1>
+        <h1>Bring Stephanie onto your team.</h1>
         <p className="lede">
-          Sign up, get Stephanie's TC email, and forward an executed contract
-          whenever you are ready.
+          Stephanie is your transaction coordinator. Send her an executed
+          contract and she will open the file, track deadlines, and keep you
+          ahead of surprises.
+        </p>
+        <p className="helper">
+          She is AI-powered, works through email, and asks before external
+          messages go out.
         </p>
         <p className="helper">
           Already have an account? <Link href="/login">Log in</Link>

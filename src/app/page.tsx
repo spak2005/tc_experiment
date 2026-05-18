@@ -13,12 +13,15 @@ export default async function Home() {
   return (
     <main className="shell">
       <section className="hero">
-        <p className="eyebrow">Autonomous transaction coordination</p>
-        <h1>Hire Stephanie to coordinate your files.</h1>
+        <p className="eyebrow">Meet Stephanie</p>
+        <h1>Hire Stephanie as your transaction coordinator.</h1>
         <p className="lede">
-          Sign up, get Stephanie's TC email, forward the executed contract, and
-          she opens the file, maps the timeline, coordinates parties, and
-          escalates deadline risk.
+          Forward her an executed contract. She opens the file, tracks
+          deadlines, requests missing items, and flags what needs your
+          attention.
+        </p>
+        <p className="helper">
+          Stephanie is AI-powered, and you stay in control of approvals.
         </p>
         <p className="helper">
           Already have an account? <Link href="/login">Log in</Link>

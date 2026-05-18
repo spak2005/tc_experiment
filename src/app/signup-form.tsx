@@ -29,7 +29,7 @@ export function SignupForm() {
     if (!response.ok) {
       setState({
         status: "error",
-        message: "We could not create your TC inbox. Please try again."
+        message: "We could not finish setting up Stephanie. Please try again."
       });
       return;
     }
@@ -60,7 +60,7 @@ export function SignupForm() {
         <input name="brokerage" placeholder="Compass Austin" />
       </label>
       <button disabled={state.status === "loading"} type="submit">
-        {state.status === "loading" ? "Creating TC..." : "Get my TC email"}
+        {state.status === "loading" ? "Setting up Stephanie..." : "Hire Stephanie"}
       </button>
       {state.status === "error" ? <p className="error">{state.message}</p> : null}
     </form>
