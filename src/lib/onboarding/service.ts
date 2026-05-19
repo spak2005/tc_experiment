@@ -35,7 +35,9 @@ function fullName(firstName: string, lastName: string) {
 }
 
 function stephanieWelcomeEmail(firstName: string) {
-  return `Hi ${firstName}, I'm Stephanie, your transaction coordinator.
+  return `Hi ${firstName},
+
+I'm Stephanie, the transaction coordinator you just hired.
 
 Forward me an executed contract when you're ready. I will open the file, pull out the key dates and parties, build the deadline timeline, request missing items, and flag anything that needs your attention.
 
@@ -44,7 +46,8 @@ I work through this inbox, so you can assign me a file by forwarding it here. I'
 Looking forward to working with you.
 
 Best,
-Stephanie`;
+Stephanie
+Your AI TC`;
 }
 
 export async function assertEmailNotOnboarded(email: string) {
@@ -94,7 +97,7 @@ export async function onboardAgent(input: OnboardingInput) {
     idempotencyKey: `welcome:${user.id}`,
     inboxId: inbox.inboxId,
     to: [parsed.email],
-    subject: "Stephanie is ready for her first file",
+    subject: "I'm ready to get to work as your TC",
     text: stephanieWelcomeEmail(parsed.firstName),
     labels: ["welcome"]
   });
