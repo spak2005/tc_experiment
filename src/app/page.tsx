@@ -244,15 +244,11 @@ export default async function Home() {
       </section>
 
       <section className="landing-section promise-section">
-        <div className="promise-image-frame">
-          <img
-            src="/landing/coffee-contract.jpg"
-            alt="Coffee beside a marked residential contract."
-            height="1024"
-            loading="lazy"
-            width="1536"
-          />
-        </div>
+        <div
+          aria-label="Coffee beside a marked residential contract."
+          className="promise-image-frame"
+          role="img"
+        />
         <div className="promise-copy">
           <p className="promise-line">
             You did not get into real estate to chase signatures, deadlines,
