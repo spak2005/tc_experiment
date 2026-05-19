@@ -19,8 +19,8 @@ const handleItems = [
   },
   {
     label: "Follow-up",
-    title: "Every thread chased",
-    body: "Title, lender, co-op agent, inspector. Every thread chased without you becoming the bottleneck.",
+    title: "Open items get chased",
+    body: "Title, lender, co-op agent, inspector. Stephanie keeps open items moving before you become the bottleneck.",
     image: "/landing/title-table.jpg",
     alt: "A quiet closing table with paperwork, pens, and house keys."
   },
