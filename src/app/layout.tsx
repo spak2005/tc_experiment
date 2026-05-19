@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AI Transaction Coordinator",
-  description: "Autonomous AI transaction coordination for Texas real estate agents."
+  title: "Stephanie Transaction Coordinator",
+  description: "A transaction coordinator for residential real estate agents."
 };
 
 export default function RootLayout({
