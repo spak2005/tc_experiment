@@ -342,6 +342,14 @@ img {
 }
 
 .step-card {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.64), rgba(255, 250, 241, 0.34)),
+    rgba(255, 255, 255, 0.38);
+  backdrop-filter: blur(12px) saturate(1.08);
+  border-color: rgba(255, 255, 255, 0.48);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.62),
+    0 16px 42px rgba(44, 35, 24, 0.08);
   display: grid;
   gap: 16px;
   min-height: 252px;
