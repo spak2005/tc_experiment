@@ -244,20 +244,23 @@ export default async function Home() {
       </section>
 
       <section className="landing-section promise-section">
-        <p>
-          You did not get into real estate to chase signatures, watch
-          deadlines, or keep title companies on schedule. You got in for the
-          people. For the keys-on-the-counter moment.
-        </p>
-        <p>
-          A great TC gives you that back. But hiring one is expensive, and most
-          agents end up doing the work themselves at 11pm anyway.
-        </p>
-        <p>
-          Stephanie is the TC every agent should have. She works the way the
-          best TCs work, just faster, and she is there from day one. She handles
-          the file. You handle the people.
-        </p>
+        <img
+          src="/landing/coffee-contract.jpg"
+          alt="Coffee beside a marked residential contract."
+          height="1024"
+          loading="lazy"
+          width="1536"
+        />
+        <div className="promise-copy">
+          <p>
+            You did not get into real estate to chase signatures, deadlines,
+            and title updates.
+          </p>
+          <p>You got in for the people.</p>
+          <p>
+            Let Stephanie handle the file. You handle the people.
+          </p>
+        </div>
       </section>
 
       <section className="landing-section pricing-section">

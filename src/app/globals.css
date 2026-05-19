@@ -574,16 +574,37 @@ img {
 }
 
 .promise-section {
+  align-items: center;
   display: grid;
-  gap: 28px;
-  max-width: 900px;
+  gap: clamp(32px, 6vw, 72px);
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  max-width: 1180px;
 }
 
-.promise-section p {
+.promise-section img {
+  aspect-ratio: 0.95 / 1;
+  border-radius: 24px;
+  box-shadow: 0 24px 58px rgba(44, 35, 24, 0.12);
+  display: block;
+  filter: saturate(0.88) contrast(0.96);
+  object-fit: cover;
+  width: 100%;
+}
+
+.promise-copy {
+  display: grid;
+  gap: 24px;
+}
+
+.promise-copy p {
   color: var(--landing-ink);
   font-family: Georgia, "Times New Roman", serif;
   font-size: clamp(1.7rem, 3.3vw, 3rem);
   line-height: 1.18;
+}
+
+.promise-copy p:last-child {
+  color: var(--landing-green);
 }
 
 .pricing-section {
@@ -703,8 +724,13 @@ img {
   }
 
   .step-grid,
-  .handle-grid {
+  .handle-grid,
+  .promise-section {
     grid-template-columns: 1fr;
+  }
+
+  .promise-section img {
+    aspect-ratio: 1.35 / 1;
   }
 
   .handle-card {
