@@ -252,14 +252,13 @@ export default async function Home() {
           width="1536"
         />
         <div className="promise-copy">
-          <p>
+          <p className="promise-line">
             You did not get into real estate to chase signatures, deadlines,
             and title updates.
           </p>
-          <p>You got in for the people.</p>
-          <p>
-            Let Stephanie handle the file. You handle the people.
-          </p>
+          <p className="promise-line">You got in for the people.</p>
+          <p className="promise-line">Let Stephanie handle the file.</p>
+          <p className="promise-line">You handle the people.</p>
         </div>
       </section>
 
