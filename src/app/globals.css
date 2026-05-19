@@ -133,7 +133,7 @@ img {
 .landing-hero {
   display: grid;
   min-height: 100svh;
-  place-items: end center;
+  place-items: center;
   position: relative;
 }
 
@@ -164,7 +164,7 @@ img {
   gap: 18px;
   justify-items: center;
   max-width: 780px;
-  padding: 44vh 20px 64px;
+  padding: 120px 20px 64px;
   position: relative;
   text-align: center;
   z-index: 1;
