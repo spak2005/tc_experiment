@@ -577,7 +577,7 @@ img {
   align-items: stretch;
   display: grid;
   gap: clamp(28px, 5vw, 64px);
-  grid-template-columns: minmax(280px, 0.82fr) minmax(0, 1.18fr);
+  grid-template-columns: minmax(280px, 420px) minmax(0, 1fr);
   max-width: 1180px;
 }
 
@@ -589,6 +589,7 @@ img {
   clip-path: inset(0 round 24px);
   overflow: hidden;
   position: relative;
+  width: 100%;
 }
 
 .promise-image-frame::before {
