@@ -603,8 +603,8 @@ img {
   color: var(--landing-ink);
   display: flex;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(1.85rem, 3.4vw, 3.25rem);
-  line-height: 1.08;
+  font-size: 1rem;
+  line-height: 1.65;
 }
 
 .promise-copy .promise-line:last-child {
