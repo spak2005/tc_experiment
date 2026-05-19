@@ -581,14 +581,19 @@ img {
   max-width: 1180px;
 }
 
-.promise-section img {
+.promise-image-frame {
   aspect-ratio: 1 / 1;
   border-radius: 24px;
   box-shadow: 0 24px 58px rgba(44, 35, 24, 0.12);
+  overflow: hidden;
+}
+
+.promise-image-frame img {
   display: block;
-  filter: saturate(0.88) contrast(0.96);
+  filter: blur(1.8px) saturate(0.82) contrast(0.96);
   height: 100%;
   object-fit: cover;
+  transform: scale(1.03);
   width: 100%;
 }
 
@@ -734,7 +739,7 @@ img {
     grid-template-columns: 1fr;
   }
 
-  .promise-section img {
+  .promise-image-frame {
     aspect-ratio: 1.35 / 1;
   }
 
