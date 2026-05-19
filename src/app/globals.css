@@ -548,8 +548,6 @@ img {
 }
 
 .not-section {
-  border-bottom: 1px solid var(--landing-line);
-  border-top: 1px solid var(--landing-line);
   display: grid;
   gap: 28px;
   max-width: none;
