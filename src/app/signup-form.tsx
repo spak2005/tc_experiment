@@ -17,7 +17,8 @@ export function SignupForm() {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        name: formData.get("name"),
+        firstName: formData.get("firstName"),
+        lastName: formData.get("lastName"),
         email: formData.get("email"),
         password: formData.get("password"),
         phone: formData.get("phone") || undefined,
@@ -40,20 +41,30 @@ export function SignupForm() {
   return (
     <form action={submit} className="signup-card">
       <label>
-        Name
-        <input name="name" required placeholder="Maria Johnson" />
+        First name
+        <input autoComplete="given-name" name="firstName" required placeholder="Maria" />
+      </label>
+      <label>
+        Last name
+        <input autoComplete="family-name" name="lastName" required placeholder="Johnson" />
       </label>
       <label>
         Email
-        <input name="email" required type="email" placeholder="maria@example.com" />
+        <input
+          autoComplete="email"
+          name="email"
+          required
+          type="email"
+          placeholder="maria@example.com"
+        />
       </label>
       <label>
         Password
-        <input name="password" required minLength={8} type="password" />
+        <input autoComplete="new-password" name="password" required minLength={8} type="password" />
       </label>
       <label>
         Phone
-        <input name="phone" placeholder="(512) 555-0100" />
+        <input autoComplete="tel" name="phone" placeholder="(512) 555-0100" />
       </label>
       <label>
         Brokerage

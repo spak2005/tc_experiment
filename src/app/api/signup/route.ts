@@ -32,7 +32,9 @@ export async function POST(request: Request) {
     password: parsed.data.password,
     options: {
       data: {
-        name: parsed.data.name
+        firstName: parsed.data.firstName,
+        lastName: parsed.data.lastName,
+        name: `${parsed.data.firstName} ${parsed.data.lastName}`
       }
     }
   });
@@ -56,7 +58,8 @@ export async function POST(request: Request) {
 
   const result = await onboardAgent({
     authUserId: data.user.id,
-    name: parsed.data.name,
+    firstName: parsed.data.firstName,
+    lastName: parsed.data.lastName,
     email: parsed.data.email,
     phone: parsed.data.phone,
     brokerage: parsed.data.brokerage,

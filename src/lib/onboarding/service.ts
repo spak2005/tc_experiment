@@ -13,7 +13,8 @@ import {
 } from "@/lib/agentmail/service";
 
 export const signupSchema = z.object({
-  name: z.string().min(2),
+  firstName: z.string().trim().min(1),
+  lastName: z.string().trim().min(1),
   email: z.string().email(),
   password: z.string().min(8),
   phone: z.string().optional(),
@@ -29,8 +30,12 @@ export const onboardingSchema = signupSchema.omit({ password: true }).extend({
 
 export type OnboardingInput = z.infer<typeof onboardingSchema>;
 
-function stephanieWelcomeEmail(name: string) {
-  return `Hi ${name}, I'm Stephanie, your transaction coordinator.
+function fullName(firstName: string, lastName: string) {
+  return `${firstName} ${lastName}`;
+}
+
+function stephanieWelcomeEmail(firstName: string) {
+  return `Hi ${firstName}, I'm Stephanie, your transaction coordinator.
 
 Forward me an executed contract when you're ready. I will open the file, pull out the key dates and parties, build the deadline timeline, request missing items, and flag anything that needs your attention.
 
@@ -57,7 +62,7 @@ export async function onboardAgent(input: OnboardingInput) {
   if (!user) {
     user = await createUser({
       authUserId: parsed.authUserId,
-      name: parsed.name,
+      name: fullName(parsed.firstName, parsed.lastName),
       email: parsed.email,
       phone: parsed.phone,
       brokerage: parsed.brokerage,
@@ -90,7 +95,7 @@ export async function onboardAgent(input: OnboardingInput) {
     inboxId: inbox.inboxId,
     to: [parsed.email],
     subject: "Stephanie is ready for her first file",
-    text: stephanieWelcomeEmail(parsed.name),
+    text: stephanieWelcomeEmail(parsed.firstName),
     labels: ["welcome"]
   });
 
