@@ -5,28 +5,28 @@ import { getCurrentUser } from "@/lib/auth/current-user";
 const handleItems = [
   {
     label: "Deadlines",
-    title: "Every deadline, tracked.",
+    title: "Every deadline, tracked",
     body: "Option period, financing, inspection, appraisal, closing. Nothing slips.",
     image: "/landing/deadline-desk.jpg",
     alt: "A contract and calendar on a warm sunlit desk."
   },
   {
     label: "File",
-    title: "The file stays clean.",
+    title: "The file stays clean",
     body: "Contracts, amendments, disclosures, broker requirements. Filed before they become a scramble.",
     image: "/landing/file-documents.jpg",
     alt: "Organized real estate folders with signed paperwork."
   },
   {
     label: "Follow-up",
-    title: "Every thread chased.",
+    title: "Every thread chased",
     body: "Title, lender, co-op agent, inspector. Every thread chased without you becoming the bottleneck.",
     image: "/landing/title-table.jpg",
     alt: "A quiet closing table with paperwork, pens, and house keys."
   },
   {
     label: "Closing",
-    title: "Closing stays calm.",
+    title: "Closing stays calm",
     body: "CDA, final walkthrough, funding, keys. The last mile stays calm.",
     image: "/landing/broker-file.jpg",
     alt: "A broker file and checklist on a tidy office desk."
