@@ -6,31 +6,31 @@ const handleItems = [
   {
     title: "Every deadline, tracked.",
     body: "Option period, financing, inspection, appraisal, closing. Nothing slips.",
-    image: "/landing/deadline-desk.png",
+    image: "/landing/deadline-desk.jpg",
     alt: "A contract and calendar on a warm sunlit desk."
   },
   {
     title: "Every party, kept in the loop.",
     body: "Title, lender, co-op agent. Stephanie chases the threads so you do not.",
-    image: "/landing/title-table.png",
+    image: "/landing/title-table.jpg",
     alt: "A quiet closing table with paperwork, pens, and house keys."
   },
   {
     title: "Every document, where it needs to be.",
     body: "Broker submissions, MLS updates, your transaction file. Filed correctly the first time.",
-    image: "/landing/file-documents.png",
+    image: "/landing/file-documents.jpg",
     alt: "Organized real estate folders with signed paperwork."
   },
   {
     title: "Every update, before you have to ask.",
     body: "You hear about issues when they happen, not the day before closing.",
-    image: "/landing/coffee-contract.png",
+    image: "/landing/coffee-contract.jpg",
     alt: "Coffee beside a marked residential contract."
   },
   {
     title: "Every compliance step, documented.",
     body: "Audit trail, document retention, broker rules. Quiet by default.",
-    image: "/landing/broker-file.png",
+    image: "/landing/broker-file.jpg",
     alt: "A broker file and checklist on a tidy office desk."
   }
 ];
@@ -101,9 +101,12 @@ export default async function Home() {
       <section className="landing-hero">
         <div className="hero-image-wrap">
           <img
-            src="/landing/hero-keys.png"
+            src="/landing/hero-keys.jpg"
             alt="House keys, a contract, and morning coffee on a kitchen counter."
             className="hero-image"
+            fetchPriority="high"
+            height="887"
+            width="1774"
           />
         </div>
         <div className="hero-copy">
@@ -184,7 +187,13 @@ export default async function Home() {
         <div className="handle-grid">
           {handleItems.map((item) => (
             <article className="handle-card" key={item.title}>
-              <img src={item.image} alt={item.alt} />
+              <img
+                src={item.image}
+                alt={item.alt}
+                height="1024"
+                loading="lazy"
+                width="1536"
+              />
               <div>
                 <h3>{item.title}</h3>
                 <p>{item.body}</p>
