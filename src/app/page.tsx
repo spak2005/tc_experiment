@@ -4,32 +4,30 @@ import { getCurrentUser } from "@/lib/auth/current-user";
 
 const handleItems = [
   {
+    label: "Deadlines",
     title: "Every deadline, tracked.",
     body: "Option period, financing, inspection, appraisal, closing. Nothing slips.",
     image: "/landing/deadline-desk.jpg",
     alt: "A contract and calendar on a warm sunlit desk."
   },
   {
-    title: "Every party, kept in the loop.",
-    body: "Title, lender, co-op agent. Stephanie chases the threads so you do not.",
-    image: "/landing/title-table.jpg",
-    alt: "A quiet closing table with paperwork, pens, and house keys."
-  },
-  {
-    title: "Every document, where it needs to be.",
-    body: "Broker submissions, MLS updates, your transaction file. Filed correctly the first time.",
+    label: "File",
+    title: "The file stays clean.",
+    body: "Contracts, amendments, disclosures, broker requirements. Filed before they become a scramble.",
     image: "/landing/file-documents.jpg",
     alt: "Organized real estate folders with signed paperwork."
   },
   {
-    title: "Every update, before you have to ask.",
-    body: "You hear about issues when they happen, not the day before closing.",
-    image: "/landing/coffee-contract.jpg",
-    alt: "Coffee beside a marked residential contract."
+    label: "Follow-up",
+    title: "Every thread chased.",
+    body: "Title, lender, co-op agent, inspector. Every thread chased without you becoming the bottleneck.",
+    image: "/landing/title-table.jpg",
+    alt: "A quiet closing table with paperwork, pens, and house keys."
   },
   {
-    title: "Every compliance step, documented.",
-    body: "Audit trail, document retention, broker rules. Quiet by default.",
+    label: "Closing",
+    title: "Closing stays calm.",
+    body: "CDA, final walkthrough, funding, keys. The last mile stays calm.",
     image: "/landing/broker-file.jpg",
     alt: "A broker file and checklist on a tidy office desk."
   }
@@ -194,6 +192,7 @@ export default async function Home() {
                 loading="lazy"
                 width="1536"
               />
+              <span className="handle-label">{item.label}</span>
               <div>
                 <h3>{item.title}</h3>
                 <p>{item.body}</p>
