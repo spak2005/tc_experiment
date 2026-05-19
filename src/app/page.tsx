@@ -234,8 +234,13 @@ export default async function Home() {
 
       <section className="landing-section not-section">
         <h2>What Stephanie is not.</h2>
-        <p>Not another place to check. Not another login. Not a chatbot. Not in front of your clients.</p>
-        <p>Just your TC. Just an email away.</p>
+        <div className="not-lines" aria-label="What Stephanie is not">
+          <p>Not another place to check.</p>
+          <p>Not another login.</p>
+          <p>Not a chatbot.</p>
+          <p>Not in front of your clients.</p>
+        </div>
+        <p className="not-resolution">Just your TC. Just an email away.</p>
       </section>
 
       <section className="landing-section promise-section">

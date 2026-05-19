@@ -551,11 +551,16 @@ img {
   border-bottom: 1px solid var(--landing-line);
   border-top: 1px solid var(--landing-line);
   display: grid;
-  gap: 18px;
+  gap: 28px;
   max-width: none;
   padding-left: clamp(20px, 16vw, 240px);
   padding-right: clamp(20px, 16vw, 240px);
   text-align: center;
+}
+
+.not-lines {
+  display: grid;
+  gap: 10px;
 }
 
 .not-section p {
@@ -563,6 +568,11 @@ img {
   font-size: clamp(1.45rem, 3vw, 2.7rem);
   font-family: Georgia, "Times New Roman", serif;
   line-height: 1.2;
+}
+
+.not-resolution {
+  color: var(--landing-green) !important;
+  font-size: clamp(1.75rem, 3.6vw, 3.2rem) !important;
 }
 
 .promise-section {
