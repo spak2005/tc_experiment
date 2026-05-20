@@ -34,14 +34,14 @@ export function LoginForm() {
   }
 
   return (
-    <form action={submit} className="signup-card">
+    <form action={submit} className="auth-card auth-form">
       <label>
         Email
-        <input name="email" required type="email" placeholder="maria@example.com" />
+        <input autoComplete="email" name="email" required type="email" placeholder="maria@example.com" />
       </label>
       <label>
         Password
-        <input name="password" required type="password" />
+        <input autoComplete="current-password" name="password" required type="password" />
       </label>
       <button disabled={state.status === "loading"} type="submit">
         {state.status === "loading" ? "Logging in..." : "Log in"}

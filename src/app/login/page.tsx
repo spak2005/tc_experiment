@@ -11,19 +11,24 @@ export default async function LoginPage() {
   }
 
   return (
-    <main className="shell">
-      <section className="hero">
-        <p className="eyebrow">Welcome back</p>
-        <h1>Log in to your TC control room.</h1>
-        <p className="lede">
-          Pick up where Stephanie left off: active files, blockers, approvals,
-          and the latest coordination activity.
-        </p>
-        <p className="helper">
-          New here? <Link href="/signup">Create your Stephanie TC</Link>
+    <main className="auth-page">
+      <Link className="brand-mark auth-brand" href="/">
+        <span className="brand-symbol" aria-hidden="true">
+          S
+        </span>
+        <span>[COMPANY_NAME]</span>
+      </Link>
+      <section className="auth-panel" aria-labelledby="login-title">
+        <div className="auth-header">
+          <p className="small-kicker">Welcome back</p>
+          <h1 id="login-title">Log in</h1>
+          <p>Access your Stephanie workspace and transaction files</p>
+        </div>
+        <LoginForm />
+        <p className="auth-switch">
+          New here? <Link href="/signup">Hire Stephanie</Link>
         </p>
       </section>
-      <LoginForm />
     </main>
   );
 }
