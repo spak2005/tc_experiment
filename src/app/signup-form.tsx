@@ -39,7 +39,7 @@ export function SignupForm() {
   }
 
   return (
-    <form action={submit} className="signup-card">
+    <form action={submit} className="auth-card auth-form">
       <label>
         First name
         <input autoComplete="given-name" name="firstName" required placeholder="Maria" />
@@ -73,6 +73,7 @@ export function SignupForm() {
       <button disabled={state.status === "loading"} type="submit">
         {state.status === "loading" ? "Setting up Stephanie..." : "Hire Stephanie"}
       </button>
+      <p className="auth-note">Stephanie will email you after setup</p>
       {state.status === "error" ? <p className="error">{state.message}</p> : null}
     </form>
   );

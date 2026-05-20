@@ -11,24 +11,24 @@ export default async function SignupPage() {
   }
 
   return (
-    <main className="shell">
-      <section className="hero">
-        <p className="eyebrow">Hire Stephanie</p>
-        <h1>Bring Stephanie onto your team.</h1>
-        <p className="lede">
-          Stephanie is your transaction coordinator. Send her an executed
-          contract and she will open the file, track deadlines, and keep you
-          ahead of surprises.
-        </p>
-        <p className="helper">
-          She is AI-powered, works through email, and asks before external
-          messages go out.
-        </p>
-        <p className="helper">
+    <main className="auth-page">
+      <Link className="brand-mark auth-brand" href="/">
+        <span className="brand-symbol" aria-hidden="true">
+          S
+        </span>
+        <span>[COMPANY_NAME]</span>
+      </Link>
+      <section className="auth-panel" aria-labelledby="signup-title">
+        <div className="auth-header">
+          <p className="small-kicker">Hire Stephanie</p>
+          <h1 id="signup-title">Set up Stephanie</h1>
+          <p>Create your account and Stephanie will be ready for your first contract</p>
+        </div>
+        <SignupForm />
+        <p className="auth-switch">
           Already have an account? <Link href="/login">Log in</Link>
         </p>
       </section>
-      <SignupForm />
     </main>
   );
 }
