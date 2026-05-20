@@ -126,9 +126,16 @@ export function LandingMotion({ children }: { children: ReactNode }) {
           blur: 10,
           stagger: 0.5
         }),
-        revealOnScroll(all(
-          "#email-interface > .section-heading, #email-interface > .email-card, #email-interface > .interface-line"
-        )),
+        revealOnScroll(
+          all(
+            "#email-interface > .section-heading, #email-interface > .email-card, #email-interface > .interface-line"
+          ),
+          {
+            duration: 0.95,
+            stagger: 0.42,
+            start: "top 72%"
+          }
+        ),
         revealOnScroll(all("#how-it-works > .section-heading, #how-it-works > .step-grid")),
         revealOnScroll(all(
           "#what-she-handles > .section-heading, #what-she-handles > .handle-grid"
