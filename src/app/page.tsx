@@ -6,28 +6,28 @@ const handleItems = [
   {
     label: "Deadlines",
     title: "Every deadline, tracked",
-    body: "Option period, financing, inspection, appraisal, closing. Nothing slips.",
+    body: "Option period, financing, inspection, appraisal, closing. Nothing slips",
     image: "/landing/deadline-desk.jpg",
     alt: "A contract and calendar on a warm sunlit desk."
   },
   {
     label: "File",
     title: "The file stays clean",
-    body: "Contracts, amendments, disclosures, broker requirements. Filed before they become a scramble.",
+    body: "Contracts, amendments, disclosures, broker requirements. Filed before they become a scramble",
     image: "/landing/file-documents.jpg",
     alt: "Organized real estate folders with signed paperwork."
   },
   {
     label: "Follow-up",
     title: "Open items get chased",
-    body: "Title, lender, co-op agent, inspector. Stephanie keeps open items moving before you become the bottleneck.",
+    body: "Title, lender, co-op agent, inspector. Stephanie keeps open items moving before you become the bottleneck",
     image: "/landing/title-table.jpg",
     alt: "A quiet closing table with paperwork, pens, and house keys."
   },
   {
     label: "Closing",
     title: "Closing stays calm",
-    body: "CDA, final walkthrough, funding, keys. The last mile stays calm.",
+    body: "CDA, final walkthrough, funding, keys. The last mile stays calm",
     image: "/landing/broker-file.jpg",
     alt: "A broker file and checklist on a tidy office desk."
   }
@@ -37,36 +37,36 @@ const faqs = [
   {
     question: "What is Stephanie?",
     answer:
-      "Stephanie is an AI transaction coordinator built to work the way the best human TCs do. She has her own email, her own process, and she is yours from day one."
+      "Stephanie is an AI transaction coordinator built to work the way the best human TCs do. She has her own email, her own process, and she is yours from day one"
   },
   {
     question: "Does she talk to my clients?",
     answer:
-      "Only if you want her to. By default, she works behind the scenes with title, lender, and the co-op agent. You stay in front of your clients."
+      "Only if you want her to. By default, she works behind the scenes with title, lender, and the co-op agent. You stay in front of your clients"
   },
   {
     question: "What happens if she gets something wrong?",
     answer:
-      "She always asks before sending anything important. Every action lives in an email trail, and our team can step in if needed."
+      "She always asks before sending anything important. Every action lives in an email trail, and our team can step in if needed"
   },
   {
     question: "How does she handle compliance?",
     answer:
-      "Every transaction has an audit trail. Documents are retained per state and broker rules. She follows your brokerage's guidelines."
+      "Every transaction has an audit trail. Documents are retained per state and broker rules. She follows your brokerage's guidelines"
   },
   {
     question: "What states does she work in?",
-    answer: "Texas for now, expanding soon."
+    answer: "Texas for now, expanding soon"
   },
   {
     question: "Can I rename her?",
     answer:
-      "Renaming is coming soon. For now, every agent's TC is named Stephanie."
+      "Renaming is coming soon. For now, every agent's TC is named Stephanie"
   },
   {
     question: "Is this an AI product?",
     answer:
-      "Yes. Stephanie is built on advanced AI designed to behave like a senior TC. We are transparent about it because the work speaks for itself."
+      "Yes. Stephanie is built on advanced AI designed to behave like a senior TC. We are transparent about it because the work speaks for itself"
   }
 ];
 
@@ -109,10 +109,10 @@ export default async function Home() {
         </div>
         <div className="hero-copy">
           <p className="small-kicker">Meet Stephanie</p>
-          <h1>Meet Stephanie. Your transaction coordinator.</h1>
+          <h1>Meet Stephanie, your transaction coordinator</h1>
           <p>
             Send her the contract. She takes it from there. You stay with your
-            clients.
+            clients
           </p>
           <div className="hero-actions">
             <Link className="pill-button dark" href="/signup">
@@ -128,7 +128,7 @@ export default async function Home() {
       <section className="landing-section email-section" id="email-interface">
         <div className="section-heading centered">
           <p className="small-kicker">Her own address</p>
-          <h2>Every agent gets their own Stephanie. With her own email.</h2>
+          <h2>Every agent gets their own Stephanie, with her own email</h2>
         </div>
         <EmailCard
           meta={[
@@ -137,42 +137,42 @@ export default async function Home() {
             "Subject: Hi [agent], I am your TC"
           ]}
         >
-          <p>Welcome aboard. I am Stephanie, your transaction coordinator.</p>
+          <p>Welcome aboard. I am Stephanie, your transaction coordinator</p>
           <p>
             When you have a contract ready, just forward it to me at this
             address. I will handle the timelines, the paperwork, and the back
-            and forth with title, lender, and the co-op agent.
+            and forth with title, lender, and the co-op agent
           </p>
           <p>
             I will keep you posted, and I will always check with you before I
-            send anything on your behalf.
+            send anything on your behalf
           </p>
           <p>Looking forward to working with you,</p>
           <p>Stephanie</p>
         </EmailCard>
-        <p className="interface-line">That is the whole interface.</p>
+        <p className="interface-line">That is the whole interface</p>
       </section>
 
       <section className="landing-section" id="how-it-works">
         <div className="section-heading">
           <p className="small-kicker">How it works</p>
-          <h2>It works like hiring any other TC. Just faster.</h2>
+          <h2>It works like hiring any other TC, just faster</h2>
         </div>
         <div className="step-grid">
           <StepCard
             number="01"
-            title="You sign up. Stephanie introduces herself."
-            body="Her first email arrives within a minute. You have a TC."
+            title="You sign up, Stephanie introduces herself"
+            body="Her first email arrives within a minute. You have a TC"
           />
           <StepCard
             number="02"
-            title="You forward her a contract."
-            body="She reads it, builds the file, sets every deadline, and starts the work."
+            title="You forward her a contract"
+            body="She reads it, builds the file, sets every deadline, and starts the work"
           />
           <StepCard
             number="03"
-            title="You stay in the loop."
-            body="She emails you updates. When she needs your sign-off, she asks. You reply yes. Done."
+            title="You stay in the loop"
+            body="She emails you updates. When she needs your sign-off, she asks. You reply yes. Done"
           />
         </div>
       </section>
@@ -180,7 +180,7 @@ export default async function Home() {
       <section className="landing-section">
         <div className="section-heading">
           <p className="small-kicker">What she handles</p>
-          <h2>What Stephanie handles for you.</h2>
+          <h2>What Stephanie handles for you</h2>
         </div>
         <div className="handle-grid">
           {handleItems.map((item) => (
@@ -205,7 +205,7 @@ export default async function Home() {
       <section className="landing-section approval-section">
         <div className="section-heading centered">
           <p className="small-kicker">Approval flow</p>
-          <h2>You stay in control. Always.</h2>
+          <h2>You stay in control, always</h2>
         </div>
         <div className="approval-thread">
           <EmailCard compact sender="Stephanie">
@@ -217,30 +217,30 @@ export default async function Home() {
               <p>Carla, can you confirm timing on the title commitment?</p>
               <p>
                 My agent has inspection scheduled and wants to keep the file
-                moving cleanly.
+                moving cleanly
               </p>
               <p>Thank you,</p>
               <p>Stephanie</p>
             </div>
-            <p>Reply yes to send, or tell me what to change.</p>
+            <p>Reply yes to send, or tell me what to change</p>
           </EmailCard>
-          <div className="agent-reply">Agent: Yes, send it.</div>
+          <div className="agent-reply">Agent: Yes, send it</div>
           <div className="stephanie-reply">
-            Stephanie: Sent. I will let you know when she replies.
+            Stephanie: Sent. I will let you know when she replies
           </div>
         </div>
-        <p className="interface-line">Nothing important goes out without you.</p>
+        <p className="interface-line">Nothing important goes out without you</p>
       </section>
 
       <section className="landing-section not-section">
-        <h2>What Stephanie is not.</h2>
+        <h2>What Stephanie is not</h2>
         <div className="not-lines" aria-label="What Stephanie is not">
-          <p>Not another place to check.</p>
-          <p>Not another login.</p>
-          <p>Not a chatbot.</p>
-          <p>Not in front of your clients.</p>
+          <p>Not another place to check</p>
+          <p>Not another login</p>
+          <p>Not a chatbot</p>
+          <p>Not in front of your clients</p>
         </div>
-        <p className="not-resolution">Just your TC. Just an email away.</p>
+        <p className="not-resolution">Just your TC, just an email away</p>
       </section>
 
       <section className="landing-section promise-section">
@@ -252,18 +252,18 @@ export default async function Home() {
         <div className="promise-copy">
           <p className="promise-line">
             You did not get into real estate to chase signatures, deadlines,
-            and title updates.
+            and title updates
           </p>
-          <p className="promise-line">You got in for the people.</p>
-          <p className="promise-line">Let Stephanie handle the file.</p>
-          <p className="promise-line">You handle the people.</p>
+          <p className="promise-line">You got in for the people</p>
+          <p className="promise-line">Let Stephanie handle the file</p>
+          <p className="promise-line">You handle the people</p>
         </div>
       </section>
 
       <section className="landing-section pricing-section">
         <div className="section-heading centered">
           <p className="small-kicker">Pricing</p>
-          <h2>One file. One price.</h2>
+          <h2>One file, one price</h2>
         </div>
         <div className="price-card">
           <p className="price-label">Per transaction</p>
@@ -271,7 +271,7 @@ export default async function Home() {
           <p>
             Traditional TC services often cost $250 to $500 per file.
             Stephanie is available 24/7, works through email, and asks before
-            important messages go out.
+            important messages go out
           </p>
           <div className="price-comparison" aria-label="Pricing comparison">
             <div>
@@ -292,7 +292,7 @@ export default async function Home() {
       <section className="landing-section faq-section">
         <div className="section-heading">
           <p className="small-kicker">FAQ</p>
-          <h2>Questions agents ask before hiring Stephanie.</h2>
+          <h2>Questions agents ask before hiring Stephanie</h2>
         </div>
         <div className="faq-list">
           {faqs.map((faq) => (
