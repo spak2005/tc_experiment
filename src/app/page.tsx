@@ -55,7 +55,7 @@ const faqs = [
       "Every transaction has an audit trail. Documents are retained per state and broker rules. She follows your brokerage's guidelines."
   },
   {
-    question: "Where does Stephanie exist?",
+    question: "What states does she work in?",
     answer: "Texas for now, expanding soon."
   },
   {
