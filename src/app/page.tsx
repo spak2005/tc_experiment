@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { LandingMotion } from "@/app/landing-motion";
 import { getCurrentUser } from "@/lib/auth/current-user";
 
 const handleItems = [
@@ -78,23 +79,24 @@ export default async function Home() {
   }
 
   return (
-    <main className="landing-page">
-      <header className="landing-nav" aria-label="Main navigation">
-        <Link className="brand-mark" href="/">
-          <span className="brand-symbol" aria-hidden="true">
-            S
-          </span>
-          <span>[COMPANY_NAME]</span>
-        </Link>
-        <nav className="nav-actions" aria-label="Primary">
-          <Link className="nav-link" href="/login">
-            Login
+    <LandingMotion>
+      <main className="landing-page">
+        <header className="landing-nav" aria-label="Main navigation">
+          <Link className="brand-mark" href="/">
+            <span className="brand-symbol" aria-hidden="true">
+              S
+            </span>
+            <span>[COMPANY_NAME]</span>
           </Link>
-          <Link className="pill-button dark" href="/signup">
-            Hire Stephanie
-          </Link>
-        </nav>
-      </header>
+          <nav className="nav-actions" aria-label="Primary">
+            <Link className="nav-link" href="/login">
+              Login
+            </Link>
+            <Link className="pill-button dark" href="/signup">
+              Hire Stephanie
+            </Link>
+          </nav>
+        </header>
 
       <section className="landing-hero">
         <div className="hero-image-wrap">
@@ -177,7 +179,7 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="landing-section">
+      <section className="landing-section" id="what-she-handles">
         <div className="section-heading">
           <p className="small-kicker">What she handles</p>
           <h2>What Stephanie handles for you</h2>
@@ -310,7 +312,8 @@ export default async function Home() {
           Hire Stephanie
         </Link>
       </section>
-    </main>
+      </main>
+    </LandingMotion>
   );
 }
 
