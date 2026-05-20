@@ -85,7 +85,7 @@ export default async function Home() {
         <header className="landing-nav" aria-label="Main navigation">
           <Link className="brand-mark" href="/">
             <span className="brand-symbol" aria-hidden="true">
-              S
+              i
             </span>
             <span>Imora</span>
           </Link>

@@ -14,7 +14,7 @@ export default async function LoginPage() {
     <main className="auth-page">
       <Link className="brand-mark auth-brand" href="/">
         <span className="brand-symbol" aria-hidden="true">
-          S
+          i
         </span>
         <span>Imora</span>
       </Link>
