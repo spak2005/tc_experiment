@@ -14,9 +14,8 @@ export default async function SignupPage() {
     <main className="auth-page">
       <Link className="brand-mark auth-brand" href="/">
         <span className="brand-symbol" aria-hidden="true">
-          i
+          S
         </span>
-        <span>Imora</span>
       </Link>
       <section className="auth-panel" aria-labelledby="signup-title">
         <div className="auth-header">
