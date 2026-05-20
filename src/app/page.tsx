@@ -263,15 +263,26 @@ export default async function Home() {
       <section className="landing-section pricing-section">
         <div className="section-heading centered">
           <p className="small-kicker">Pricing</p>
-          <h2>Less than a human TC. More responsive. Same job.</h2>
+          <h2>One file. One price.</h2>
         </div>
         <div className="price-card">
           <p className="price-label">Per transaction</p>
-          <p className="price">$99.99</p>
+          <p className="price">$100</p>
           <p>
-            Human TCs often cost $250 to $500 per transaction. Stephanie does
-            the same job for a simple file-by-file price.
+            Traditional TC services often cost $250 to $500 per file.
+            Stephanie is available 24/7, works through email, and asks before
+            important messages go out.
           </p>
+          <div className="price-comparison" aria-label="Pricing comparison">
+            <div>
+              <span>Traditional TC services</span>
+              <strong>$250-$500</strong>
+            </div>
+            <div>
+              <span>Stephanie</span>
+              <strong>$100</strong>
+            </div>
+          </div>
           <Link className="pill-button dark" href="/signup">
             Hire Stephanie
           </Link>

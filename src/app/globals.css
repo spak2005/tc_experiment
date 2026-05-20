@@ -652,6 +652,44 @@ img {
   line-height: 0.88 !important;
 }
 
+.price-comparison {
+  border: 1px solid rgba(86, 74, 58, 0.14);
+  border-radius: 8px;
+  display: grid;
+  overflow: hidden;
+  width: 100%;
+}
+
+.price-comparison div {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 14px 16px;
+}
+
+.price-comparison div + div {
+  background: rgba(40, 95, 75, 0.08);
+  border-top: 1px solid rgba(86, 74, 58, 0.14);
+}
+
+.price-comparison span {
+  color: var(--landing-muted);
+  font-size: 0.92rem;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.price-comparison strong {
+  color: var(--landing-ink);
+  font-size: 0.98rem;
+  white-space: nowrap;
+}
+
+.price-comparison div + div strong {
+  color: var(--landing-green);
+}
+
 .faq-section {
   display: grid;
   gap: 34px;
