@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { LandingMotion } from "@/app/landing-motion";
 import { getCurrentUser } from "@/lib/auth/current-user";
@@ -100,13 +101,13 @@ export default async function Home() {
 
       <section className="landing-hero">
         <div className="hero-image-wrap">
-          <img
+          <Image
             src="/landing/hero-keys.jpg"
             alt="House keys, a contract, and morning coffee on a kitchen counter."
             className="hero-image"
-            fetchPriority="high"
-            height="887"
-            width="1774"
+            fill
+            priority
+            sizes="100vw"
           />
         </div>
         <div className="hero-copy">
@@ -187,12 +188,11 @@ export default async function Home() {
         <div className="handle-grid">
           {handleItems.map((item) => (
             <article className="handle-card" key={item.title}>
-              <img
+              <Image
                 src={item.image}
                 alt={item.alt}
-                height="1024"
-                loading="lazy"
-                width="1536"
+                fill
+                sizes="(max-width: 900px) calc(100vw - 40px), 50vw"
               />
               <span className="handle-label">{item.label}</span>
               <div>
@@ -250,7 +250,14 @@ export default async function Home() {
           aria-label="Coffee beside a marked residential contract."
           className="promise-image-frame"
           role="img"
-        />
+        >
+          <Image
+            src="/landing/coffee-contract.jpg"
+            alt=""
+            fill
+            sizes="(max-width: 900px) calc(100vw - 40px), 420px"
+          />
+        </div>
         <div className="promise-copy">
           <p className="promise-line">
             You did not get into real estate to chase signatures, deadlines,
