@@ -846,6 +846,39 @@ img {
     padding: 20px;
   }
 
+  .handle-grid {
+    gap: 14px;
+    justify-items: center;
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 100%;
+  }
+
+  .handle-card {
+    aspect-ratio: 1.08 / 1;
+    border-radius: 16px;
+    min-height: 0;
+    width: min(100%, 340px);
+  }
+
+  .handle-card div {
+    padding: 22px;
+  }
+
+  .handle-label {
+    left: 22px;
+    top: 22px;
+  }
+
+  .handle-card h3 {
+    font-size: clamp(1.45rem, 8vw, 2rem);
+    white-space: normal;
+  }
+
+  .handle-card p {
+    font-size: 0.88rem;
+  }
+
   .email-meta span {
     word-break: break-word;
   }
