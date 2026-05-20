@@ -16,7 +16,7 @@ export default async function LoginPage() {
         <span className="brand-symbol" aria-hidden="true">
           S
         </span>
-        <span>[COMPANY_NAME]</span>
+        <span>name</span>
       </Link>
       <section className="auth-panel" aria-labelledby="login-title">
         <div className="auth-header">

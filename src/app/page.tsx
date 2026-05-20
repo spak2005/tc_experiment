@@ -87,7 +87,7 @@ export default async function Home() {
             <span className="brand-symbol" aria-hidden="true">
               S
             </span>
-            <span>[COMPANY_NAME]</span>
+            <span>name</span>
           </Link>
           <nav className="nav-actions" aria-label="Primary">
             <Link className="nav-link" href="/login">
