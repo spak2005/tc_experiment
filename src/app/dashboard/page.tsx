@@ -35,11 +35,11 @@ export default async function DashboardPage() {
         <section className="first-run-grid">
           <section className="first-run-primary">
             <p className="status-pill">Introduction email sent</p>
-            <h2>Assign Stephanie a transaction.</h2>
+            <h2>Send Stephanie the first contract.</h2>
             <p>
-              Forward an executed contract to Stephanie. She will open the file,
-              build the timeline, request missing items, and flag anything that
-              needs your attention.
+              Forward an executed contract to Stephanie. When she has enough
+              information, she will open the transaction file, extract the key
+              facts, build the TC plan, and show you what she is watching.
             </p>
             <div className="tc-email-block">
               <span>{tcName}'s inbox</span>
@@ -52,17 +52,59 @@ export default async function DashboardPage() {
           </section>
 
           <section className="first-run-plan">
-            <h2>What Stephanie does next</h2>
+            <h2>What Stephanie will create</h2>
             <ol>
-              <li>Reads the executed contract.</li>
-              <li>Pulls out parties, key dates, and deadlines.</li>
-              <li>Opens the transaction file and checklist.</li>
-              <li>Emails you when something needs your attention.</li>
+              <li>A transaction file with the property, parties, and dates.</li>
+              <li>A milestone plan for option, financing, title, and closing.</li>
+              <li>A document checklist with missing items clearly marked.</li>
+              <li>Drafts or permission requests before external emails go out.</li>
             </ol>
             <p>
-              Stephanie is AI-powered, works through email, and asks before
-              external messages go out.
+              Stephanie works through email, but this dashboard will show the
+              file she is building as soon as the contract is processed.
             </p>
+          </section>
+
+          <section className="first-run-sample" aria-label="Example transaction preview">
+            <div className="sample-label">Example preview</div>
+            <div className="sample-file-header">
+              <div>
+                <p className="eyebrow">Transaction file</p>
+                <h2>123 Bluebonnet Trail</h2>
+              </div>
+              <span className="status-pill">normal</span>
+            </div>
+            <dl className="transaction-facts">
+              <div>
+                <dt>Phase</dt>
+                <dd>option period</dd>
+              </div>
+              <div>
+                <dt>Closing</dt>
+                <dd>Jun 20</dd>
+              </div>
+              <div>
+                <dt>Documents</dt>
+                <dd>4/7 ready</dd>
+              </div>
+            </dl>
+            <section className="transaction-plan-preview">
+              <div>
+                <span>Next milestone</span>
+                <strong>Option period ends</strong>
+                <small>May 27</small>
+              </div>
+              <div>
+                <span>Open work</span>
+                <strong>6 tasks</strong>
+                <small>2 waiting on a reply</small>
+              </div>
+              <div>
+                <span>Permissions</span>
+                <strong>1 approval</strong>
+                <small>Draft ready for your review</small>
+              </div>
+            </section>
           </section>
         </section>
       </main>
