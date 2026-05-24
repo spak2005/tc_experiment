@@ -6,6 +6,14 @@ import {
 import { LogoutButton } from "@/app/components/logout-button";
 import { TcEmailActions } from "@/app/components/tc-email-actions";
 import Link from "next/link";
+import {
+  buildDashboardSummary,
+  documentProgressLabel,
+  formatDashboardDate,
+  formatDashboardDateTime,
+  humanizeDashboardValue,
+  pluralizeDashboardCount
+} from "@/app/dashboard/dashboard-view";
 
 export default async function DashboardPage() {
   const user = await requireCurrentUser();
@@ -15,6 +23,7 @@ export default async function DashboardPage() {
   ]);
   const tcName = tcProfile?.display_name ?? "Stephanie";
   const tcEmail = tcProfile?.inbox_address;
+  const summary = buildDashboardSummary(snapshot);
 
   if (snapshot.transactions.length === 0) {
     return (
@@ -131,15 +140,9 @@ export default async function DashboardPage() {
       </header>
 
       <section className="workroom-summary" aria-label="Stephanie work summary">
-        <SummaryStat label="Active files" value={snapshot.transactions.length} />
-        <SummaryStat label="Waiting on you" value={snapshot.approvals.length + snapshot.blockers.length} />
-        <SummaryStat
-          label="Open tasks"
-          value={snapshot.transactions.reduce(
-            (total, transaction) => total + transaction.open_task_count,
-            0
-          )}
-        />
+        <SummaryStat label="Active files" value={summary.activeFiles} />
+        <SummaryStat label="Waiting on you" value={summary.waitingOnYou} />
+        <SummaryStat label="Open tasks" value={summary.openTasks} />
       </section>
 
       <section className="workroom-layout">
@@ -161,18 +164,15 @@ export default async function DashboardPage() {
               <dl className="transaction-facts">
                 <div>
                   <dt>Phase</dt>
-                  <dd>{humanize(transaction.phase ?? transaction.status)}</dd>
+                  <dd>{humanizeDashboardValue(transaction.phase ?? transaction.status)}</dd>
                 </div>
                 <div>
                   <dt>Closing</dt>
-                  <dd>{formatDate(transaction.closing_date)}</dd>
+                  <dd>{formatDashboardDate(transaction.closing_date)}</dd>
                 </div>
                 <div>
                   <dt>Documents</dt>
-                  <dd>
-                    {transaction.document_count - transaction.outstanding_document_count}/
-                    {transaction.document_count} ready
-                  </dd>
+                  <dd>{documentProgressLabel(transaction)}</dd>
                 </div>
               </dl>
 
@@ -182,11 +182,11 @@ export default async function DashboardPage() {
                   <strong>
                     {transaction.next_milestone_title ?? "Stephanie is building the timeline"}
                   </strong>
-                  <small>{formatDate(transaction.next_milestone_due_date)}</small>
+                  <small>{formatDashboardDate(transaction.next_milestone_due_date)}</small>
                 </div>
                 <div>
                   <span>Open work</span>
-                  <strong>{pluralize(transaction.open_task_count, "task")}</strong>
+                  <strong>{pluralizeDashboardCount(transaction.open_task_count, "task")}</strong>
                   <small>
                     {transaction.waiting_response_task_count > 0
                       ? `${transaction.waiting_response_task_count} waiting on a reply`
@@ -195,7 +195,9 @@ export default async function DashboardPage() {
                 </div>
                 <div>
                   <span>Permissions</span>
-                  <strong>{pluralize(transaction.pending_approval_count, "approval")}</strong>
+                  <strong>
+                    {pluralizeDashboardCount(transaction.pending_approval_count, "approval")}
+                  </strong>
                   <small>
                     {transaction.open_blocker_count > 0
                       ? `${transaction.open_blocker_count} blocker(s) open`
@@ -230,9 +232,9 @@ export default async function DashboardPage() {
                   <li className={`work-log-item status-${event.status}`} key={event.id}>
                     <div>
                       <time dateTime={event.occurredAt}>
-                        {formatDateTime(event.occurredAt)}
+                        {formatDashboardDateTime(event.occurredAt)}
                       </time>
-                      <span>{humanize(event.status)}</span>
+                      <span>{humanizeDashboardValue(event.status)}</span>
                     </div>
                     <strong>{event.title}</strong>
                     <p>{event.summary}</p>
@@ -297,34 +299,6 @@ function SummaryStat({ label, value }: { label: string; value: number }) {
       <span>{label}</span>
     </article>
   );
-}
-
-function formatDate(value?: string | null) {
-  if (!value) return "Pending";
-
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    timeZone: "America/Chicago"
-  }).format(new Date(`${value}T12:00:00Z`));
-}
-
-function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: "America/Chicago"
-  }).format(new Date(value));
-}
-
-function humanize(value: string) {
-  return value.replaceAll("_", " ");
-}
-
-function pluralize(count: number, noun: string) {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 function Panel({
