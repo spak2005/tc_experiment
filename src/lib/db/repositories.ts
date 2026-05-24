@@ -2904,18 +2904,99 @@ export async function updateApprovalStatus(id: string, status: string) {
 }
 
 export async function getDashboardSnapshotForUser(userId: string) {
-  const [transactions, blockers, approvals] = await Promise.all([
+  const [transactions, blockers, approvals, recentActivity] = await Promise.all([
     query<{
       id: string;
       property_address: string | null;
       status: string;
       phase: string | null;
       current_risk: string;
+      effective_date: string | null;
       closing_date: string | null;
+      created_at: string;
+      updated_at: string;
+      next_milestone_title: string | null;
+      next_milestone_due_date: string | null;
+      next_milestone_risk_level: string | null;
+      open_task_count: number;
+      waiting_response_task_count: number;
+      document_count: number;
+      outstanding_document_count: number;
+      open_blocker_count: number;
+      pending_approval_count: number;
+      latest_activity_title: string | null;
+      latest_activity_summary: string | null;
+      latest_activity_status: AgentActivityEvent["status"] | null;
+      latest_activity_occurred_at: string | null;
     }>(
-      `select id, property_address, status, phase, current_risk, closing_date::text
-       from transactions
-       where user_id = $1
+      `select
+         t.id,
+         t.property_address,
+         t.status,
+         t.phase,
+         t.current_risk,
+         t.effective_date::text,
+         t.closing_date::text,
+         t.created_at::text,
+         t.updated_at::text,
+         next_milestone.title as next_milestone_title,
+         next_milestone.due_date::text as next_milestone_due_date,
+         next_milestone.risk_level as next_milestone_risk_level,
+         coalesce(task_counts.open_task_count, 0) as open_task_count,
+         coalesce(task_counts.waiting_response_task_count, 0) as waiting_response_task_count,
+         coalesce(document_counts.document_count, 0) as document_count,
+         coalesce(document_counts.outstanding_document_count, 0) as outstanding_document_count,
+         coalesce(blocker_counts.open_blocker_count, 0) as open_blocker_count,
+         coalesce(approval_counts.pending_approval_count, 0) as pending_approval_count,
+         latest_activity.title as latest_activity_title,
+         latest_activity.summary as latest_activity_summary,
+         latest_activity.status as latest_activity_status,
+         latest_activity.occurred_at::text as latest_activity_occurred_at
+       from transactions t
+       left join lateral (
+         select title, due_date, risk_level
+         from milestones
+         where transaction_id = t.id
+           and completed_at is null
+         order by due_date nulls last, risk_level desc, title
+         limit 1
+       ) next_milestone on true
+       left join lateral (
+         select
+           (count(*) filter (where status not in ('complete', 'completed', 'cancelled')))::int as open_task_count,
+           (count(*) filter (where status = 'waiting_response'))::int as waiting_response_task_count
+         from tasks
+         where transaction_id = t.id
+       ) task_counts on true
+       left join lateral (
+         select
+           count(*)::int as document_count,
+           (count(*) filter (
+             where status not in ('received', 'approved', 'not_applicable')
+           ))::int as outstanding_document_count
+         from documents
+         where transaction_id = t.id
+       ) document_counts on true
+       left join lateral (
+         select count(*)::int as open_blocker_count
+         from blockers
+         where transaction_id = t.id
+           and resolved_at is null
+       ) blocker_counts on true
+       left join lateral (
+         select count(*)::int as pending_approval_count
+         from approvals
+         where transaction_id = t.id
+           and status = 'pending'
+       ) approval_counts on true
+       left join lateral (
+         select title, summary, status, occurred_at
+         from agent_activity_events
+         where transaction_id = t.id
+         order by occurred_at desc, id desc
+         limit 1
+       ) latest_activity on true
+       where t.user_id = $1
        order by updated_at desc
        limit 20`,
       [userId]
@@ -2948,13 +3029,50 @@ export async function getDashboardSnapshotForUser(userId: string) {
        order by a.created_at desc
        limit 20`,
       [userId]
+    ),
+    query<{
+      id: string;
+      user_id: string;
+      transaction_id: string | null;
+      property_address: string | null;
+      transaction_status: string | null;
+      agent_decision_id: string | null;
+      source_type: AgentActivityEvent["sourceType"];
+      event_type: string;
+      title: string;
+      summary: string;
+      status: AgentActivityEvent["status"];
+      metadata: unknown;
+      occurred_at: string;
+    }>(
+      `select
+         e.id,
+         e.user_id,
+         e.transaction_id,
+         t.property_address,
+         t.status as transaction_status,
+         e.agent_decision_id,
+         e.source_type,
+         e.event_type,
+         e.title,
+         e.summary,
+         e.status,
+         e.metadata,
+         e.occurred_at::text
+       from agent_activity_events e
+       left join transactions t on t.id = e.transaction_id
+       where e.user_id = $1
+       order by e.occurred_at desc, e.id desc
+       limit 12`,
+      [userId]
     )
   ]);
 
   return {
     transactions: transactions.rows,
     blockers: blockers.rows,
-    approvals: approvals.rows
+    approvals: approvals.rows,
+    recentActivity: recentActivity.rows.map(toActivityEvent)
   };
 }
 
