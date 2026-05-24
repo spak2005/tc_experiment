@@ -214,6 +214,43 @@ export default async function DashboardPage() {
               </div>
             </article>
           ))}
+
+          <section className="work-log" aria-label="Stephanie's recent work">
+            <div className="work-log-header">
+              <div>
+                <p className="eyebrow">Stephanie's recent work</p>
+                <h2>What she has been doing</h2>
+              </div>
+              <span>{snapshot.recentActivity.length} updates</span>
+            </div>
+
+            {snapshot.recentActivity.length > 0 ? (
+              <ol className="work-log-list">
+                {snapshot.recentActivity.map((event) => (
+                  <li className={`work-log-item status-${event.status}`} key={event.id}>
+                    <div>
+                      <time dateTime={event.occurredAt}>
+                        {formatDateTime(event.occurredAt)}
+                      </time>
+                      <span>{humanize(event.status)}</span>
+                    </div>
+                    <strong>{event.title}</strong>
+                    <p>{event.summary}</p>
+                    {event.transactionId ? (
+                      <Link href={`/transactions/${event.transactionId}`}>
+                        {event.transaction?.propertyAddress ?? "Open transaction"}
+                      </Link>
+                    ) : null}
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="empty-state">
+                Stephanie's work log will appear here after the first contract
+                or transaction email arrives.
+              </p>
+            )}
+          </section>
         </section>
 
         <aside className="workroom-sidebar" aria-label="Stephanie sidebar">
@@ -270,6 +307,16 @@ function formatDate(value?: string | null) {
     day: "numeric",
     timeZone: "America/Chicago"
   }).format(new Date(`${value}T12:00:00Z`));
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/Chicago"
+  }).format(new Date(value));
 }
 
 function humanize(value: string) {

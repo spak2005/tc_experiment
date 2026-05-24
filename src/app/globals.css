@@ -1197,6 +1197,7 @@ button:disabled {
 .first-run-sample,
 .transaction-card,
 .summary-stat,
+.work-log,
 .panel {
   background: var(--panel);
   border: 1px solid #dce3dc;
@@ -1401,6 +1402,84 @@ button:disabled {
   color: #59645d;
   line-height: 1.5;
   margin: 0;
+}
+
+.work-log {
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+}
+
+.work-log-header {
+  align-items: flex-end;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.work-log-header h2 {
+  color: #17211d;
+  font-size: 1.5rem;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.work-log-header span {
+  color: #68736b;
+  font-size: 0.88rem;
+  font-weight: 750;
+}
+
+.work-log-list {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.work-log-item {
+  border-top: 1px solid #dce3dc;
+  display: grid;
+  gap: 7px;
+  padding-top: 12px;
+}
+
+.work-log-item div {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.work-log-item time,
+.work-log-item span {
+  color: #68736b;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.work-log-item span {
+  background: #f1f4f1;
+  border: 1px solid #dce3dc;
+  border-radius: 999px;
+  padding: 3px 8px;
+}
+
+.work-log-item strong {
+  color: #17211d;
+}
+
+.work-log-item p {
+  color: #59645d;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.work-log-item a {
+  color: #176b5d;
+  font-size: 0.9rem;
+  font-weight: 800;
 }
 
 .panel {
@@ -1722,12 +1801,14 @@ pre {
   .first-run-primary,
   .first-run-plan,
   .first-run-sample,
+  .work-log,
   .panel {
     padding: 18px;
   }
 
   .sample-file-header,
-  .transaction-card-header {
+  .transaction-card-header,
+  .work-log-header {
     align-items: flex-start;
     flex-direction: column;
   }
