@@ -74,75 +74,168 @@ export default async function DashboardPage() {
       <header className="dashboard-header">
         <div>
           <p className="eyebrow">Stephanie's workroom</p>
-          <h1>Files Stephanie is watching.</h1>
+          <h1>Stephanie is building the file in public.</h1>
           <p className="lede compact">
-            You do not need to monitor this page. Stephanie will email you when
-            something needs your attention.
+            See the transaction plan, what Stephanie is waiting on, and the
+            latest work she has completed for each file.
           </p>
           <p className="lede compact">
             <Link className="utility-link" href="/observability">
-              Open agent observability
+              Open internal observability
             </Link>
           </p>
         </div>
         <LogoutButton />
       </header>
 
-      <section className="dashboard-grid">
-        <Panel title="Stephanie">
-          <article className="row">
-            <strong>{tcName}</strong>
-            <span className="tc-email">
-              {tcEmail ?? "Provisioning Stephanie's inbox..."}
-            </span>
-            {tcEmail ? <TcEmailActions email={tcEmail} /> : null}
-          </article>
-        </Panel>
+      <section className="workroom-summary" aria-label="Stephanie work summary">
+        <SummaryStat label="Active files" value={snapshot.transactions.length} />
+        <SummaryStat label="Waiting on you" value={snapshot.approvals.length + snapshot.blockers.length} />
+        <SummaryStat
+          label="Open tasks"
+          value={snapshot.transactions.reduce(
+            (total, transaction) => total + transaction.open_task_count,
+            0
+          )}
+        />
+      </section>
 
-        <Panel title="Transactions">
+      <section className="workroom-layout">
+        <section className="workroom-main" aria-label="Transaction plans">
           {snapshot.transactions.map((transaction) => (
-            <article className="row" key={transaction.id}>
-              <strong>
-                <Link href={`/transactions/${transaction.id}`}>
-                  {transaction.property_address ?? "Address pending"}
-                </Link>
-              </strong>
-              <span>
-                {transaction.status} · {transaction.phase ?? "no phase"} ·{" "}
-                {transaction.current_risk}
-              </span>
+            <article className="transaction-card" key={transaction.id}>
+              <div className="transaction-card-header">
+                <div>
+                  <p className="eyebrow">Transaction file</p>
+                  <h2>
+                    <Link href={`/transactions/${transaction.id}`}>
+                      {transaction.property_address ?? "Address pending"}
+                    </Link>
+                  </h2>
+                </div>
+                <span className="status-pill">{transaction.current_risk}</span>
+              </div>
+
+              <dl className="transaction-facts">
+                <div>
+                  <dt>Phase</dt>
+                  <dd>{humanize(transaction.phase ?? transaction.status)}</dd>
+                </div>
+                <div>
+                  <dt>Closing</dt>
+                  <dd>{formatDate(transaction.closing_date)}</dd>
+                </div>
+                <div>
+                  <dt>Documents</dt>
+                  <dd>
+                    {transaction.document_count - transaction.outstanding_document_count}/
+                    {transaction.document_count} ready
+                  </dd>
+                </div>
+              </dl>
+
+              <section className="transaction-plan-preview">
+                <div>
+                  <span>Next milestone</span>
+                  <strong>
+                    {transaction.next_milestone_title ?? "Stephanie is building the timeline"}
+                  </strong>
+                  <small>{formatDate(transaction.next_milestone_due_date)}</small>
+                </div>
+                <div>
+                  <span>Open work</span>
+                  <strong>{pluralize(transaction.open_task_count, "task")}</strong>
+                  <small>
+                    {transaction.waiting_response_task_count > 0
+                      ? `${transaction.waiting_response_task_count} waiting on a reply`
+                      : "No stale replies flagged"}
+                  </small>
+                </div>
+                <div>
+                  <span>Permissions</span>
+                  <strong>{pluralize(transaction.pending_approval_count, "approval")}</strong>
+                  <small>
+                    {transaction.open_blocker_count > 0
+                      ? `${transaction.open_blocker_count} blocker(s) open`
+                      : "No blockers open"}
+                  </small>
+                </div>
+              </section>
+
+              <div className="transaction-latest-work">
+                <span>Latest work</span>
+                <strong>{transaction.latest_activity_title ?? "No activity recorded yet"}</strong>
+                <p>
+                  {transaction.latest_activity_summary ??
+                    "Stephanie will show her work here as soon as she starts processing this file."}
+                </p>
+              </div>
             </article>
           ))}
-        </Panel>
+        </section>
 
-        <Panel title="Blockers">
-          {snapshot.blockers.length > 0 ? (
-            snapshot.blockers.map((blocker) => (
-              <article className="row" key={blocker.id}>
-                <strong>{blocker.title}</strong>
-                <span>{blocker.risk_level}</span>
-              </article>
-            ))
-          ) : (
-            <p className="empty-state">No blockers need your attention.</p>
-          )}
-        </Panel>
+        <aside className="workroom-sidebar" aria-label="Stephanie sidebar">
+          <Panel title="Stephanie">
+            <article className="row">
+              <strong>{tcName}</strong>
+              <span className="tc-email">
+                {tcEmail ?? "Provisioning Stephanie's inbox..."}
+              </span>
+              {tcEmail ? <TcEmailActions email={tcEmail} /> : null}
+            </article>
+          </Panel>
 
-        <Panel title="Approvals">
-          {snapshot.approvals.length > 0 ? (
-            snapshot.approvals.map((approval) => (
-              <article className="row" key={approval.id}>
-                <strong>{approval.proposed_subject}</strong>
-                <span>Waiting for approval</span>
-              </article>
-            ))
-          ) : (
-            <p className="empty-state">Stephanie has nothing waiting on you.</p>
-          )}
-        </Panel>
+          <Panel title="Waiting on you">
+            {snapshot.approvals.length > 0 || snapshot.blockers.length > 0 ? (
+              <>
+                {snapshot.approvals.map((approval) => (
+                  <article className="row" key={approval.id}>
+                    <strong>{approval.proposed_subject}</strong>
+                    <span>Needs approval before Stephanie sends</span>
+                  </article>
+                ))}
+                {snapshot.blockers.map((blocker) => (
+                  <article className="row" key={blocker.id}>
+                    <strong>{blocker.title}</strong>
+                    <span>{blocker.risk_level}</span>
+                  </article>
+                ))}
+              </>
+            ) : (
+              <p className="empty-state">Nothing needs your attention right now.</p>
+            )}
+          </Panel>
+        </aside>
       </section>
     </main>
   );
+}
+
+function SummaryStat({ label, value }: { label: string; value: number }) {
+  return (
+    <article className="summary-stat">
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </article>
+  );
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "Pending";
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "America/Chicago"
+  }).format(new Date(`${value}T12:00:00Z`));
+}
+
+function humanize(value: string) {
+  return value.replaceAll("_", " ");
+}
+
+function pluralize(count: number, noun: string) {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 function Panel({
