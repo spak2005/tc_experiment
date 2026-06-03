@@ -27,11 +27,60 @@ export interface FetchedAttachment {
   body: Buffer;
 }
 
+const pdfHeader = Buffer.from("%PDF-");
+const maxPdfHeaderScanBytes = 1024;
+
+function findPdfHeaderOffset(body: Buffer) {
+  return body.subarray(0, maxPdfHeaderScanBytes).indexOf(pdfHeader);
+}
+
+function attachmentBodyDiagnostics(body: Buffer) {
+  const pdfHeaderOffset = findPdfHeaderOffset(body);
+
+  return {
+    byteLength: body.byteLength,
+    firstBytesHex: body.subarray(0, 16).toString("hex"),
+    firstBytesText: body
+      .subarray(0, 32)
+      .toString("utf8")
+      .replace(/[^\x20-\x7e]/g, "."),
+    pdfHeaderOffset: pdfHeaderOffset >= 0 ? pdfHeaderOffset : null,
+    startsWithPdfHeader: pdfHeaderOffset === 0
+  };
+}
+
+function normalizePdfBody(body: Buffer) {
+  const pdfHeaderOffset = findPdfHeaderOffset(body);
+
+  if (pdfHeaderOffset > 0) {
+    return body.subarray(pdfHeaderOffset);
+  }
+
+  return body;
+}
+
 async function binaryResponseToBuffer(response: unknown): Promise<Buffer> {
+  if (Buffer.isBuffer(response)) {
+    return response;
+  }
+
+  if (response instanceof Uint8Array) {
+    return Buffer.from(response.buffer, response.byteOffset, response.byteLength);
+  }
+
+  if (response instanceof ArrayBuffer) {
+    return Buffer.from(response);
+  }
+
   const binary = response as {
+    data?: unknown;
     arrayBuffer?: () => Promise<ArrayBuffer>;
     bytes?: () => Promise<Uint8Array>;
   };
+
+  if (binary.data) {
+    return binaryResponseToBuffer(binary.data);
+  }
 
   if (binary.arrayBuffer) {
     return Buffer.from(await binary.arrayBuffer());
@@ -63,6 +112,9 @@ export async function fetchIncomingAttachment(input: {
     messageId: input.messageId,
     attachmentId: input.attachment.id
   });
+  const rawBody = await binaryResponseToBuffer(remoteAttachment);
+  const body = isPdfAttachment(input.attachment) ? normalizePdfBody(rawBody) : rawBody;
+
   await createAgentActivityEvent({
     userId: input.userId,
     transactionId: input.transactionId,
@@ -76,10 +128,17 @@ export async function fetchIncomingAttachment(input: {
       messageId: input.messageId,
       attachmentId: input.attachment.id,
       filename: input.attachment.filename,
-      contentType: input.attachment.contentType
+      contentType: input.attachment.contentType,
+      body: attachmentBodyDiagnostics(body),
+      rawBody:
+        body === rawBody
+          ? undefined
+          : {
+              ...attachmentBodyDiagnostics(rawBody),
+              normalizedLeadingBytes: rawBody.byteLength - body.byteLength
+            }
     }
   });
-  const body = await binaryResponseToBuffer(remoteAttachment);
 
   return {
     filename: input.attachment.filename,

@@ -69,7 +69,7 @@ describe("assessContractDocument", () => {
     const assessment = await assessContractDocument({
       attachment: {
         filename: "contract.pdf",
-        body: Buffer.from("pdf")
+        body: Buffer.from("%PDF-contract")
       },
       emailText: "Please see attached contract."
     });
@@ -90,7 +90,7 @@ describe("assessContractDocument", () => {
     const assessment = await assessContractDocument({
       attachment: {
         filename: "contract.pdf",
-        body: Buffer.from("pdf")
+        body: Buffer.from("%PDF-contract")
       },
       emailText: "Please see attached contract."
     });
@@ -102,6 +102,23 @@ describe("assessContractDocument", () => {
     expect(assessment.extractionError?.previousAttempt).toBe(
       "PDF pages exceeded model limit"
     );
+  });
+
+  it("fails locally when a PDF attachment has no PDF header", async () => {
+    const assessment = await assessContractDocument({
+      attachment: {
+        filename: "contract.pdf",
+        body: Buffer.from("not a pdf")
+      },
+      emailText: "Please see attached contract."
+    });
+
+    expect(assessment.extractionMode).toBe("email_fallback");
+    expect(assessment.extractionError?.message).toContain(
+      "did not contain a PDF header"
+    );
+    expect(mocks.extractContractFactsFromPdf).not.toHaveBeenCalled();
+    expect(mocks.extractContractFactsFromPdfChunks).not.toHaveBeenCalled();
   });
 });
 

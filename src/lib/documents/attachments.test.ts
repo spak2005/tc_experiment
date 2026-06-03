@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { storeIncomingAttachment } from "@/lib/documents/attachments";
+import {
+  fetchIncomingAttachment,
+  storeIncomingAttachment
+} from "@/lib/documents/attachments";
 
 const mocks = vi.hoisted(() => ({
   getTcAttachment: vi.fn(),
@@ -31,12 +34,19 @@ const attachment = {
   contentType: "application/pdf"
 };
 
+function exactArrayBuffer(buffer: Buffer) {
+  return buffer.buffer.slice(
+    buffer.byteOffset,
+    buffer.byteOffset + buffer.byteLength
+  );
+}
+
 describe("storeIncomingAttachment", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.createAgentActivityEvent.mockResolvedValue(undefined);
     mocks.getTcAttachment.mockResolvedValue({
-      arrayBuffer: async () => Buffer.from("pdf").buffer
+      arrayBuffer: async () => exactArrayBuffer(Buffer.from("%PDF-contract"))
     });
     mocks.findDocumentBySourceAttachmentKey.mockResolvedValue(null);
     mocks.storePrivateDocument.mockResolvedValue({ key: "blob-key", url: "https://blob" });
@@ -89,6 +99,67 @@ describe("storeIncomingAttachment", () => {
         sourceAttachmentKey: "inbox-1:message-1:att-1",
         sourceMessageId: "message-1",
         blobKey: "blob-key"
+      })
+    );
+  });
+});
+
+describe("fetchIncomingAttachment", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.createAgentActivityEvent.mockResolvedValue(undefined);
+  });
+
+  it("trims leading bytes before a PDF header", async () => {
+    mocks.getTcAttachment.mockResolvedValue({
+      arrayBuffer: async () => exactArrayBuffer(Buffer.from("junk%PDF-contract"))
+    });
+
+    const fetched = await fetchIncomingAttachment({
+      userId: "user-1",
+      inboxId: "inbox-1",
+      messageId: "message-1",
+      attachment
+    });
+
+    expect(fetched.body.toString("utf8")).toBe("%PDF-contract");
+    expect(mocks.createAgentActivityEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          body: expect.objectContaining({
+            startsWithPdfHeader: true
+          }),
+          rawBody: expect.objectContaining({
+            pdfHeaderOffset: 4,
+            normalizedLeadingBytes: 4
+          })
+        })
+      })
+    );
+  });
+
+  it("logs fetched body diagnostics", async () => {
+    mocks.getTcAttachment.mockResolvedValue({
+      arrayBuffer: async () => exactArrayBuffer(Buffer.from("not a pdf"))
+    });
+
+    await fetchIncomingAttachment({
+      userId: "user-1",
+      inboxId: "inbox-1",
+      messageId: "message-1",
+      attachment
+    });
+
+    expect(mocks.createAgentActivityEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          body: expect.objectContaining({
+            byteLength: 9,
+            firstBytesText: "not a pdf",
+            pdfHeaderOffset: null,
+            startsWithPdfHeader: false
+          })
+        })
       })
     );
   });

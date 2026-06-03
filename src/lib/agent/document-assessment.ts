@@ -64,6 +64,10 @@ const gapReasons: Record<string, string> = {
     "The property address is the primary identifier for matching future emails to this transaction."
 };
 
+function hasPdfHeader(body: Buffer) {
+  return body.subarray(0, 1024).includes(Buffer.from("%PDF-"));
+}
+
 function buildIntakeGaps(missingItems: string[]) {
   return missingItems.map((item) => ({
     key: item.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, ""),
@@ -170,6 +174,17 @@ async function extractContractFacts(input: {
   emailText: string;
   temporalContext?: TemporalContext;
 }) {
+  if (!hasPdfHeader(input.attachment.body)) {
+    return {
+      facts: extractTexasContractFacts(input.emailText),
+      extractionMode: "email_fallback" as const,
+      extractionError: {
+        message:
+          "Fetched PDF attachment bytes did not contain a PDF header. The attachment download may be invalid."
+      }
+    };
+  }
+
   try {
     return {
       facts: await extractContractFactsFromPdf({
