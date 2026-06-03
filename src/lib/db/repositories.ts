@@ -7,6 +7,7 @@ import type {
   CreateAgentActivityRunInput,
   UpdateAgentActivityRunInput
 } from "@/lib/agent/activity";
+import { getCurrentActivityRunId } from "@/lib/agent/activity-run-context";
 import {
   mapLegacyRecordsToActivity,
   sortActivityTimeline
@@ -325,6 +326,7 @@ export async function createAgentActivityEvent(
   client?: PoolClientLike
 ) {
   const db = client ?? { query };
+  const activityRunId = input.activityRunId ?? getCurrentActivityRunId() ?? null;
   const result = await db.query<{
     id: string;
     user_id: string;
@@ -369,7 +371,7 @@ export async function createAgentActivityEvent(
     [
       input.userId,
       input.transactionId ?? null,
-      input.activityRunId ?? null,
+      activityRunId,
       input.agentDecisionId ?? null,
       input.sourceType,
       input.eventType,
