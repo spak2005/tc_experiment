@@ -2,7 +2,10 @@ import { randomBytes } from "node:crypto";
 import { query, withTransaction, type PoolClientLike } from "@/lib/db/client";
 import type {
   AgentActivityEvent,
-  CreateAgentActivityEventInput
+  AgentActivityRun,
+  CreateAgentActivityEventInput,
+  CreateAgentActivityRunInput,
+  UpdateAgentActivityRunInput
 } from "@/lib/agent/activity";
 import {
   mapLegacyRecordsToActivity,
@@ -28,6 +31,18 @@ function toActivityEvent(row: {
   transaction_id: string | null;
   property_address?: string | null;
   transaction_status?: string | null;
+  activity_run_id?: string | null;
+  run_user_id?: string | null;
+  run_transaction_id?: string | null;
+  run_property_address?: string | null;
+  run_transaction_status?: string | null;
+  run_workflow_type?: string | null;
+  run_title?: string | null;
+  run_summary?: string | null;
+  run_status?: AgentActivityEvent["status"] | null;
+  run_metadata?: unknown;
+  run_started_at?: string | null;
+  run_completed_at?: string | null;
   agent_decision_id: string | null;
   source_type: AgentActivityEvent["sourceType"];
   event_type: string;
@@ -37,6 +52,32 @@ function toActivityEvent(row: {
   metadata: unknown;
   occurred_at: string;
 }): AgentActivityEvent {
+  const activityRun =
+    row.activity_run_id && row.run_user_id && row.run_workflow_type && row.run_title
+      ? {
+          id: row.activity_run_id,
+          userId: row.run_user_id,
+          transactionId: row.run_transaction_id ?? undefined,
+          transaction: row.run_transaction_id
+            ? {
+                id: row.run_transaction_id,
+                propertyAddress: row.run_property_address ?? undefined,
+                status: row.run_transaction_status ?? undefined
+              }
+            : undefined,
+          workflowType: row.run_workflow_type,
+          title: row.run_title,
+          summary: row.run_summary ?? "",
+          status: row.run_status ?? "started",
+          metadata:
+            row.run_metadata && typeof row.run_metadata === "object"
+              ? (row.run_metadata as Record<string, unknown>)
+              : {},
+          startedAt: row.run_started_at ?? row.occurred_at,
+          completedAt: row.run_completed_at ?? undefined
+        }
+      : undefined;
+
   return {
     id: row.id,
     userId: row.user_id,
@@ -48,6 +89,8 @@ function toActivityEvent(row: {
           status: row.transaction_status ?? undefined
         }
       : undefined,
+    activityRunId: row.activity_run_id ?? undefined,
+    activityRun,
     agentDecisionId: row.agent_decision_id ?? undefined,
     sourceType: row.source_type,
     eventType: row.event_type,
@@ -134,6 +177,149 @@ export interface CreateTcProfileInput {
   escalationEmail: string;
 }
 
+function toActivityRun(row: {
+  id: string;
+  user_id: string;
+  transaction_id: string | null;
+  property_address?: string | null;
+  transaction_status?: string | null;
+  workflow_type: string;
+  title: string;
+  summary: string;
+  status: AgentActivityRun["status"];
+  metadata: unknown;
+  started_at: string;
+  completed_at: string | null;
+}): AgentActivityRun {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    transactionId: row.transaction_id ?? undefined,
+    transaction: row.transaction_id
+      ? {
+          id: row.transaction_id,
+          propertyAddress: row.property_address ?? undefined,
+          status: row.transaction_status ?? undefined
+        }
+      : undefined,
+    workflowType: row.workflow_type,
+    title: row.title,
+    summary: row.summary,
+    status: row.status,
+    metadata:
+      row.metadata && typeof row.metadata === "object"
+        ? (row.metadata as Record<string, unknown>)
+        : {},
+    startedAt: row.started_at,
+    completedAt: row.completed_at ?? undefined
+  };
+}
+
+export async function createAgentActivityRun(
+  input: CreateAgentActivityRunInput,
+  client?: PoolClientLike
+) {
+  const db = client ?? { query };
+  const result = await db.query<{
+    id: string;
+    user_id: string;
+    transaction_id: string | null;
+    workflow_type: string;
+    title: string;
+    summary: string;
+    status: AgentActivityRun["status"];
+    metadata: unknown;
+    started_at: string;
+    completed_at: string | null;
+  }>(
+    `insert into agent_activity_runs (
+       user_id,
+       transaction_id,
+       workflow_type,
+       title,
+       summary,
+       status,
+       metadata,
+       started_at
+     )
+     values ($1, $2, $3, $4, $5, $6, $7, coalesce($8, now()))
+     returning
+       id,
+       user_id,
+       transaction_id,
+       workflow_type,
+       title,
+       summary,
+       status,
+       metadata,
+       started_at::text,
+       completed_at::text`,
+    [
+      input.userId,
+      input.transactionId ?? null,
+      input.workflowType,
+      input.title,
+      input.summary ?? "",
+      input.status ?? "started",
+      toJsonb(input.metadata ?? {}),
+      input.startedAt ?? null
+    ]
+  );
+
+  return toActivityRun(result.rows[0]);
+}
+
+export async function updateAgentActivityRun(
+  input: UpdateAgentActivityRunInput,
+  client?: PoolClientLike
+) {
+  const db = client ?? { query };
+  const result = await db.query<{
+    id: string;
+    user_id: string;
+    transaction_id: string | null;
+    workflow_type: string;
+    title: string;
+    summary: string;
+    status: AgentActivityRun["status"];
+    metadata: unknown;
+    started_at: string;
+    completed_at: string | null;
+  }>(
+    `update agent_activity_runs
+     set transaction_id = coalesce($2, transaction_id),
+         title = coalesce($3, title),
+         summary = coalesce($4, summary),
+         status = coalesce($5, status),
+         metadata = coalesce($6, metadata),
+         completed_at = coalesce($7, completed_at),
+         updated_at = now()
+     where id = $1
+     returning
+       id,
+       user_id,
+       transaction_id,
+       workflow_type,
+       title,
+       summary,
+       status,
+       metadata,
+       started_at::text,
+       completed_at::text`,
+    [
+      input.id,
+      input.transactionId ?? null,
+      input.title ?? null,
+      input.summary ?? null,
+      input.status ?? null,
+      input.metadata ? toJsonb(input.metadata) : null,
+      input.completedAt ?? null
+    ]
+  );
+
+  return result.rows[0] ? toActivityRun(result.rows[0]) : null;
+}
+
 export async function createAgentActivityEvent(
   input: CreateAgentActivityEventInput,
   client?: PoolClientLike
@@ -143,6 +329,7 @@ export async function createAgentActivityEvent(
     id: string;
     user_id: string;
     transaction_id: string | null;
+    activity_run_id: string | null;
     agent_decision_id: string | null;
     source_type: AgentActivityEvent["sourceType"];
     event_type: string;
@@ -155,6 +342,7 @@ export async function createAgentActivityEvent(
     `insert into agent_activity_events (
        user_id,
        transaction_id,
+       activity_run_id,
        agent_decision_id,
        source_type,
        event_type,
@@ -164,11 +352,12 @@ export async function createAgentActivityEvent(
        metadata,
        occurred_at
      )
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, coalesce($10, now()))
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, coalesce($11, now()))
      returning
        id,
        user_id,
        transaction_id,
+       activity_run_id,
        agent_decision_id,
        source_type,
        event_type,
@@ -180,6 +369,7 @@ export async function createAgentActivityEvent(
     [
       input.userId,
       input.transactionId ?? null,
+      input.activityRunId ?? null,
       input.agentDecisionId ?? null,
       input.sourceType,
       input.eventType,
@@ -199,6 +389,7 @@ export async function getTransactionActivityEvents(transactionId: string) {
     id: string;
     user_id: string;
     transaction_id: string | null;
+    activity_run_id: string | null;
     agent_decision_id: string | null;
     source_type: AgentActivityEvent["sourceType"];
     event_type: string;
@@ -212,6 +403,7 @@ export async function getTransactionActivityEvents(transactionId: string) {
        id,
        user_id,
        transaction_id,
+       activity_run_id,
        agent_decision_id,
        source_type,
        event_type,
@@ -236,6 +428,18 @@ export async function getUserActivityTimeline(userId: string, limit = 100) {
     transaction_id: string | null;
     property_address: string | null;
     transaction_status: string | null;
+    activity_run_id: string | null;
+    run_user_id: string | null;
+    run_transaction_id: string | null;
+    run_property_address: string | null;
+    run_transaction_status: string | null;
+    run_workflow_type: string | null;
+    run_title: string | null;
+    run_summary: string | null;
+    run_status: AgentActivityEvent["status"] | null;
+    run_metadata: unknown;
+    run_started_at: string | null;
+    run_completed_at: string | null;
     agent_decision_id: string | null;
     source_type: AgentActivityEvent["sourceType"];
     event_type: string;
@@ -251,6 +455,18 @@ export async function getUserActivityTimeline(userId: string, limit = 100) {
        e.transaction_id,
        t.property_address,
        t.status as transaction_status,
+       e.activity_run_id,
+       r.user_id as run_user_id,
+       r.transaction_id as run_transaction_id,
+       rt.property_address as run_property_address,
+       rt.status as run_transaction_status,
+       r.workflow_type as run_workflow_type,
+       r.title as run_title,
+       r.summary as run_summary,
+       r.status as run_status,
+       r.metadata as run_metadata,
+       r.started_at::text as run_started_at,
+       r.completed_at::text as run_completed_at,
        e.agent_decision_id,
        e.source_type,
        e.event_type,
@@ -261,6 +477,8 @@ export async function getUserActivityTimeline(userId: string, limit = 100) {
        e.occurred_at::text
      from agent_activity_events e
      left join transactions t on t.id = e.transaction_id
+     left join agent_activity_runs r on r.id = e.activity_run_id
+     left join transactions rt on rt.id = r.transaction_id
      where e.user_id = $1
      order by e.occurred_at desc, e.id desc
      limit $2`,

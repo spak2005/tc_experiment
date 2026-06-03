@@ -21,6 +21,31 @@ export type AgentActivityStatus =
   | "sent"
   | "ignored";
 
+export type AgentActivityWorkflowType =
+  | "inbound_email"
+  | "approval_reply"
+  | "agent_wakeup"
+  | "deadline_monitor"
+  | "legacy_activity";
+
+export interface AgentActivityRun {
+  id: string;
+  userId: string;
+  transactionId?: string;
+  transaction?: {
+    id: string;
+    propertyAddress?: string;
+    status?: string;
+  };
+  workflowType: AgentActivityWorkflowType | string;
+  title: string;
+  summary: string;
+  status: AgentActivityStatus;
+  metadata: Record<string, unknown>;
+  startedAt: string;
+  completedAt?: string;
+}
+
 export interface AgentActivityEvent {
   id: string;
   userId: string;
@@ -30,6 +55,8 @@ export interface AgentActivityEvent {
     propertyAddress?: string;
     status?: string;
   };
+  activityRunId?: string;
+  activityRun?: AgentActivityRun;
   agentDecisionId?: string;
   sourceType: AgentActivitySource;
   eventType: string;
@@ -45,6 +72,7 @@ export interface AgentActivityEvent {
 export interface CreateAgentActivityEventInput {
   userId: string;
   transactionId?: string;
+  activityRunId?: string;
   agentDecisionId?: string;
   sourceType: AgentActivitySource;
   eventType: string;
@@ -53,6 +81,27 @@ export interface CreateAgentActivityEventInput {
   status: AgentActivityStatus;
   metadata?: Record<string, unknown>;
   occurredAt?: Date;
+}
+
+export interface CreateAgentActivityRunInput {
+  userId: string;
+  transactionId?: string;
+  workflowType: AgentActivityWorkflowType | string;
+  title: string;
+  summary?: string;
+  status?: AgentActivityStatus;
+  metadata?: Record<string, unknown>;
+  startedAt?: Date;
+}
+
+export interface UpdateAgentActivityRunInput {
+  id: string;
+  transactionId?: string;
+  title?: string;
+  summary?: string;
+  status?: AgentActivityStatus;
+  metadata?: Record<string, unknown>;
+  completedAt?: Date;
 }
 
 export function safeBodyPreview(value: string, maxLength = 500) {
