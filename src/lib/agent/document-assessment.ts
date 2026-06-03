@@ -1,7 +1,12 @@
-import { extractContractFactsFromPdf } from "@/lib/contracts/anthropic-extract";
+import {
+  extractContractFactsFromPdf,
+  extractContractFactsFromPdfChunks,
+  extractContractFactsFromText
+} from "@/lib/contracts/anthropic-extract";
 import { extractTexasContractFacts } from "@/lib/contracts/extract";
 import type { ContractFacts } from "@/lib/contracts/facts";
 import { getStringFact } from "@/lib/contracts/facts";
+import { extractTextFromPdfWithOcr } from "@/lib/contracts/ocr-extract";
 import { validateContractFacts } from "@/lib/contracts/validate";
 import type { StoredAttachment } from "@/lib/documents/attachments";
 import type { TemporalContext } from "@/lib/time/clock";
@@ -26,6 +31,7 @@ export interface ExtractionErrorSummary {
   message: string;
   status?: number;
   type?: string;
+  previousAttempt?: string;
 }
 
 export interface DocumentAssessment {
@@ -33,7 +39,7 @@ export interface DocumentAssessment {
   filename: string;
   kind: DocumentKind;
   usability: DocumentUsability;
-  extractionMode: "anthropic_pdf" | "email_fallback";
+  extractionMode: "anthropic_pdf" | "anthropic_pdf_chunks" | "ocr_text" | "email_fallback";
   extractionError?: ExtractionErrorSummary;
   facts: ContractFacts;
   validationStatus: string;
@@ -68,22 +74,41 @@ function buildIntakeGaps(missingItems: string[]) {
   }));
 }
 
-function summarizeExtractionError(error: unknown): ExtractionErrorSummary {
+function errorMessage(error: unknown) {
   if (!error || typeof error !== "object") {
-    return { message: "Unknown extraction error." };
+    return "Unknown extraction error.";
+  }
+
+  const message = (error as Record<string, unknown>).message;
+  return typeof message === "string" && message.trim().length > 0
+    ? message
+    : "Unknown extraction error.";
+}
+
+function summarizeExtractionError(
+  error: unknown,
+  previousAttempt?: unknown
+): ExtractionErrorSummary {
+  if (!error || typeof error !== "object") {
+    return {
+      message: "Unknown extraction error.",
+      ...(previousAttempt
+        ? { previousAttempt: errorMessage(previousAttempt).slice(0, 500) }
+        : {})
+    };
   }
 
   const record = error as Record<string, unknown>;
-  const message =
-    typeof record.message === "string" && record.message.trim().length > 0
-      ? record.message
-      : "Unknown extraction error.";
+  const message = errorMessage(error);
 
   return {
     name: typeof record.name === "string" ? record.name : undefined,
     message: message.slice(0, 500),
     status: typeof record.status === "number" ? record.status : undefined,
-    type: typeof record.type === "string" ? record.type : undefined
+    type: typeof record.type === "string" ? record.type : undefined,
+    ...(previousAttempt
+      ? { previousAttempt: errorMessage(previousAttempt).slice(0, 500) }
+      : {})
   };
 }
 
@@ -142,6 +167,58 @@ function classifyDocument(input: {
   };
 }
 
+async function extractContractFacts(input: {
+  attachment: Pick<StoredAttachment, "filename" | "body"> & Partial<StoredAttachment>;
+  emailText: string;
+  temporalContext?: TemporalContext;
+}) {
+  try {
+    return {
+      facts: await extractContractFactsFromPdf({
+        filename: input.attachment.filename,
+        pdf: input.attachment.body,
+        emailContext: input.emailText,
+        temporalContext: input.temporalContext
+      }),
+      extractionMode: "anthropic_pdf" as const
+    };
+  } catch (fullPdfError) {
+    try {
+      return {
+        facts: await extractContractFactsFromPdfChunks({
+          filename: input.attachment.filename,
+          pdf: input.attachment.body,
+          emailContext: input.emailText,
+          temporalContext: input.temporalContext
+        }),
+        extractionMode: "anthropic_pdf_chunks" as const
+      };
+    } catch (chunkedPdfError) {
+      try {
+        const ocrText = await extractTextFromPdfWithOcr({
+          filename: input.attachment.filename,
+          pdf: input.attachment.body
+        });
+        return {
+          facts: await extractContractFactsFromText({
+            filename: input.attachment.filename,
+            text: ocrText,
+            emailContext: input.emailText,
+            temporalContext: input.temporalContext
+          }),
+          extractionMode: "ocr_text" as const
+        };
+      } catch (ocrError) {
+        return {
+          facts: extractTexasContractFacts(input.emailText),
+          extractionMode: "email_fallback" as const,
+          extractionError: summarizeExtractionError(ocrError, chunkedPdfError)
+        };
+      }
+    }
+  }
+}
+
 export async function assessContractDocument(input: {
   attachment: Pick<StoredAttachment, "filename" | "body"> & Partial<StoredAttachment>;
   emailText: string;
@@ -152,17 +229,13 @@ export async function assessContractDocument(input: {
   let extractionFailed = false;
   let extractionError: ExtractionErrorSummary | undefined;
 
-  try {
-    facts = await extractContractFactsFromPdf({
-      filename: input.attachment.filename,
-      pdf: input.attachment.body,
-      emailContext: input.emailText,
-      temporalContext: input.temporalContext
-    });
-    extractionMode = "anthropic_pdf";
-  } catch (error) {
+  const extraction = await extractContractFacts(input);
+  facts = extraction.facts;
+  extractionMode = extraction.extractionMode;
+  extractionError = extraction.extractionError;
+
+  if (extractionMode === "email_fallback" && extractionError) {
     extractionFailed = true;
-    extractionError = summarizeExtractionError(error);
   }
 
   const validation = validateContractFacts(facts);

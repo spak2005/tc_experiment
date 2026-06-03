@@ -1,5 +1,6 @@
 import type { ContractFacts } from "@/lib/contracts/facts";
-import { contractFactsSchema } from "@/lib/contracts/facts";
+import { contractFactsSchema, type ExtractedValue } from "@/lib/contracts/facts";
+import { buildExpectedDocumentChecklist } from "@/lib/contracts/checklist";
 import { getAnthropicClient, getAnthropicModel } from "@/lib/llm/anthropic";
 import { getFirstTextBlock, parseJsonObject } from "@/lib/llm/json";
 import {
@@ -7,10 +8,22 @@ import {
   getTemporalContext,
   type TemporalContext
 } from "@/lib/time/clock";
+import { PDFDocument } from "pdf-lib";
 
 export interface ExtractPdfFactsInput {
   filename: string;
   pdf: Buffer;
+  emailContext?: string;
+  temporalContext?: TemporalContext;
+}
+
+export interface ExtractPdfFactsFromChunksInput extends ExtractPdfFactsInput {
+  pagesPerChunk?: number;
+}
+
+export interface ExtractTextFactsInput {
+  filename: string;
+  text: string;
   emailContext?: string;
   temporalContext?: TemporalContext;
 }
@@ -154,4 +167,297 @@ export async function extractContractFactsFromPdf(
   const parsed = parseJsonObject<unknown>(text);
 
   return contractFactsSchema.parse(parsed);
+}
+
+export async function extractContractFactsFromText(
+  input: ExtractTextFactsInput
+): Promise<ContractFacts> {
+  const client = getAnthropicClient();
+  const temporalContext = input.temporalContext ?? getTemporalContext();
+  const response = await client.messages.create({
+    model: getAnthropicModel(),
+    max_tokens: 4000,
+    temperature: 0,
+    system: SYSTEM_PROMPT,
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: `${USER_PROMPT}\n\n${formatTemporalContextLine(
+              temporalContext
+            )}\n\nFilename: ${input.filename}\n\nEmail context:\n${
+              input.emailContext ?? "None"
+            }\n\nOCR/text extraction from the PDF:\n${input.text}`
+          }
+        ]
+      }
+    ]
+  });
+
+  const text = getFirstTextBlock(response.content);
+  const parsed = parseJsonObject<unknown>(text);
+
+  return contractFactsSchema.parse(parsed);
+}
+
+function betterValue(left?: ExtractedValue, right?: ExtractedValue) {
+  if (!left) return right;
+  if (!right) return left;
+  if (left.value === null && right.value !== null) return right;
+  if (right.value === null) return left;
+  return right.confidence > left.confidence ? right : left;
+}
+
+function mergeUniqueBy<T>(items: T[], keyFor: (item: T) => string) {
+  const seen = new Set<string>();
+  const merged: T[] = [];
+
+  for (const item of items) {
+    const key = keyFor(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(item);
+  }
+
+  return merged;
+}
+
+function factIsMissing(fact?: ExtractedValue) {
+  return !fact || fact.value === null;
+}
+
+function missingFactKeys(facts: ContractFacts) {
+  const missing: string[] = [];
+
+  if (factIsMissing(facts.propertyAddress)) missing.push("propertyAddress");
+  if (factIsMissing(facts.effectiveDate)) missing.push("effectiveDate");
+  if (factIsMissing(facts.closingDate)) missing.push("closingDate");
+  if (factIsMissing(facts.cashOrFinanced)) missing.push("cashOrFinanced");
+  if (factIsMissing(facts.earnestMoneyAmount)) missing.push("earnestMoneyAmount");
+  if (factIsMissing(facts.optionPeriodDays)) missing.push("optionPeriodDays");
+  if (factIsMissing(facts.titleCompany) && factIsMissing(facts.titleEscrow?.titleCompany)) {
+    missing.push("titleCompany");
+  }
+
+  return missing;
+}
+
+function mergeContractFacts(facts: ContractFacts[]) {
+  const [first, ...rest] = facts;
+  let merged: ContractFacts = {
+    ...first,
+    addenda: [...first.addenda],
+    contacts: [...first.contacts],
+    expectedDocuments: [...first.expectedDocuments],
+    financing: first.financing ? { ...first.financing } : undefined,
+    titleEscrow: first.titleEscrow ? { ...first.titleEscrow } : undefined,
+    hoa: first.hoa ? { ...first.hoa } : undefined,
+    disclosures: first.disclosures ? { ...first.disclosures } : undefined
+  };
+
+  for (const item of rest) {
+    merged = {
+      ...merged,
+      contractVersion:
+        merged.contractVersion === "UNKNOWN" ? item.contractVersion : merged.contractVersion,
+      propertyAddress: betterValue(merged.propertyAddress, item.propertyAddress),
+      buyerNames: betterValue(merged.buyerNames, item.buyerNames),
+      sellerNames: betterValue(merged.sellerNames, item.sellerNames),
+      salesPrice: betterValue(merged.salesPrice, item.salesPrice),
+      cashOrFinanced: betterValue(merged.cashOrFinanced, item.cashOrFinanced),
+      titleCompany: betterValue(merged.titleCompany, item.titleCompany),
+      earnestMoneyAmount: betterValue(merged.earnestMoneyAmount, item.earnestMoneyAmount),
+      optionFeeAmount: betterValue(merged.optionFeeAmount, item.optionFeeAmount),
+      optionPeriodDays: betterValue(merged.optionPeriodDays, item.optionPeriodDays),
+      effectiveDate: betterValue(merged.effectiveDate, item.effectiveDate),
+      closingDate: betterValue(merged.closingDate, item.closingDate),
+      surveySelection: betterValue(merged.surveySelection, item.surveySelection),
+      surveyDeadlineDays: betterValue(merged.surveyDeadlineDays, item.surveyDeadlineDays),
+      sellerDisclosureDeadlineDays: betterValue(
+        merged.sellerDisclosureDeadlineDays,
+        item.sellerDisclosureDeadlineDays
+      ),
+      titleObjectionDays: betterValue(merged.titleObjectionDays, item.titleObjectionDays),
+      hoaRequired: betterValue(merged.hoaRequired, item.hoaRequired),
+      addenda: mergeUniqueBy([...merged.addenda, ...item.addenda], (addendum) =>
+        String(addendum.value ?? addendum.evidence ?? addendum.sourceReference ?? "")
+      ),
+      contacts: mergeUniqueBy([...merged.contacts, ...item.contacts], (contact) =>
+        [contact.role, contact.email, contact.name, contact.organization].filter(Boolean).join(":")
+      ),
+      expectedDocuments: mergeUniqueBy(
+        [...merged.expectedDocuments, ...item.expectedDocuments],
+        (document) => document.key
+      ),
+      financing: {
+        ...merged.financing,
+        ...item.financing,
+        financingType: betterValue(
+          merged.financing?.financingType,
+          item.financing?.financingType
+        ),
+        lenderName: betterValue(merged.financing?.lenderName, item.financing?.lenderName),
+        loanOfficerName: betterValue(
+          merged.financing?.loanOfficerName,
+          item.financing?.loanOfficerName
+        ),
+        loanOfficerEmail: betterValue(
+          merged.financing?.loanOfficerEmail,
+          item.financing?.loanOfficerEmail
+        ),
+        loanApprovalDeadlineDays: betterValue(
+          merged.financing?.loanApprovalDeadlineDays,
+          item.financing?.loanApprovalDeadlineDays
+        ),
+        appraisalRequired: betterValue(
+          merged.financing?.appraisalRequired,
+          item.financing?.appraisalRequired
+        ),
+        appraisalDeadlineDays: betterValue(
+          merged.financing?.appraisalDeadlineDays,
+          item.financing?.appraisalDeadlineDays
+        )
+      },
+      titleEscrow: {
+        ...merged.titleEscrow,
+        ...item.titleEscrow,
+        titleCompany: betterValue(
+          merged.titleEscrow?.titleCompany,
+          item.titleEscrow?.titleCompany
+        ),
+        escrowOfficerName: betterValue(
+          merged.titleEscrow?.escrowOfficerName,
+          item.titleEscrow?.escrowOfficerName
+        ),
+        escrowOfficerEmail: betterValue(
+          merged.titleEscrow?.escrowOfficerEmail,
+          item.titleEscrow?.escrowOfficerEmail
+        ),
+        titleCommitmentDeadlineDays: betterValue(
+          merged.titleEscrow?.titleCommitmentDeadlineDays,
+          item.titleEscrow?.titleCommitmentDeadlineDays
+        ),
+        titleObjectionDeadlineDays: betterValue(
+          merged.titleEscrow?.titleObjectionDeadlineDays,
+          item.titleEscrow?.titleObjectionDeadlineDays
+        )
+      },
+      hoa: {
+        ...merged.hoa,
+        ...item.hoa,
+        required: betterValue(merged.hoa?.required, item.hoa?.required),
+        managementCompany: betterValue(
+          merged.hoa?.managementCompany,
+          item.hoa?.managementCompany
+        ),
+        contactEmail: betterValue(merged.hoa?.contactEmail, item.hoa?.contactEmail),
+        resaleCertificateRequired: betterValue(
+          merged.hoa?.resaleCertificateRequired,
+          item.hoa?.resaleCertificateRequired
+        )
+      },
+      disclosures: {
+        ...merged.disclosures,
+        ...item.disclosures,
+        sellerDisclosureRequired: betterValue(
+          merged.disclosures?.sellerDisclosureRequired,
+          item.disclosures?.sellerDisclosureRequired
+        ),
+        sellerDisclosureDeadlineDays: betterValue(
+          merged.disclosures?.sellerDisclosureDeadlineDays,
+          item.disclosures?.sellerDisclosureDeadlineDays
+        ),
+        leadBasedPaintRequired: betterValue(
+          merged.disclosures?.leadBasedPaintRequired,
+          item.disclosures?.leadBasedPaintRequired
+        )
+      },
+      signatureStatus:
+        merged.signatureStatus === "appears_executed" ||
+        item.signatureStatus === "appears_executed"
+          ? "appears_executed"
+          : merged.signatureStatus === "missing_signature" ||
+              item.signatureStatus === "missing_signature"
+            ? "missing_signature"
+            : "unknown"
+    };
+  }
+
+  merged = {
+    ...merged,
+    titleCompany: betterValue(merged.titleCompany, merged.titleEscrow?.titleCompany),
+    missingRequiredFacts: missingFactKeys(merged)
+  };
+
+  return contractFactsSchema.parse({
+    ...merged,
+    expectedDocuments:
+      merged.expectedDocuments.length > 0
+        ? merged.expectedDocuments
+        : buildExpectedDocumentChecklist(merged)
+  });
+}
+
+async function splitPdfIntoChunks(input: ExtractPdfFactsFromChunksInput) {
+  const source = await PDFDocument.load(input.pdf, { ignoreEncryption: true });
+  const pagesPerChunk = input.pagesPerChunk ?? 8;
+  const chunks: Array<{ filename: string; pdf: Buffer; pageStart: number; pageEnd: number }> = [];
+
+  for (let start = 0; start < source.getPageCount(); start += pagesPerChunk) {
+    const end = Math.min(start + pagesPerChunk, source.getPageCount());
+    const chunk = await PDFDocument.create();
+    const pages = await chunk.copyPages(
+      source,
+      Array.from({ length: end - start }, (_, index) => start + index)
+    );
+
+    for (const page of pages) {
+      chunk.addPage(page);
+    }
+
+    const bytes = await chunk.save();
+    chunks.push({
+      filename: `${input.filename} pages ${start + 1}-${end}`,
+      pdf: Buffer.from(bytes),
+      pageStart: start + 1,
+      pageEnd: end
+    });
+  }
+
+  return chunks;
+}
+
+export async function extractContractFactsFromPdfChunks(
+  input: ExtractPdfFactsFromChunksInput
+): Promise<ContractFacts> {
+  const chunks = await splitPdfIntoChunks(input);
+  const extracted: ContractFacts[] = [];
+  const errors: string[] = [];
+
+  for (const chunk of chunks) {
+    try {
+      extracted.push(
+        await extractContractFactsFromPdf({
+          filename: chunk.filename,
+          pdf: chunk.pdf,
+          emailContext: `${input.emailContext ?? "None"}\n\nThis is page chunk ${chunk.pageStart}-${chunk.pageEnd}.`,
+          temporalContext: input.temporalContext
+        })
+      );
+    } catch (error) {
+      errors.push(
+        error instanceof Error
+          ? `pages ${chunk.pageStart}-${chunk.pageEnd}: ${error.message}`
+          : `pages ${chunk.pageStart}-${chunk.pageEnd}: unknown error`
+      );
+    }
+  }
+
+  if (extracted.length === 0) {
+    throw new Error(`All PDF chunk extraction attempts failed. ${errors.join(" ")}`);
+  }
+
+  return mergeContractFacts(extracted);
 }
