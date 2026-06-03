@@ -19,11 +19,13 @@ vi.mock("@/lib/time/clock", () => ({
 
 vi.mock("@/lib/db/repositories", () => ({
   createAgentActivityEvent: vi.fn(),
+  createAgentActivityRun: vi.fn(async () => ({ id: "run-1" })),
   createAuditEvent: vi.fn(),
   createOrGetOpenDeadlineBlocker: vi.fn(async () => ({ id: "blocker-1", inserted: true })),
   createOrGetOpenTaskBlocker: vi.fn(async () => ({ id: "blocker-1", inserted: true })),
   findAtRiskMilestones: vi.fn(async () => []),
-  findStaleResponseTasks: vi.fn(async () => [])
+  findStaleResponseTasks: vi.fn(async () => []),
+  updateAgentActivityRun: vi.fn(async () => ({ id: "run-1" }))
 }));
 
 vi.mock("@/lib/agentmail/service", () => ({

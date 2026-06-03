@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   evaluateActionPolicy: vi.fn(),
   buildExpectedDocumentChecklist: vi.fn(),
   createAgentActivityEvent: vi.fn(),
+  createAgentActivityRun: vi.fn(),
   createAgentDecisionOnce: vi.fn(),
   createAuditEvent: vi.fn(),
   createMessage: vi.fn(),
@@ -23,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   insertTasks: vi.fn(),
   markWebhookEventProcessed: vi.fn(),
   saveExtractedContractFacts: vi.fn(),
+  updateAgentActivityRun: vi.fn(),
   updateTransactionFromFacts: vi.fn(),
   upsertTransactionMemory: vi.fn(),
   fetchIncomingAttachment: vi.fn(),
@@ -78,6 +80,7 @@ vi.mock("@/lib/contracts/checklist", () => ({
 
 vi.mock("@/lib/db/repositories", () => ({
   createAgentActivityEvent: mocks.createAgentActivityEvent,
+  createAgentActivityRun: mocks.createAgentActivityRun,
   createAgentDecisionOnce: mocks.createAgentDecisionOnce,
   createAuditEvent: mocks.createAuditEvent,
   createMessage: mocks.createMessage,
@@ -90,6 +93,7 @@ vi.mock("@/lib/db/repositories", () => ({
   insertTasks: mocks.insertTasks,
   markWebhookEventProcessed: mocks.markWebhookEventProcessed,
   saveExtractedContractFacts: mocks.saveExtractedContractFacts,
+  updateAgentActivityRun: mocks.updateAgentActivityRun,
   updateTransactionFromFacts: mocks.updateTransactionFromFacts,
   upsertTransactionMemory: mocks.upsertTransactionMemory
 }));
@@ -332,6 +336,8 @@ describe("processAgentMailInbound reliability guards", () => {
     });
     mocks.findTcProfileByInbox.mockResolvedValue(null);
     mocks.markWebhookEventProcessed.mockResolvedValue(undefined);
+    mocks.createAgentActivityRun.mockResolvedValue({ id: "run-1" });
+    mocks.updateAgentActivityRun.mockResolvedValue({ id: "run-1" });
   });
 
   it("marks unknown inbox webhooks processed before ignoring them", async () => {

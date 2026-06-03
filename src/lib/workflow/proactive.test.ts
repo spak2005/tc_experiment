@@ -6,10 +6,12 @@ const mocks = vi.hoisted(() => ({
   claimDueAgentWakeups: vi.fn(),
   completeAgentWakeup: vi.fn(),
   createAgentActivityEvent: vi.fn(),
+  createAgentActivityRun: vi.fn(),
   createAgentDecisionOnce: vi.fn(),
   createApprovalOnce: vi.fn(),
   createAuditEvent: vi.fn(),
   failAgentWakeup: vi.fn(),
+  updateAgentActivityRun: vi.fn(),
   updateAgentDecisionExecution: vi.fn(),
   updateApprovalRequestMetadata: vi.fn(),
   buildProactiveAgentContext: vi.fn(),
@@ -28,10 +30,12 @@ vi.mock("@/lib/db/repositories", () => ({
   claimDueAgentWakeups: mocks.claimDueAgentWakeups,
   completeAgentWakeup: mocks.completeAgentWakeup,
   createAgentActivityEvent: mocks.createAgentActivityEvent,
+  createAgentActivityRun: mocks.createAgentActivityRun,
   createAgentDecisionOnce: mocks.createAgentDecisionOnce,
   createApprovalOnce: mocks.createApprovalOnce,
   createAuditEvent: mocks.createAuditEvent,
   failAgentWakeup: mocks.failAgentWakeup,
+  updateAgentActivityRun: mocks.updateAgentActivityRun,
   updateAgentDecisionExecution: mocks.updateAgentDecisionExecution,
   updateApprovalRequestMetadata: mocks.updateApprovalRequestMetadata
 }));
@@ -128,6 +132,8 @@ describe("processDueAgentWakeups", () => {
     for (const mock of Object.values(mocks)) {
       mock.mockReset();
     }
+    mocks.createAgentActivityRun.mockResolvedValue({ id: "run-1" });
+    mocks.updateAgentActivityRun.mockResolvedValue({ id: "run-1" });
     mocks.createAgentDecisionOnce.mockResolvedValue({ id: "decision-1" });
     mocks.executeTransactionWrites.mockResolvedValue([]);
     mocks.completeAgentWakeup.mockResolvedValue(wakeup({ status: "completed" }));
