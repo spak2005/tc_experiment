@@ -108,6 +108,56 @@ describe("fetchIncomingAttachment", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.createAgentActivityEvent.mockResolvedValue(undefined);
+    vi.unstubAllGlobals();
+  });
+
+  it("downloads the real file when AgentMail returns attachment metadata", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => exactArrayBuffer(Buffer.from("%PDF-contract"))
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.getTcAttachment.mockResolvedValue({
+      arrayBuffer: async () =>
+        exactArrayBuffer(
+          Buffer.from(
+            JSON.stringify({
+              attachment_id: "att-1",
+              size: 13,
+              download_url: "https://agentmail-download.example/contract",
+              expires_at: "2026-06-03T18:30:00Z",
+              filename: "contract.pdf",
+              content_type: "application/pdf"
+            })
+          )
+        )
+    });
+
+    const fetched = await fetchIncomingAttachment({
+      userId: "user-1",
+      inboxId: "inbox-1",
+      messageId: "message-1",
+      attachment
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://agentmail-download.example/contract"
+    );
+    expect(fetched.body.toString("utf8")).toBe("%PDF-contract");
+    expect(mocks.createAgentActivityEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          download: expect.objectContaining({
+            source: "download_url",
+            attachmentId: "att-1",
+            hasDownloadUrl: true
+          }),
+          body: expect.objectContaining({
+            startsWithPdfHeader: true
+          })
+        })
+      })
+    );
   });
 
   it("trims leading bytes before a PDF header", async () => {

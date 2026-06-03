@@ -27,6 +27,19 @@ export interface FetchedAttachment {
   body: Buffer;
 }
 
+interface AttachmentDownloadMetadata {
+  attachment_id?: string;
+  attachmentId?: string;
+  size?: number;
+  download_url?: string;
+  downloadUrl?: string;
+  expires_at?: string;
+  expiresAt?: string;
+  filename?: string;
+  content_type?: string;
+  contentType?: string;
+}
+
 const pdfHeader = Buffer.from("%PDF-");
 const maxPdfHeaderScanBytes = 1024;
 
@@ -93,6 +106,41 @@ async function binaryResponseToBuffer(response: unknown): Promise<Buffer> {
   throw new Error("Attachment response did not include binary content.");
 }
 
+function parseAttachmentDownloadMetadata(body: Buffer): AttachmentDownloadMetadata | undefined {
+  const text = body.toString("utf8").trim();
+
+  if (!text.startsWith("{")) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (!parsed || typeof parsed !== "object") {
+      return undefined;
+    }
+
+    const metadata = parsed as AttachmentDownloadMetadata;
+    const downloadUrl = metadata.download_url ?? metadata.downloadUrl;
+    return typeof downloadUrl === "string" && downloadUrl.length > 0 ? metadata : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function downloadAttachmentFromUrl(metadata: AttachmentDownloadMetadata) {
+  const downloadUrl = metadata.download_url ?? metadata.downloadUrl;
+  if (!downloadUrl) {
+    throw new Error("Attachment metadata did not include a download URL.");
+  }
+
+  const response = await fetch(downloadUrl);
+  if (!response.ok) {
+    throw new Error(`Attachment download URL returned HTTP ${response.status}.`);
+  }
+
+  return Buffer.from(await response.arrayBuffer());
+}
+
 export function isPdfAttachment(attachment: Pick<IncomingAttachment, "contentType" | "filename">) {
   return (
     attachment.contentType === "application/pdf" ||
@@ -112,7 +160,11 @@ export async function fetchIncomingAttachment(input: {
     messageId: input.messageId,
     attachmentId: input.attachment.id
   });
-  const rawBody = await binaryResponseToBuffer(remoteAttachment);
+  const responseBody = await binaryResponseToBuffer(remoteAttachment);
+  const downloadMetadata = parseAttachmentDownloadMetadata(responseBody);
+  const rawBody = downloadMetadata
+    ? await downloadAttachmentFromUrl(downloadMetadata)
+    : responseBody;
   const body = isPdfAttachment(input.attachment) ? normalizePdfBody(rawBody) : rawBody;
 
   await createAgentActivityEvent({
@@ -129,6 +181,20 @@ export async function fetchIncomingAttachment(input: {
       attachmentId: input.attachment.id,
       filename: input.attachment.filename,
       contentType: input.attachment.contentType,
+      download: downloadMetadata
+        ? {
+            source: "download_url",
+            attachmentId: downloadMetadata.attachment_id ?? downloadMetadata.attachmentId,
+            filename: downloadMetadata.filename,
+            contentType: downloadMetadata.content_type ?? downloadMetadata.contentType,
+            size: downloadMetadata.size,
+            expiresAt: downloadMetadata.expires_at ?? downloadMetadata.expiresAt,
+            hasDownloadUrl: true
+          }
+        : {
+            source: "direct_response",
+            hasDownloadUrl: false
+          },
       body: attachmentBodyDiagnostics(body),
       rawBody:
         body === rawBody
