@@ -500,7 +500,8 @@ async function persistContractAssessment(input: {
         usability: input.assessment.usability,
         findings: input.assessment.findings,
         signatureStatus: input.assessment.signatureStatus,
-        extractionMode: input.assessment.extractionMode
+        extractionMode: input.assessment.extractionMode,
+        extractionError: input.assessment.extractionError
       }
     }
   );
@@ -638,7 +639,8 @@ async function persistContractAssessment(input: {
       usability: input.assessment.usability,
       validationStatus: input.assessment.validationStatus,
       missingItems: input.assessment.missingItems,
-      extractionMode: input.assessment.extractionMode
+      extractionMode: input.assessment.extractionMode,
+      extractionError: input.assessment.extractionError
     }
   });
 
@@ -985,6 +987,7 @@ export async function processAgentMailInbound(input: {
         metadata: {
           filename: pdfAttachment.filename,
           extractionMode: documentAssessment.extractionMode,
+          extractionError: documentAssessment.extractionError,
           contractVersion: documentAssessment.facts.contractVersion,
           missingItems: documentAssessment.missingItems,
           findings: documentAssessment.findings
@@ -1312,7 +1315,9 @@ export async function processAgentMailInbound(input: {
         ? {
             kind: documentAssessment.kind,
             usability: documentAssessment.usability,
-            missingItems: documentAssessment.missingItems
+            missingItems: documentAssessment.missingItems,
+            extractionMode: documentAssessment.extractionMode,
+            extractionError: documentAssessment.extractionError
           }
         : undefined
     },

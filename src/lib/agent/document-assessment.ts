@@ -21,12 +21,20 @@ export interface IntakeGap {
   whyItMatters: string;
 }
 
+export interface ExtractionErrorSummary {
+  name?: string;
+  message: string;
+  status?: number;
+  type?: string;
+}
+
 export interface DocumentAssessment {
   documentId: string;
   filename: string;
   kind: DocumentKind;
   usability: DocumentUsability;
   extractionMode: "anthropic_pdf" | "email_fallback";
+  extractionError?: ExtractionErrorSummary;
   facts: ContractFacts;
   validationStatus: string;
   missingItems: string[];
@@ -58,6 +66,25 @@ function buildIntakeGaps(missingItems: string[]) {
     label: item,
     whyItMatters: gapReasons[item] ?? "The TC needs this to coordinate the transaction accurately."
   }));
+}
+
+function summarizeExtractionError(error: unknown): ExtractionErrorSummary {
+  if (!error || typeof error !== "object") {
+    return { message: "Unknown extraction error." };
+  }
+
+  const record = error as Record<string, unknown>;
+  const message =
+    typeof record.message === "string" && record.message.trim().length > 0
+      ? record.message
+      : "Unknown extraction error.";
+
+  return {
+    name: typeof record.name === "string" ? record.name : undefined,
+    message: message.slice(0, 500),
+    status: typeof record.status === "number" ? record.status : undefined,
+    type: typeof record.type === "string" ? record.type : undefined
+  };
 }
 
 function classifyDocument(input: {
@@ -123,6 +150,7 @@ export async function assessContractDocument(input: {
   let facts = extractTexasContractFacts(input.emailText);
   let extractionMode: DocumentAssessment["extractionMode"] = "email_fallback";
   let extractionFailed = false;
+  let extractionError: ExtractionErrorSummary | undefined;
 
   try {
     facts = await extractContractFactsFromPdf({
@@ -132,8 +160,9 @@ export async function assessContractDocument(input: {
       temporalContext: input.temporalContext
     });
     extractionMode = "anthropic_pdf";
-  } catch {
+  } catch (error) {
     extractionFailed = true;
+    extractionError = summarizeExtractionError(error);
   }
 
   const validation = validateContractFacts(facts);
@@ -150,6 +179,7 @@ export async function assessContractDocument(input: {
     filename: input.attachment.filename,
     ...classification,
     extractionMode,
+    extractionError,
     facts,
     validationStatus: validation.status,
     missingItems,
