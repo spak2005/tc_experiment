@@ -11,7 +11,8 @@ transactions.
 4. AgentMail posts the inbound email webhook to the app.
 5. Inngest processes the email, stores attachments, extracts the coordination
    payload (facts, contacts, checklist), generates operational milestones and
-   tasks, and asks/sends/approval-gates the next response.
+   tasks, prepares a private calendar-feed link for dated deadlines, and
+   asks/sends/approval-gates the next response.
 6. Scheduled monitoring checks upcoming deadlines and stale response tasks,
    then escalates to the realtor when something is at risk.
 
@@ -80,6 +81,20 @@ instead of scanning the whole codebase:
   and blocker creation.
 - [docs/v1-coordination-plan.md](docs/v1-coordination-plan.md) — concise
   product loop for operational intake and monitoring.
+
+## Calendar feeds
+
+When a usable contract creates dated milestones, Stephanie creates or reuses a
+private per-transaction calendar feed token. The transaction-map email links to
+`/calendar/transactions/[token]`, where the realtor can copy the ICS feed URL
+served by `GET /api/calendar-feeds/[token]` and add it to Google Calendar by
+URL. The feed is generated from live milestone rows, so deadline edits appear
+after Google refreshes the subscribed calendar.
+
+Calendar feed links are bearer tokens: anyone with the link can view deadline
+titles and dates for that transaction. V1 does not use Google OAuth or write
+directly to the realtor's calendar; direct Google Calendar sync can be added
+later if reminder control becomes more important.
 
 Per-subsystem READMEs:
 

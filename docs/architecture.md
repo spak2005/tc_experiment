@@ -44,6 +44,7 @@ elsewhere.
 | Stable | [src/lib/workflow/status-responder.ts](../src/lib/workflow/status-responder.ts) | Builds "what is the status of my deal?" reply text |
 | Stable | [src/lib/workflow/tasks.ts](../src/lib/workflow/tasks.ts) | Opening tasks + operational per-milestone task generation |
 | Stable | [src/lib/workflow/task-transitions.ts](../src/lib/workflow/task-transitions.ts) | Flips an open task into `waiting_response` with a `follow_up_due_date` whenever an outbound email goes to an external party |
+| Stable | [src/lib/calendar/ics.ts](../src/lib/calendar/ics.ts) | Generates per-transaction ICS subscription feeds from milestone rows |
 | Stable | [src/lib/contracts/anthropic-extract.ts](../src/lib/contracts/anthropic-extract.ts) | Anthropic PDF extraction prompt + call |
 | Stable | [src/lib/contracts/extract.ts](../src/lib/contracts/extract.ts) | Regex fallback for TREC contract facts |
 | Stable | [src/lib/contracts/facts.ts](../src/lib/contracts/facts.ts) | Zod schema for `ContractFacts` + small accessors |
@@ -76,6 +77,7 @@ elsewhere.
 - `src/lib/contracts` — extract + validate Texas residential contract facts, contacts, operational terms, and expected documents.
 - `src/lib/milestones` — date math and Texas-specific operational milestone generator.
 - `src/lib/documents` — fetch attachments from AgentMail, store in Vercel Blob, write a `documents` row.
+- `src/lib/calendar` — signed transaction-calendar feed helpers. V1 serves ICS feeds; it does not use Google OAuth.
 - `src/lib/transaction-writes` — schema-validated mutation tools for facts, parties, milestones, tasks, documents, blockers, memory, and core transaction fields.
 - `src/lib/approvals` — approve-by-reply classification/execution for realtor replies to pending external-email drafts.
 - `src/lib/email` — plain-text outbound templates (escalation, approval request).
@@ -127,6 +129,7 @@ elsewhere.
 | Dashboard panels | [src/app/dashboard/page.tsx](../src/app/dashboard/page.tsx) |
 | Observability stream UI | [src/app/observability/page.tsx](../src/app/observability/page.tsx) + [src/app/components/activity-debugger.tsx](../src/app/components/activity-debugger.tsx) |
 | Transaction detail page | [src/app/transactions/[transactionId]/page.tsx](../src/app/transactions/%5BtransactionId%5D/page.tsx) |
+| Calendar subscription page / ICS feed | [src/app/calendar/transactions/[token]/page.tsx](../src/app/calendar/transactions/%5Btoken%5D/page.tsx) + [src/app/api/calendar-feeds/[token]/route.ts](../src/app/api/calendar-feeds/%5Btoken%5D/route.ts) |
 | Webhook signature verification | [src/app/api/webhooks/agentmail/route.ts](../src/app/api/webhooks/agentmail/route.ts) |
 | Anthropic model choice | [src/lib/llm/anthropic.ts](../src/lib/llm/anthropic.ts) |
 | Add an environment variable | [src/lib/config/env.ts](../src/lib/config/env.ts) + [README.md](../README.md) |
