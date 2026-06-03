@@ -10,9 +10,11 @@ import { executeAgentDecision } from "@/lib/agent/executor";
 import { evaluateActionPolicy } from "@/lib/agent/policy";
 import { normalizeAgentMailInbound } from "@/lib/agentmail/inbound";
 import { executeApprovalReply } from "@/lib/approvals/executor";
+import { buildPublicUrl } from "@/lib/config/urls";
 import { buildExpectedDocumentChecklist } from "@/lib/contracts/checklist";
 import { getStringFact, type ContractFacts, type ExtractedValue } from "@/lib/contracts/facts";
 import {
+  createOrReuseTransactionCalendarFeed,
   createAgentActivityEvent,
   createAgentDecisionOnce,
   createAuditEvent,
@@ -330,6 +332,7 @@ async function persistContractAssessment(input: {
   attachment: StoredAttachment;
   assessment: Awaited<ReturnType<typeof assessContractDocument>>;
 }) {
+  let calendarUrl: string | undefined;
   const propertyAddress = getStringFact(input.assessment.facts.propertyAddress);
   const effectiveDate = isoDateOrUndefined(getStringFact(input.assessment.facts.effectiveDate));
   const closingDate = isoDateOrUndefined(getStringFact(input.assessment.facts.closingDate));
@@ -455,6 +458,28 @@ async function persistContractAssessment(input: {
     ];
 
     await insertMilestones(input.transactionId, milestones);
+    const datedMilestoneCount = milestones.filter((milestone) => milestone.dueDate).length;
+    if (datedMilestoneCount > 0) {
+      const feed = await createOrReuseTransactionCalendarFeed({
+        transactionId: input.transactionId
+      });
+      calendarUrl = buildPublicUrl(`/calendar/transactions/${encodeURIComponent(feed.token)}`);
+      await logActivity(
+        { userId: input.context.tcProfile.userId, transactionId: input.transactionId },
+        {
+          sourceType: "system",
+          eventType: "calendar_feed_prepared",
+          title: "Prepared calendar feed",
+          summary: `Prepared a Google Calendar feed link with ${datedMilestoneCount} dated deadline(s).`,
+          status: "completed",
+          metadata: {
+            feedId: feed.id,
+            datedMilestoneCount,
+            calendarUrl
+          }
+        }
+      );
+    }
     await logActivity(
       { userId: input.context.tcProfile.userId, transactionId: input.transactionId },
       {
@@ -560,6 +585,8 @@ async function persistContractAssessment(input: {
       extractionMode: input.assessment.extractionMode
     }
   });
+
+  return { calendarUrl };
 }
 
 async function storeInboundAttachments(input: {
@@ -707,6 +734,7 @@ export async function processAgentMailInbound(input: {
 
   let context = await buildAgentContextPack({ inbound, tcProfile });
   let transactionId = context.match.transactionId;
+  let contractCalendarUrl: string | undefined;
   const activityContext: ActivityContext = {
     userId: tcProfile.user_id,
     transactionId
@@ -949,12 +977,13 @@ export async function processAgentMailInbound(input: {
               blobKey: storedPdfAttachment.blobKey
             }
           });
-          await persistContractAssessment({
+          const persistence = await persistContractAssessment({
             context,
             transactionId,
             attachment: storedPdfAttachment,
             assessment: documentAssessment
           });
+          contractCalendarUrl = persistence.calendarUrl;
         } else if (storedPdfAttachment) {
           await logActivity(activityContext, {
             sourceType: "document",
