@@ -1769,6 +1769,82 @@ pre {
   white-space: pre-wrap;
 }
 
+.calendar-subscribe-page {
+  align-items: center;
+  background: var(--background);
+  display: flex;
+  min-height: 100vh;
+  padding: 40px 20px;
+}
+
+.calendar-subscribe-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 22px;
+  margin: 0 auto;
+  max-width: 760px;
+  padding: clamp(24px, 5vw, 46px);
+  width: 100%;
+}
+
+.calendar-subscribe-panel h1,
+.calendar-subscribe-panel h2 {
+  margin: 0;
+}
+
+.calendar-subscribe-panel h1 {
+  font-size: clamp(2.1rem, 6vw, 3.7rem);
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.calendar-subscribe-panel h2 {
+  font-size: 1.15rem;
+}
+
+.calendar-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.calendar-feed-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.calendar-feed-copy span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.calendar-feed-copy input {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--foreground);
+  font: inherit;
+  padding: 13px 14px;
+  width: 100%;
+}
+
+.calendar-steps,
+.calendar-deadline-preview {
+  display: grid;
+  gap: 12px;
+}
+
+.calendar-steps ol {
+  color: var(--muted);
+  line-height: 1.65;
+  margin: 0;
+  padding-left: 22px;
+}
+
 @media (max-width: 900px) {
   .workroom-summary,
   .workroom-layout,
