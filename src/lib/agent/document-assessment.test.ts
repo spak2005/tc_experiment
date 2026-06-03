@@ -14,6 +14,50 @@ vi.mock("@/lib/contracts/anthropic-extract", () => ({
   extractContractFactsFromPdfChunks: mocks.extractContractFactsFromPdfChunks
 }));
 
+const usableFacts = {
+  contractVersion: "TREC_20_18",
+  propertyAddress: {
+    value: "100 Pecanwood South, Kyle, TX 78640",
+    confidence: 0.9,
+    needsConfirmation: false
+  },
+  cashOrFinanced: {
+    value: "financed",
+    confidence: 0.9,
+    needsConfirmation: false
+  },
+  earnestMoneyAmount: {
+    value: "2900",
+    confidence: 0.85,
+    needsConfirmation: false
+  },
+  optionPeriodDays: {
+    value: 7,
+    confidence: 0.85,
+    needsConfirmation: false
+  },
+  effectiveDate: {
+    value: "2026-03-11",
+    confidence: 0.9,
+    needsConfirmation: false
+  },
+  closingDate: {
+    value: "2026-04-10",
+    confidence: 0.9,
+    needsConfirmation: false
+  },
+  titleCompany: {
+    value: "McKnight Title",
+    confidence: 0.9,
+    needsConfirmation: false
+  },
+  addenda: [],
+  contacts: [],
+  expectedDocuments: [],
+  signatureStatus: "appears_executed",
+  missingRequiredFacts: []
+} as const;
+
 describe("assessContractDocument", () => {
   beforeEach(() => {
     mocks.extractContractFactsFromPdf.mockReset();
@@ -22,49 +66,7 @@ describe("assessContractDocument", () => {
 
   it("uses chunked PDF extraction when full PDF extraction fails", async () => {
     mocks.extractContractFactsFromPdf.mockRejectedValue(new Error("Request too large"));
-    mocks.extractContractFactsFromPdfChunks.mockResolvedValue({
-      contractVersion: "TREC_20_18",
-      propertyAddress: {
-        value: "100 Pecanwood South, Kyle, TX 78640",
-        confidence: 0.9,
-        needsConfirmation: false
-      },
-      cashOrFinanced: {
-        value: "financed",
-        confidence: 0.9,
-        needsConfirmation: false
-      },
-      earnestMoneyAmount: {
-        value: "2900",
-        confidence: 0.85,
-        needsConfirmation: false
-      },
-      optionPeriodDays: {
-        value: 7,
-        confidence: 0.85,
-        needsConfirmation: false
-      },
-      effectiveDate: {
-        value: "2026-03-11",
-        confidence: 0.9,
-        needsConfirmation: false
-      },
-      closingDate: {
-        value: "2026-04-10",
-        confidence: 0.9,
-        needsConfirmation: false
-      },
-      titleCompany: {
-        value: "McKnight Title",
-        confidence: 0.9,
-        needsConfirmation: false
-      },
-      addenda: [],
-      contacts: [],
-      expectedDocuments: [],
-      signatureStatus: "appears_executed",
-      missingRequiredFacts: []
-    });
+    mocks.extractContractFactsFromPdfChunks.mockResolvedValue(usableFacts);
 
     const assessment = await assessContractDocument({
       attachment: {
@@ -77,6 +79,53 @@ describe("assessContractDocument", () => {
     expect(assessment.extractionMode).toBe("anthropic_pdf_chunks");
     expect(assessment.usability).toBe("usable");
     expect(assessment.extractionError).toBeUndefined();
+  });
+
+  it("skips full PDF extraction for large PDFs", async () => {
+    mocks.extractContractFactsFromPdfChunks.mockResolvedValue(usableFacts);
+    const largePdf = Buffer.concat([
+      Buffer.from("%PDF-contract"),
+      Buffer.alloc(10 * 1024 * 1024 + 1)
+    ]);
+
+    const assessment = await assessContractDocument({
+      attachment: {
+        filename: "contract.pdf",
+        body: largePdf
+      },
+      emailText: "Please see attached contract."
+    });
+
+    expect(mocks.extractContractFactsFromPdf).not.toHaveBeenCalled();
+    expect(mocks.extractContractFactsFromPdfChunks).toHaveBeenCalled();
+    expect(assessment.extractionMode).toBe("anthropic_pdf_chunks");
+    expect(assessment.usability).toBe("usable");
+  });
+
+  it("records that full PDF extraction was skipped when large PDF chunks fail", async () => {
+    mocks.extractContractFactsFromPdfChunks.mockRejectedValue(
+      new Error("All PDF chunk extraction attempts failed.")
+    );
+    const largePdf = Buffer.concat([
+      Buffer.from("%PDF-contract"),
+      Buffer.alloc(10 * 1024 * 1024 + 1)
+    ]);
+
+    const assessment = await assessContractDocument({
+      attachment: {
+        filename: "contract.pdf",
+        body: largePdf
+      },
+      emailText: "Please see attached contract."
+    });
+
+    expect(assessment.extractionMode).toBe("email_fallback");
+    expect(assessment.extractionError?.message).toBe(
+      "All PDF chunk extraction attempts failed."
+    );
+    expect(assessment.extractionError?.previousAttempt).toContain(
+      "Skipped full PDF extraction"
+    );
   });
 
   it("keeps a safe extraction error summary when all PDF extraction fails", async () => {

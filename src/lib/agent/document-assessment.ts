@@ -47,6 +47,8 @@ export interface DocumentAssessment {
   signatureStatus: ContractFacts["signatureStatus"];
 }
 
+const maxFullPdfExtractionBytes = 10 * 1024 * 1024;
+
 const gapReasons: Record<string, string> = {
   "Confirm the Effective Date.":
     "The TC needs the Effective Date to calculate contract deadlines correctly.",
@@ -77,6 +79,10 @@ function buildIntakeGaps(missingItems: string[]) {
 }
 
 function errorMessage(error: unknown) {
+  if (typeof error === "string" && error.trim().length > 0) {
+    return error;
+  }
+
   if (!error || typeof error !== "object") {
     return "Unknown extraction error.";
   }
@@ -183,6 +189,29 @@ async function extractContractFacts(input: {
           "Fetched PDF attachment bytes did not contain a PDF header. The attachment download may be invalid."
       }
     };
+  }
+
+  if (input.attachment.body.byteLength > maxFullPdfExtractionBytes) {
+    try {
+      return {
+        facts: await extractContractFactsFromPdfChunks({
+          filename: input.attachment.filename,
+          pdf: input.attachment.body,
+          emailContext: input.emailText,
+          temporalContext: input.temporalContext
+        }),
+        extractionMode: "anthropic_pdf_chunks" as const
+      };
+    } catch (chunkedPdfError) {
+      return {
+        facts: extractTexasContractFacts(input.emailText),
+        extractionMode: "email_fallback" as const,
+        extractionError: summarizeExtractionError(
+          chunkedPdfError,
+          `Skipped full PDF extraction because the attachment was ${input.attachment.body.byteLength} bytes.`
+        )
+      };
+    }
   }
 
   try {
