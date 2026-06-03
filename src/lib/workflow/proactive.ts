@@ -1,4 +1,5 @@
 import { safeBodyPreview } from "@/lib/agent/activity";
+import { runWithActivityRun } from "@/lib/agent/activity-run-context";
 import { buildProactiveAgentContext } from "@/lib/agent/proactive-context";
 import { decideProactiveAction } from "@/lib/agent/proactive-planner";
 import {
@@ -9,11 +10,13 @@ import {
   claimDueAgentWakeups,
   completeAgentWakeup,
   createAgentActivityEvent,
+  createAgentActivityRun,
   createAgentDecisionOnce,
   createApprovalOnce,
   createAuditEvent,
   failAgentWakeup,
   updateAgentDecisionExecution,
+  updateAgentActivityRun,
   updateApprovalRequestMetadata
 } from "@/lib/db/repositories";
 import type { AgentWakeup } from "@/lib/domain/types";
@@ -61,7 +64,31 @@ function approvalIdempotencyKey(input: {
   ].join(":");
 }
 
+function proactiveRunStatus(input: { executionStatus?: string; action?: string }) {
+  if (input.executionStatus === "waiting_approval") return "waiting";
+  if (input.action === "noop") return "ignored";
+  return "completed";
+}
+
 export async function executeAgentWakeup(wakeup: AgentWakeup) {
+  const activityRun = await createAgentActivityRun({
+    userId: wakeup.userId,
+    transactionId: wakeup.transactionId,
+    workflowType: "agent_wakeup",
+    title: "Proactive follow-up",
+    summary: `${wakeup.actionType}: ${wakeup.reason}.`,
+    status: "started",
+    metadata: {
+      technicalType: "agent_wakeup",
+      wakeupId: wakeup.id,
+      actionType: wakeup.actionType,
+      taskId: wakeup.taskId,
+      reason: wakeup.reason
+    }
+  });
+
+  return runWithActivityRun(activityRun.id, async () => {
+    try {
   let context = await buildProactiveAgentContext(wakeup.transactionId);
   if (!context) {
     await createAgentActivityEvent({
@@ -82,6 +109,21 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
       id: wakeup.id,
       status: "skipped",
       payload: { skippedReason: "missing_transaction_context" }
+    });
+    await updateAgentActivityRun({
+      id: activityRun.id,
+      title: "Proactive follow-up",
+      summary: "Skipped proactive follow-up because the transaction context could not be loaded.",
+      status: "ignored",
+      metadata: {
+        technicalType: "agent_wakeup",
+        wakeupId: wakeup.id,
+        actionType: wakeup.actionType,
+        taskId: wakeup.taskId,
+        reason: wakeup.reason,
+        skippedReason: "missing_transaction_context"
+      },
+      completedAt: new Date()
     });
     return { status: "skipped", reason: "missing_transaction_context" };
   }
@@ -116,6 +158,22 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
         status: "skipped",
         payload: { skippedReason: "missing_transaction_context_after_reconciliation" }
       });
+      await updateAgentActivityRun({
+        id: activityRun.id,
+        title: "Proactive follow-up",
+        summary:
+          "Skipped proactive follow-up because context disappeared after reconciliation.",
+        status: "ignored",
+        metadata: {
+          technicalType: "agent_wakeup",
+          wakeupId: wakeup.id,
+          actionType: wakeup.actionType,
+          taskId: wakeup.taskId,
+          reason: wakeup.reason,
+          skippedReason: "missing_transaction_context_after_reconciliation"
+        },
+        completedAt: new Date()
+      });
       return { status: "skipped", reason: "missing_transaction_context_after_reconciliation" };
     }
     await refreshTransactionMemory({
@@ -131,6 +189,22 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
         id: wakeup.id,
         status: "skipped",
         payload: { skippedReason: "missing_transaction_context_after_reconciliation" }
+      });
+      await updateAgentActivityRun({
+        id: activityRun.id,
+        title: "Proactive follow-up",
+        summary:
+          "Skipped proactive follow-up because context disappeared after memory refresh.",
+        status: "ignored",
+        metadata: {
+          technicalType: "agent_wakeup",
+          wakeupId: wakeup.id,
+          actionType: wakeup.actionType,
+          taskId: wakeup.taskId,
+          reason: wakeup.reason,
+          skippedReason: "missing_transaction_context_after_reconciliation"
+        },
+        completedAt: new Date()
       });
       return { status: "skipped", reason: "missing_transaction_context_after_reconciliation" };
     }
@@ -435,7 +509,7 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
     });
   }
 
-  return {
+  const result = {
     status: executionStatus,
     action: decision.action,
     decisionId: decisionRecord.id,
@@ -445,6 +519,47 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
       taskId: wakeup.taskId
     })
   };
+  await updateAgentActivityRun({
+    id: activityRun.id,
+    title: "Proactive follow-up",
+    summary: decision.rationale || `Proactive wakeup finished with ${executionStatus}.`,
+    status: proactiveRunStatus({ executionStatus, action: decision.action }),
+    metadata: {
+      technicalType: "agent_wakeup",
+      wakeupId: wakeup.id,
+      actionType: wakeup.actionType,
+      taskId: wakeup.taskId,
+      reason: wakeup.reason,
+      action: decision.action,
+      executionStatus,
+      policyResult
+    },
+    completedAt: new Date()
+  });
+
+  return result;
+    } catch (error) {
+      await updateAgentActivityRun({
+        id: activityRun.id,
+        title: "Proactive follow-up",
+        summary:
+          error instanceof Error
+            ? `Proactive follow-up failed: ${error.message}`
+            : "Proactive follow-up failed.",
+        status: "failed",
+        metadata: {
+          technicalType: "agent_wakeup",
+          wakeupId: wakeup.id,
+          actionType: wakeup.actionType,
+          taskId: wakeup.taskId,
+          reason: wakeup.reason,
+          error: error instanceof Error ? error.message : "Unknown error"
+        },
+        completedAt: new Date()
+      });
+      throw error;
+    }
+  });
 }
 
 function retryAtForWakeup(wakeup: AgentWakeup, now: Date) {
