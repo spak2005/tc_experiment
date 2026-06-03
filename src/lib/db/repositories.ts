@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { query, withTransaction, type PoolClientLike } from "@/lib/db/client";
 import type {
   AgentActivityEvent,
@@ -15,6 +16,10 @@ import type {
 
 function toJsonb(value: unknown) {
   return JSON.stringify(value ?? null);
+}
+
+function newCalendarFeedToken() {
+  return randomBytes(32).toString("base64url");
 }
 
 function toActivityEvent(row: {
@@ -730,6 +735,215 @@ export async function listTransactionWakeups(input: {
   );
 
   return result.rows.map(toAgentWakeup);
+}
+
+export interface TransactionCalendarFeed {
+  id: string;
+  transactionId: string;
+  token: string;
+  createdAt: string;
+  revokedAt?: string;
+  lastAccessedAt?: string;
+}
+
+export interface CalendarFeedMilestone {
+  id: string;
+  key: string;
+  title: string;
+  phase: string;
+  dueDate?: string;
+  sourceReference?: string;
+  riskLevel: string;
+  completedAt?: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface ResolvedCalendarFeed {
+  feed: TransactionCalendarFeed;
+  transaction: {
+    id: string;
+    userId: string;
+    propertyAddress?: string;
+    status: string;
+    phase?: string;
+    effectiveDate?: string;
+    closingDate?: string;
+  };
+  milestones: CalendarFeedMilestone[];
+}
+
+function toTransactionCalendarFeed(row: {
+  id: string;
+  transaction_id: string;
+  token: string;
+  created_at: string;
+  revoked_at: string | null;
+  last_accessed_at: string | null;
+}): TransactionCalendarFeed {
+  return {
+    id: row.id,
+    transactionId: row.transaction_id,
+    token: row.token,
+    createdAt: row.created_at,
+    revokedAt: row.revoked_at ?? undefined,
+    lastAccessedAt: row.last_accessed_at ?? undefined
+  };
+}
+
+export async function createOrReuseTransactionCalendarFeed(input: {
+  transactionId: string;
+}) {
+  const result = await query<{
+    id: string;
+    transaction_id: string;
+    token: string;
+    created_at: string;
+    revoked_at: string | null;
+    last_accessed_at: string | null;
+  }>(
+    `with existing as (
+       select
+         id,
+         transaction_id,
+         token,
+         created_at::text,
+         revoked_at::text,
+         last_accessed_at::text
+       from transaction_calendar_feeds
+       where transaction_id = $1
+         and revoked_at is null
+       limit 1
+     ),
+     inserted as (
+       insert into transaction_calendar_feeds (transaction_id, token)
+       select $1, $2
+       where not exists (select 1 from existing)
+       returning
+         id,
+         transaction_id,
+         token,
+         created_at::text,
+         revoked_at::text,
+         last_accessed_at::text
+     )
+     select * from inserted
+     union all
+     select * from existing
+     limit 1`,
+    [input.transactionId, newCalendarFeedToken()]
+  );
+
+  return toTransactionCalendarFeed(result.rows[0]);
+}
+
+export async function getCalendarFeedByToken(token: string): Promise<ResolvedCalendarFeed | null> {
+  const feedResult = await query<{
+    feed_id: string;
+    transaction_id: string;
+    token: string;
+    feed_created_at: string;
+    revoked_at: string | null;
+    last_accessed_at: string | null;
+    user_id: string;
+    property_address: string | null;
+    status: string;
+    phase: string | null;
+    effective_date: string | null;
+    closing_date: string | null;
+  }>(
+    `select
+       f.id as feed_id,
+       f.transaction_id,
+       f.token,
+       f.created_at::text as feed_created_at,
+       f.revoked_at::text,
+       f.last_accessed_at::text,
+       t.user_id,
+       t.property_address,
+       t.status,
+       t.phase,
+       t.effective_date::text,
+       t.closing_date::text
+     from transaction_calendar_feeds f
+     join transactions t on t.id = f.transaction_id
+     where f.token = $1
+       and f.revoked_at is null`,
+    [token]
+  );
+
+  const row = feedResult.rows[0];
+  if (!row) return null;
+
+  const milestoneResult = await query<{
+    id: string;
+    key: string;
+    title: string;
+    phase: string;
+    due_date: string | null;
+    source_reference: string | null;
+    risk_level: string;
+    completed_at: string | null;
+    metadata: unknown;
+  }>(
+    `select
+       id,
+       key,
+       title,
+       phase,
+       due_date::text,
+       source_reference,
+       risk_level,
+       completed_at::text,
+       metadata
+     from milestones
+     where transaction_id = $1
+     order by due_date nulls last, title`,
+    [row.transaction_id]
+  );
+
+  return {
+    feed: {
+      id: row.feed_id,
+      transactionId: row.transaction_id,
+      token: row.token,
+      createdAt: row.feed_created_at,
+      revokedAt: row.revoked_at ?? undefined,
+      lastAccessedAt: row.last_accessed_at ?? undefined
+    },
+    transaction: {
+      id: row.transaction_id,
+      userId: row.user_id,
+      propertyAddress: row.property_address ?? undefined,
+      status: row.status,
+      phase: row.phase ?? undefined,
+      effectiveDate: row.effective_date ?? undefined,
+      closingDate: row.closing_date ?? undefined
+    },
+    milestones: milestoneResult.rows.map((milestone) => ({
+      id: milestone.id,
+      key: milestone.key,
+      title: milestone.title,
+      phase: milestone.phase,
+      dueDate: milestone.due_date ?? undefined,
+      sourceReference: milestone.source_reference ?? undefined,
+      riskLevel: milestone.risk_level,
+      completedAt: milestone.completed_at ?? undefined,
+      metadata:
+        milestone.metadata && typeof milestone.metadata === "object"
+          ? (milestone.metadata as Record<string, unknown>)
+          : {}
+    }))
+  };
+}
+
+export async function markCalendarFeedAccessed(token: string) {
+  await query(
+    `update transaction_calendar_feeds
+     set last_accessed_at = now()
+     where token = $1
+       and revoked_at is null`,
+    [token]
+  );
 }
 
 export async function claimDueAgentWakeups(input: {
