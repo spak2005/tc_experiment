@@ -76,6 +76,7 @@ export interface TransactionMapEmailInput {
   propertyAddress?: string;
   effectiveDate?: string;
   closingDate?: string;
+  calendarUrl?: string;
   milestones: Array<{
     title: string;
     dueDate?: string;
@@ -107,9 +108,12 @@ export function transactionMapEmail(input: TransactionMapEmailInput) {
     input.missingItems.length > 0
       ? `\n\nI still need you to confirm:\n${input.missingItems.map((item) => `- ${item}`).join("\n")}`
       : "\n\nI have enough information to start tracking the file.";
+  const calendar = input.calendarUrl
+    ? `\n\nAdd these deadlines to Google Calendar:\n${input.calendarUrl}`
+    : "";
 
   return {
     subject: `Transaction map: ${property}`,
-    text: `Hi there,\n\nI reviewed the contract and built the initial transaction map.\n\n${headline}\n\nKey milestones:\n${milestones}${missing}\n\nI will keep monitoring the timeline and will escalate if a deadline is at risk.\n\nBest,\nYour TC`
+    text: `Hi there,\n\nI reviewed the contract and built the initial transaction map.\n\n${headline}\n\nKey milestones:\n${milestones}${missing}${calendar}\n\nI will keep monitoring the timeline and will escalate if a deadline is at risk.\n\nBest,\nYour TC`
   };
 }
