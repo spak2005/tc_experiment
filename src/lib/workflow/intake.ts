@@ -3,6 +3,7 @@ import {
   activityStatusForExecutionStatus,
   activityStatusForPolicyResult
 } from "@/lib/agent/activity";
+import { runWithActivityRun } from "@/lib/agent/activity-run-context";
 import { buildAgentContextPack, getTransactionContext } from "@/lib/agent/context";
 import { assessContractDocument } from "@/lib/agent/document-assessment";
 import { decideNextAction } from "@/lib/agent/decision";
@@ -16,6 +17,7 @@ import { getStringFact, type ContractFacts, type ExtractedValue } from "@/lib/co
 import {
   createOrReuseTransactionCalendarFeed,
   createAgentActivityEvent,
+  createAgentActivityRun,
   createAgentDecisionOnce,
   createAuditEvent,
   createMessage,
@@ -27,6 +29,7 @@ import {
   insertTasks,
   markWebhookEventProcessed,
   saveExtractedContractFacts,
+  updateAgentActivityRun,
   updateTransactionFromFacts,
   upsertTransactionMemory
 } from "@/lib/db/repositories";
@@ -98,6 +101,42 @@ async function logActivity(
     userId: context.userId,
     transactionId: input.transactionId ?? context.transactionId
   });
+}
+
+function inboundRunTitle(input: {
+  documentAssessment?: Awaited<ReturnType<typeof assessContractDocument>>;
+  contractRouting?: ContractRoutingDecision;
+  intent?: string;
+  inboundEvent?: string;
+}) {
+  if (
+    input.documentAssessment &&
+    (input.contractRouting?.action === "create_transaction" ||
+      input.contractRouting?.action === "update_transaction")
+  ) {
+    return "Contract intake";
+  }
+
+  if (input.inboundEvent === "noise" || input.intent === "noise") {
+    return "Ignored/noise";
+  }
+
+  if (input.inboundEvent === "question" || input.intent === "status_question") {
+    return "General question";
+  }
+
+  if (
+    input.contractRouting?.action === "ask_which_transaction" ||
+    input.contractRouting?.action === "ask_for_identity"
+  ) {
+    return "Needs clarification";
+  }
+
+  if (input.inboundEvent === "document_received") {
+    return "Document update";
+  }
+
+  return "Inbound email";
 }
 
 async function withTransactionContext(input: {
@@ -640,6 +679,27 @@ export async function processAgentMailInbound(input: {
     return { status: "ignored", reason: "unknown_inbox" };
   }
 
+  const activityRun = await createAgentActivityRun({
+    userId: tcProfile.user_id,
+    workflowType: "inbound_email",
+    title: "Inbound email",
+    summary: inbound.subject
+      ? `Processing "${inbound.subject}" from ${inbound.from}.`
+      : `Processing inbound email from ${inbound.from}.`,
+    status: "started",
+    metadata: {
+      technicalType: "inbound_email",
+      webhookEventId: input.webhookEventId,
+      inboxId: inbound.inboxId,
+      messageId: inbound.messageId,
+      threadId: inbound.threadId,
+      from: inbound.from,
+      subject: inbound.subject
+    }
+  });
+
+  return runWithActivityRun(activityRun.id, async () => {
+    try {
   if (
     isFromTcInbox({
       from: inbound.from,
@@ -664,6 +724,23 @@ export async function processAgentMailInbound(input: {
       }
     });
     await markWebhookEventProcessed(input.webhookEventId);
+    await updateAgentActivityRun({
+      id: activityRun.id,
+      title: "Ignored/noise",
+      summary: `Ignored self-authored email "${inbound.subject}".`,
+      status: "ignored",
+      metadata: {
+        technicalType: "inbound_email",
+        reason: "self_authored_email",
+        webhookEventId: input.webhookEventId,
+        inboxId: inbound.inboxId,
+        messageId: inbound.messageId,
+        threadId: inbound.threadId,
+        from: inbound.from,
+        subject: inbound.subject
+      },
+      completedAt: new Date()
+    });
 
     return { status: "ignored", reason: "self_authored_email" };
   }
@@ -740,6 +817,30 @@ export async function processAgentMailInbound(input: {
       }
     });
     await markWebhookEventProcessed(input.webhookEventId);
+    await updateAgentActivityRun({
+      id: activityRun.id,
+      transactionId: pendingApproval.transaction_id,
+      title: "Approval reply",
+      summary: `Processed realtor reply for "${pendingApproval.proposed_subject}".`,
+      status:
+        approvalExecution.status === "sent"
+          ? "sent"
+          : approvalExecution.status === "rejected"
+            ? "blocked"
+            : approvalExecution.status === "ignored"
+              ? "ignored"
+              : "waiting",
+      metadata: {
+        technicalType: "approval_reply",
+        approvalId: pendingApproval.id,
+        action: approvalExecution.action,
+        status: approvalExecution.status,
+        webhookEventId: input.webhookEventId,
+        messageId: inbound.messageId,
+        threadId: inbound.threadId
+      },
+      completedAt: new Date()
+    });
 
     return {
       status: approvalExecution.status,
@@ -1311,11 +1412,69 @@ export async function processAgentMailInbound(input: {
 
   await markWebhookEventProcessed(input.webhookEventId);
 
-  return {
+  const result = {
     status: execution.status,
     transactionId: decision.transactionId,
     intent: decision.intent,
     action: decision.action,
     policy: policy.result
   };
+  await updateAgentActivityRun({
+    id: activityRun.id,
+    transactionId: memoryTransactionId,
+    title: inboundRunTitle({
+      documentAssessment,
+      contractRouting,
+      intent: decision.intent,
+      inboundEvent: decision.inboundEvent
+    }),
+    summary:
+      decision.rationale ||
+      `Handled inbound email with ${decision.intent} -> ${decision.action}.`,
+    status: activityStatusForExecutionStatus(execution.status),
+    metadata: {
+      technicalType: "inbound_email",
+      webhookEventId: input.webhookEventId,
+      inboxId: inbound.inboxId,
+      messageId: inbound.messageId,
+      threadId: inbound.threadId,
+      from: inbound.from,
+      subject: inbound.subject,
+      intent: decision.intent,
+      action: decision.action,
+      inboundEvent: decision.inboundEvent,
+      executionStatus: execution.status,
+      policy: policy.result,
+      documentKind: documentAssessment?.kind,
+      documentUsability: documentAssessment?.usability,
+      routingAction: contractRouting?.action
+    },
+    completedAt: new Date()
+  });
+
+  return result;
+    } catch (error) {
+      await updateAgentActivityRun({
+        id: activityRun.id,
+        title: "Inbound email",
+        summary:
+          error instanceof Error
+            ? `Inbound processing failed: ${error.message}`
+            : "Inbound processing failed.",
+        status: "failed",
+        metadata: {
+          technicalType: "inbound_email",
+          webhookEventId: input.webhookEventId,
+          inboxId: inbound.inboxId,
+          messageId: inbound.messageId,
+          threadId: inbound.threadId,
+          from: inbound.from,
+          subject: inbound.subject,
+          error: error instanceof Error ? error.message : "Unknown error"
+        },
+        completedAt: new Date()
+      });
+      throw error;
+    }
+  });
 }
