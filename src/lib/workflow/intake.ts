@@ -971,19 +971,25 @@ export async function processAgentMailInbound(input: {
         emailText: context.emailText,
         temporalContext: context.temporalContext
       });
+      const extractedFromPdf =
+        documentAssessment.extractionMode === "anthropic_pdf" ||
+        documentAssessment.extractionMode === "anthropic_pdf_chunks";
       await logActivity(activityContext, {
         sourceType: "extraction",
         eventType: "contract_extraction_completed",
         title:
           documentAssessment.extractionMode === "anthropic_pdf"
             ? "Extracted contract facts from PDF"
+            : documentAssessment.extractionMode === "anthropic_pdf_chunks"
+              ? "Extracted contract facts from PDF chunks"
             : "Used fallback contract extraction",
         summary:
           documentAssessment.extractionMode === "anthropic_pdf"
             ? `Extracted facts from ${pdfAttachment.filename} with Anthropic PDF mode.`
+            : documentAssessment.extractionMode === "anthropic_pdf_chunks"
+              ? `Extracted facts from ${pdfAttachment.filename} with chunked Anthropic PDF mode.`
             : `Could not use PDF extraction for ${pdfAttachment.filename}; used fallback assessment.`,
-        status:
-          documentAssessment.extractionMode === "anthropic_pdf" ? "completed" : "failed",
+        status: extractedFromPdf ? "completed" : "failed",
         metadata: {
           filename: pdfAttachment.filename,
           extractionMode: documentAssessment.extractionMode,
