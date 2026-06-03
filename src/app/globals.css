@@ -1598,6 +1598,78 @@ button:disabled {
   padding: 0;
 }
 
+.activity-run-list {
+  display: grid;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.activity-run {
+  background: #fbfaf6;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.activity-run-details {
+  display: grid;
+}
+
+.activity-run-summary {
+  align-items: flex-start;
+  cursor: pointer;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  list-style: none;
+  padding: 16px;
+}
+
+.activity-run-summary::-webkit-details-marker {
+  display: none;
+}
+
+.activity-run-summary h3 {
+  font-size: 1.05rem;
+  margin: 6px 0;
+}
+
+.activity-run-summary p {
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.activity-run-topline,
+.activity-run-meta {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.activity-run-topline {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.activity-run-meta {
+  justify-content: flex-end;
+  max-width: 360px;
+}
+
+.activity-run-events {
+  border-top: 1px solid var(--border);
+  margin: 0 16px 8px;
+  padding-top: 2px;
+}
+
+.activity-run-events .activity-card {
+  border-top-color: rgba(221, 216, 204, 0.72);
+}
+
 .activity-item {
   display: grid;
   gap: 14px;
@@ -1857,10 +1929,20 @@ pre {
 
   .activity-debugger-header,
   .activity-card-topline,
+  .activity-run-summary,
   .observability-header,
   .dashboard-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .activity-run-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-run-meta {
+    justify-content: flex-start;
+    max-width: none;
   }
 }
 

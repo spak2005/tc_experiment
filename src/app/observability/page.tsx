@@ -28,6 +28,7 @@ export default async function ObservabilityPage() {
           events={activity}
           eyebrow="Observability stream"
           showTransactionLinks
+          showWorkflowGroups
           title="All Agent Activity"
         />
       </section>
