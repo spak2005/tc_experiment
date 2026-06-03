@@ -19,7 +19,12 @@ export interface ExtractPdfFactsInput {
 
 export interface ExtractPdfFactsFromChunksInput extends ExtractPdfFactsInput {
   pagesPerChunk?: number;
+  concurrency?: number;
 }
+
+const anthropicExtractionTimeoutMs = 75_000;
+const anthropicExtractionMaxRetries = 0;
+const defaultChunkConcurrency = 3;
 
 const SYSTEM_PROMPT = `You are an expert Texas residential real estate transaction coordinator.
 Extract contract facts from Texas residential resale contracts, especially TREC 20-18.
@@ -127,34 +132,40 @@ export async function extractContractFactsFromPdf(
 ): Promise<ContractFacts> {
   const client = getAnthropicClient();
   const temporalContext = input.temporalContext ?? getTemporalContext();
-  const response = await client.messages.create({
-    model: getAnthropicModel(),
-    max_tokens: 4000,
-    temperature: 0,
-    system: SYSTEM_PROMPT,
-    messages: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "document",
-            title: input.filename,
-            source: {
-              type: "base64",
-              media_type: "application/pdf",
-              data: input.pdf.toString("base64")
+  const response = await client.messages.create(
+    {
+      model: getAnthropicModel(),
+      max_tokens: 4000,
+      temperature: 0,
+      system: SYSTEM_PROMPT,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "document",
+              title: input.filename,
+              source: {
+                type: "base64",
+                media_type: "application/pdf",
+                data: input.pdf.toString("base64")
+              }
+            },
+            {
+              type: "text",
+              text: `${USER_PROMPT}\n\n${formatTemporalContextLine(
+                temporalContext
+              )}\n\nEmail context:\n${input.emailContext ?? "None"}`
             }
-          },
-          {
-            type: "text",
-            text: `${USER_PROMPT}\n\n${formatTemporalContextLine(
-              temporalContext
-            )}\n\nEmail context:\n${input.emailContext ?? "None"}`
-          }
-        ]
-      }
-    ]
-  });
+          ]
+        }
+      ]
+    },
+    {
+      maxRetries: anthropicExtractionMaxRetries,
+      timeout: anthropicExtractionTimeoutMs
+    }
+  );
 
   const text = getFirstTextBlock(response.content);
   const parsed = parseJsonObject<unknown>(text);
@@ -389,31 +400,59 @@ async function splitPdfIntoChunks(input: ExtractPdfFactsFromChunksInput) {
   return chunks;
 }
 
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<R>
+) {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  const workers = Array.from(
+    { length: Math.min(Math.max(concurrency, 1), items.length) },
+    async () => {
+      while (nextIndex < items.length) {
+        const currentIndex = nextIndex;
+        nextIndex += 1;
+        results[currentIndex] = await mapper(items[currentIndex]);
+      }
+    }
+  );
+
+  await Promise.all(workers);
+  return results;
+}
+
 export async function extractContractFactsFromPdfChunks(
   input: ExtractPdfFactsFromChunksInput
 ): Promise<ContractFacts> {
   const chunks = await splitPdfIntoChunks(input);
-  const extracted: ContractFacts[] = [];
-  const errors: string[] = [];
-
-  for (const chunk of chunks) {
-    try {
-      extracted.push(
-        await extractContractFactsFromPdf({
-          filename: chunk.filename,
-          pdf: chunk.pdf,
-          emailContext: `${input.emailContext ?? "None"}\n\nThis is page chunk ${chunk.pageStart}-${chunk.pageEnd}.`,
-          temporalContext: input.temporalContext
-        })
-      );
-    } catch (error) {
-      errors.push(
-        error instanceof Error
-          ? `pages ${chunk.pageStart}-${chunk.pageEnd}: ${error.message}`
-          : `pages ${chunk.pageStart}-${chunk.pageEnd}: unknown error`
-      );
+  const results = await mapWithConcurrency(
+    chunks,
+    input.concurrency ?? defaultChunkConcurrency,
+    async (chunk): Promise<{ facts?: ContractFacts; error?: string }> => {
+      try {
+        return {
+          facts: await extractContractFactsFromPdf({
+            filename: chunk.filename,
+            pdf: chunk.pdf,
+            emailContext: `${input.emailContext ?? "None"}\n\nThis is page chunk ${chunk.pageStart}-${chunk.pageEnd}.`,
+            temporalContext: input.temporalContext
+          })
+        };
+      } catch (error) {
+        return {
+          error:
+            error instanceof Error
+              ? `pages ${chunk.pageStart}-${chunk.pageEnd}: ${error.message}`
+              : `pages ${chunk.pageStart}-${chunk.pageEnd}: unknown error`
+        };
+      }
     }
-  }
+  );
+
+  const extracted = results.flatMap((result) => result.facts ?? []);
+  const errors = results.flatMap((result) => result.error ?? []);
 
   if (extracted.length === 0) {
     throw new Error(`All PDF chunk extraction attempts failed. ${errors.join(" ")}`);
