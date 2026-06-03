@@ -1,12 +1,10 @@
 import {
   extractContractFactsFromPdf,
-  extractContractFactsFromPdfChunks,
-  extractContractFactsFromText
+  extractContractFactsFromPdfChunks
 } from "@/lib/contracts/anthropic-extract";
 import { extractTexasContractFacts } from "@/lib/contracts/extract";
 import type { ContractFacts } from "@/lib/contracts/facts";
 import { getStringFact } from "@/lib/contracts/facts";
-import { extractTextFromPdfWithOcr } from "@/lib/contracts/ocr-extract";
 import { validateContractFacts } from "@/lib/contracts/validate";
 import type { StoredAttachment } from "@/lib/documents/attachments";
 import type { TemporalContext } from "@/lib/time/clock";
@@ -39,7 +37,7 @@ export interface DocumentAssessment {
   filename: string;
   kind: DocumentKind;
   usability: DocumentUsability;
-  extractionMode: "anthropic_pdf" | "anthropic_pdf_chunks" | "ocr_text" | "email_fallback";
+  extractionMode: "anthropic_pdf" | "anthropic_pdf_chunks" | "email_fallback";
   extractionError?: ExtractionErrorSummary;
   facts: ContractFacts;
   validationStatus: string;
@@ -194,27 +192,11 @@ async function extractContractFacts(input: {
         extractionMode: "anthropic_pdf_chunks" as const
       };
     } catch (chunkedPdfError) {
-      try {
-        const ocrText = await extractTextFromPdfWithOcr({
-          filename: input.attachment.filename,
-          pdf: input.attachment.body
-        });
-        return {
-          facts: await extractContractFactsFromText({
-            filename: input.attachment.filename,
-            text: ocrText,
-            emailContext: input.emailText,
-            temporalContext: input.temporalContext
-          }),
-          extractionMode: "ocr_text" as const
-        };
-      } catch (ocrError) {
-        return {
-          facts: extractTexasContractFacts(input.emailText),
-          extractionMode: "email_fallback" as const,
-          extractionError: summarizeExtractionError(ocrError, chunkedPdfError)
-        };
-      }
+      return {
+        facts: extractTexasContractFacts(input.emailText),
+        extractionMode: "email_fallback" as const,
+        extractionError: summarizeExtractionError(chunkedPdfError, fullPdfError)
+      };
     }
   }
 }

@@ -21,13 +21,6 @@ export interface ExtractPdfFactsFromChunksInput extends ExtractPdfFactsInput {
   pagesPerChunk?: number;
 }
 
-export interface ExtractTextFactsInput {
-  filename: string;
-  text: string;
-  emailContext?: string;
-  temporalContext?: TemporalContext;
-}
-
 const SYSTEM_PROMPT = `You are an expert Texas residential real estate transaction coordinator.
 Extract contract facts from Texas residential resale contracts, especially TREC 20-18.
 Do not provide legal advice. Do not infer facts that are not present.
@@ -157,39 +150,6 @@ export async function extractContractFactsFromPdf(
             text: `${USER_PROMPT}\n\n${formatTemporalContextLine(
               temporalContext
             )}\n\nEmail context:\n${input.emailContext ?? "None"}`
-          }
-        ]
-      }
-    ]
-  });
-
-  const text = getFirstTextBlock(response.content);
-  const parsed = parseJsonObject<unknown>(text);
-
-  return contractFactsSchema.parse(parsed);
-}
-
-export async function extractContractFactsFromText(
-  input: ExtractTextFactsInput
-): Promise<ContractFacts> {
-  const client = getAnthropicClient();
-  const temporalContext = input.temporalContext ?? getTemporalContext();
-  const response = await client.messages.create({
-    model: getAnthropicModel(),
-    max_tokens: 4000,
-    temperature: 0,
-    system: SYSTEM_PROMPT,
-    messages: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: `${USER_PROMPT}\n\n${formatTemporalContextLine(
-              temporalContext
-            )}\n\nFilename: ${input.filename}\n\nEmail context:\n${
-              input.emailContext ?? "None"
-            }\n\nOCR/text extraction from the PDF:\n${input.text}`
           }
         ]
       }
