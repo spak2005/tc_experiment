@@ -38,6 +38,7 @@ import {
   type FetchedAttachment,
   type StoredAttachment
 } from "@/lib/documents/attachments";
+import { transactionMapEmail } from "@/lib/email/templates";
 import { generateTexasMilestones } from "@/lib/milestones/engine";
 import { executeTransactionWrites } from "@/lib/transaction-writes/executor";
 import type { TransactionWrite } from "@/lib/transaction-writes/schemas";
@@ -67,6 +68,20 @@ function isFromTcInbox(input: {
     from.length > 0 &&
     (from === normalizeEmail(input.inboxAddress) || from === normalizeEmail(input.inboxId))
   );
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+function transactionMapMilestones(context: AgentContextPack) {
+  return (context.transactionContext?.milestones ?? []).map((milestone) => ({
+    title: stringValue(milestone.title) ?? "Untitled milestone",
+    dueDate: stringValue(milestone.due_date) ?? stringValue(milestone.dueDate),
+    sourceReference:
+      stringValue(milestone.source_reference) ?? stringValue(milestone.sourceReference),
+    riskLevel: stringValue(milestone.risk_level) ?? stringValue(milestone.riskLevel) ?? "normal"
+  }));
 }
 
 type ActivityContext = {
@@ -333,6 +348,7 @@ async function persistContractAssessment(input: {
   assessment: Awaited<ReturnType<typeof assessContractDocument>>;
 }) {
   let calendarUrl: string | undefined;
+  let transactionMapReady = false;
   const propertyAddress = getStringFact(input.assessment.facts.propertyAddress);
   const effectiveDate = isoDateOrUndefined(getStringFact(input.assessment.facts.effectiveDate));
   const closingDate = isoDateOrUndefined(getStringFact(input.assessment.facts.closingDate));
@@ -451,6 +467,7 @@ async function persistContractAssessment(input: {
   );
 
   if (input.assessment.usability !== "unusable") {
+    transactionMapReady = true;
     const milestones = generateTexasMilestones(input.assessment.facts);
     const tasks = [
       ...createOpeningTasks(),
@@ -586,7 +603,7 @@ async function persistContractAssessment(input: {
     }
   });
 
-  return { calendarUrl };
+  return { calendarUrl, transactionMapReady };
 }
 
 async function storeInboundAttachments(input: {
@@ -735,6 +752,7 @@ export async function processAgentMailInbound(input: {
   let context = await buildAgentContextPack({ inbound, tcProfile });
   let transactionId = context.match.transactionId;
   let contractCalendarUrl: string | undefined;
+  let contractMapEmailReady = false;
   const activityContext: ActivityContext = {
     userId: tcProfile.user_id,
     transactionId
@@ -984,6 +1002,7 @@ export async function processAgentMailInbound(input: {
             assessment: documentAssessment
           });
           contractCalendarUrl = persistence.calendarUrl;
+          contractMapEmailReady = persistence.transactionMapReady;
         } else if (storedPdfAttachment) {
           await logActivity(activityContext, {
             sourceType: "document",
@@ -1142,6 +1161,34 @@ export async function processAgentMailInbound(input: {
       ...decision,
       transactionId,
       matchConfidence: context.match.confidence
+    };
+  }
+  if (
+    transactionId &&
+    documentAssessment &&
+    documentAssessment.usability !== "unusable" &&
+    contractMapEmailReady
+  ) {
+    const mapEmail = transactionMapEmail({
+      propertyAddress: getStringFact(documentAssessment.facts.propertyAddress),
+      effectiveDate: isoDateOrUndefined(getStringFact(documentAssessment.facts.effectiveDate)),
+      closingDate: isoDateOrUndefined(getStringFact(documentAssessment.facts.closingDate)),
+      calendarUrl: contractCalendarUrl,
+      milestones: transactionMapMilestones(context),
+      missingItems: documentAssessment.missingItems
+    });
+    decision = {
+      ...decision,
+      intent: "new_contract",
+      action: "process_contract",
+      requiresApproval: false,
+      transactionId,
+      response: {
+        subject: mapEmail.subject,
+        body: mapEmail.text,
+        to: [context.tcProfile.escalationEmail],
+        labels: ["transaction_map", "calendar_feed"]
+      }
     };
   }
   const decisionRecord = await createAgentDecisionOnce({
