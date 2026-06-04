@@ -19,6 +19,7 @@
       }
     ],
     "paths": {
+      "@improvement/*": ["./agent-improvement/*"],
       "@/*": ["./src/*"]
     }
   },
