@@ -33,17 +33,24 @@ export interface ExtractionErrorSummary {
   previousAttempt?: string;
 }
 
+export type ExtractionMode =
+  | "anthropic_pdf"
+  | "anthropic_pdf_file"
+  | "anthropic_pdf_chunks"
+  | "email_fallback";
+
+export interface ExtractionAttemptErrorSummary extends ExtractionErrorSummary {
+  mode: ExtractionMode;
+}
+
 export interface DocumentAssessment {
   documentId: string;
   filename: string;
   kind: DocumentKind;
   usability: DocumentUsability;
-  extractionMode:
-    | "anthropic_pdf"
-    | "anthropic_pdf_file"
-    | "anthropic_pdf_chunks"
-    | "email_fallback";
+  extractionMode: ExtractionMode;
   extractionError?: ExtractionErrorSummary;
+  extractionAttemptErrors?: ExtractionAttemptErrorSummary[];
   facts: ContractFacts;
   validationStatus: string;
   missingItems: string[];
@@ -122,6 +129,16 @@ function summarizeExtractionError(
     ...(previousAttempt
       ? { previousAttempt: errorMessage(previousAttempt).slice(0, 500) }
       : {})
+  };
+}
+
+function summarizeExtractionAttemptError(
+  mode: ExtractionMode,
+  error: unknown
+): ExtractionAttemptErrorSummary {
+  return {
+    mode,
+    ...summarizeExtractionError(error)
   };
 }
 
@@ -216,7 +233,10 @@ async function extractContractFacts(input: {
             emailContext: input.emailText,
             temporalContext: input.temporalContext
           }),
-          extractionMode: "anthropic_pdf_chunks" as const
+          extractionMode: "anthropic_pdf_chunks" as const,
+          extractionAttemptErrors: [
+            summarizeExtractionAttemptError("anthropic_pdf_file", filePdfError)
+          ]
         };
       } catch (chunkedPdfError) {
         return {
@@ -243,18 +263,21 @@ async function extractContractFacts(input: {
       return {
         facts: await extractContractFactsFromPdfChunks({
           filename: input.attachment.filename,
-          pdf: input.attachment.body,
-          emailContext: input.emailText,
-          temporalContext: input.temporalContext
-        }),
-        extractionMode: "anthropic_pdf_chunks" as const
-      };
-    } catch (chunkedPdfError) {
-      return {
-        facts: extractTexasContractFacts(input.emailText),
-        extractionMode: "email_fallback" as const,
-        extractionError: summarizeExtractionError(chunkedPdfError, fullPdfError)
-      };
+            pdf: input.attachment.body,
+            emailContext: input.emailText,
+            temporalContext: input.temporalContext
+          }),
+          extractionMode: "anthropic_pdf_chunks" as const,
+          extractionAttemptErrors: [
+            summarizeExtractionAttemptError("anthropic_pdf", fullPdfError)
+          ]
+        };
+      } catch (chunkedPdfError) {
+        return {
+          facts: extractTexasContractFacts(input.emailText),
+          extractionMode: "email_fallback" as const,
+          extractionError: summarizeExtractionError(chunkedPdfError, fullPdfError)
+        };
     }
   }
 }
@@ -268,11 +291,13 @@ export async function assessContractDocument(input: {
   let extractionMode: DocumentAssessment["extractionMode"] = "email_fallback";
   let extractionFailed = false;
   let extractionError: ExtractionErrorSummary | undefined;
+  let extractionAttemptErrors: ExtractionAttemptErrorSummary[] | undefined;
 
   const extraction = await extractContractFacts(input);
   facts = extraction.facts;
   extractionMode = extraction.extractionMode;
   extractionError = extraction.extractionError;
+  extractionAttemptErrors = extraction.extractionAttemptErrors;
 
   if (extractionMode === "email_fallback" && extractionError) {
     extractionFailed = true;
@@ -293,6 +318,7 @@ export async function assessContractDocument(input: {
     ...classification,
     extractionMode,
     extractionError,
+    extractionAttemptErrors,
     facts,
     validationStatus: validation.status,
     missingItems,

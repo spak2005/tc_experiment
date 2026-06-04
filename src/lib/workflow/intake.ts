@@ -1028,6 +1028,7 @@ export async function processAgentMailInbound(input: {
           filename: pdfAttachment.filename,
           extractionMode: documentAssessment.extractionMode,
           extractionError: documentAssessment.extractionError,
+          extractionAttemptErrors: documentAssessment.extractionAttemptErrors,
           contractVersion: documentAssessment.facts.contractVersion,
           extractedFacts: summarizeOpeningFacts(documentAssessment.facts),
           missingItems: documentAssessment.missingItems,

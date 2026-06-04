@@ -128,6 +128,12 @@ describe("assessContractDocument", () => {
     expect(mocks.extractContractFactsFromPdfFile).toHaveBeenCalled();
     expect(mocks.extractContractFactsFromPdfChunks).toHaveBeenCalled();
     expect(assessment.extractionMode).toBe("anthropic_pdf_chunks");
+    expect(assessment.extractionAttemptErrors).toEqual([
+      expect.objectContaining({
+        mode: "anthropic_pdf_file",
+        message: "Files API failed"
+      })
+    ]);
     expect(assessment.usability).toBe("usable");
   });
 
