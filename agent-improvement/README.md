@@ -16,3 +16,8 @@ Current workflow:
 
 Future improvement-loop pieces, such as human corrections and eval snapshots,
 should live here too unless they are thin app integration points.
+
+Portable skill:
+
+- `skills/agent-improvement-harness/` teaches future agents how to use this
+  improvement loop and diagnostics harness.

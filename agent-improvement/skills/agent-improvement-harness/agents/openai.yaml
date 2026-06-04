@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agent Improvement Harness"
+  short_description: "Diagnose agent traces and turn reality into improvements."
+  default_prompt: "Use the agent improvement harness to inspect a run, diagnose the behavior gap, and propose or implement a tested improvement."
