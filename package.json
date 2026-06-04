@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "debug:run": "tsx agent-improvement/diagnostics/cli/debug-run.ts",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",

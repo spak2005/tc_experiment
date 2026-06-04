@@ -905,6 +905,18 @@ export async function getDiagnosticsSourceRecords(input: {
   };
 }
 
+export async function findActivityRunOwner(activityRunId: string) {
+  const result = await query<{ user_id: string }>(
+    `select user_id
+     from agent_activity_runs
+     where id = $1
+     limit 1`,
+    [activityRunId]
+  );
+
+  return result.rows[0]?.user_id ?? null;
+}
+
 export async function createUser(input: CreateUserInput, client?: PoolClientLike) {
   const db = client ?? { query };
   const result = await db.query<{
