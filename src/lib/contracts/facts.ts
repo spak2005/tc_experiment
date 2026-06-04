@@ -1,10 +1,15 @@
 import { z } from "zod";
 
+const optionalStringSchema = z
+  .string()
+  .nullish()
+  .transform((value) => value ?? undefined);
+
 export const extractedValueSchema = z.object({
   value: z.union([z.string(), z.number(), z.boolean(), z.null()]),
   confidence: z.number().min(0).max(1),
-  sourceReference: z.string().optional(),
-  evidence: z.string().optional(),
+  sourceReference: optionalStringSchema,
+  evidence: optionalStringSchema,
   needsConfirmation: z.boolean().default(false)
 });
 
@@ -25,13 +30,13 @@ export const extractedContactSchema = z.object({
     "vendor",
     "agent_client"
   ]),
-  name: z.string().optional(),
-  email: z.string().optional(),
-  phone: z.string().optional(),
-  organization: z.string().optional(),
+  name: optionalStringSchema,
+  email: optionalStringSchema,
+  phone: optionalStringSchema,
+  organization: optionalStringSchema,
   confidence: z.number().min(0).max(1),
-  sourceReference: z.string().optional(),
-  evidence: z.string().optional(),
+  sourceReference: optionalStringSchema,
+  evidence: optionalStringSchema,
   needsConfirmation: z.boolean().default(false)
 });
 
@@ -53,9 +58,9 @@ export const expectedDocumentSchema = z.object({
       "not_applicable"
     ])
     .default("needed"),
-  dueDate: z.string().optional(),
-  sourceReference: z.string().optional(),
-  evidence: z.string().optional(),
+  dueDate: optionalStringSchema,
+  sourceReference: optionalStringSchema,
+  evidence: optionalStringSchema,
   confidence: z.number().min(0).max(1).default(0.8),
   needsConfirmation: z.boolean().default(false)
 });

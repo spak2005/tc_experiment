@@ -100,4 +100,51 @@ describe("validateContractFacts", () => {
       confidence: 0.8
     });
   });
+
+  it("accepts nulls for optional model output strings", () => {
+    const parsed = contractFactsSchema.parse({
+      contractVersion: "TREC_20_18",
+      contacts: [
+        {
+          role: "seller",
+          name: "Paul Smith",
+          email: null,
+          phone: null,
+          organization: null,
+          sourceReference: null,
+          evidence: null,
+          confidence: 0.95
+        }
+      ],
+      expectedDocuments: [
+        {
+          key: "survey",
+          type: "survey",
+          name: "Survey",
+          ownerRole: "seller",
+          dueDate: null,
+          sourceReference: null,
+          evidence: null
+        }
+      ],
+      addenda: [
+        {
+          value: "Third Party Financing Addendum",
+          confidence: 1,
+          sourceReference: null,
+          evidence: null,
+          needsConfirmation: false
+        }
+      ],
+      signatureStatus: "appears_executed"
+    });
+
+    expect(parsed.contacts[0]).toMatchObject({
+      role: "seller",
+      name: "Paul Smith"
+    });
+    expect(parsed.contacts[0].email).toBeUndefined();
+    expect(parsed.expectedDocuments[0].dueDate).toBeUndefined();
+    expect(parsed.addenda[0].sourceReference).toBeUndefined();
+  });
 });
