@@ -490,6 +490,421 @@ export async function getUserActivityTimeline(userId: string, limit = 100) {
   return result.rows.map(toActivityEvent);
 }
 
+function metadataRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function collectStringId(
+  target: Set<string>,
+  source: Record<string, unknown>,
+  key: string
+) {
+  const value = source[key];
+  if (typeof value === "string" && value.length > 0) {
+    target.add(value);
+  }
+}
+
+function setToArray(values: Set<string>) {
+  return [...values];
+}
+
+export interface DiagnosticsSourceRecords {
+  run: AgentActivityRun;
+  events: AgentActivityEvent[];
+  related: {
+    transactions: Record<string, unknown>[];
+    messages: Record<string, unknown>[];
+    documents: Record<string, unknown>[];
+    milestones: Record<string, unknown>[];
+    tasks: Record<string, unknown>[];
+    blockers: Record<string, unknown>[];
+    approvals: Record<string, unknown>[];
+    extractedContractFacts: Record<string, unknown>[];
+    transactionFacts: Record<string, unknown>[];
+    transactionChangeEvents: Record<string, unknown>[];
+    transactionMemory: Record<string, unknown>[];
+    agentDecisions: Record<string, unknown>[];
+    agentWakeups: Record<string, unknown>[];
+    auditEvents: Record<string, unknown>[];
+    webhookEvents: Record<string, unknown>[];
+    outboundEmailActions: Record<string, unknown>[];
+    calendarFeeds: Record<string, unknown>[];
+  };
+}
+
+export async function getDiagnosticsSourceRecords(input: {
+  activityRunId: string;
+  userId: string;
+}): Promise<DiagnosticsSourceRecords | null> {
+  const runResult = await query<{
+    id: string;
+    user_id: string;
+    transaction_id: string | null;
+    property_address: string | null;
+    transaction_status: string | null;
+    workflow_type: string;
+    title: string;
+    summary: string;
+    status: AgentActivityRun["status"];
+    metadata: unknown;
+    started_at: string;
+    completed_at: string | null;
+  }>(
+    `select
+       r.id,
+       r.user_id,
+       r.transaction_id,
+       t.property_address,
+       t.status as transaction_status,
+       r.workflow_type,
+       r.title,
+       r.summary,
+       r.status,
+       r.metadata,
+       r.started_at::text,
+       r.completed_at::text
+     from agent_activity_runs r
+     left join transactions t on t.id = r.transaction_id
+     where r.id = $1 and r.user_id = $2
+     limit 1`,
+    [input.activityRunId, input.userId]
+  );
+  const runRow = runResult.rows[0];
+  if (!runRow) return null;
+
+  const run = toActivityRun(runRow);
+  const eventResult = await query<{
+    id: string;
+    user_id: string;
+    transaction_id: string | null;
+    property_address: string | null;
+    transaction_status: string | null;
+    activity_run_id: string | null;
+    run_user_id: string | null;
+    run_transaction_id: string | null;
+    run_property_address: string | null;
+    run_transaction_status: string | null;
+    run_workflow_type: string | null;
+    run_title: string | null;
+    run_summary: string | null;
+    run_status: AgentActivityEvent["status"] | null;
+    run_metadata: unknown;
+    run_started_at: string | null;
+    run_completed_at: string | null;
+    agent_decision_id: string | null;
+    source_type: AgentActivityEvent["sourceType"];
+    event_type: string;
+    title: string;
+    summary: string;
+    status: AgentActivityEvent["status"];
+    metadata: unknown;
+    occurred_at: string;
+  }>(
+    `select
+       e.id,
+       e.user_id,
+       e.transaction_id,
+       t.property_address,
+       t.status as transaction_status,
+       e.activity_run_id,
+       r.user_id as run_user_id,
+       r.transaction_id as run_transaction_id,
+       rt.property_address as run_property_address,
+       rt.status as run_transaction_status,
+       r.workflow_type as run_workflow_type,
+       r.title as run_title,
+       r.summary as run_summary,
+       r.status as run_status,
+       r.metadata as run_metadata,
+       r.started_at::text as run_started_at,
+       r.completed_at::text as run_completed_at,
+       e.agent_decision_id,
+       e.source_type,
+       e.event_type,
+       e.title,
+       e.summary,
+       e.status,
+       e.metadata,
+       e.occurred_at::text
+     from agent_activity_events e
+     left join transactions t on t.id = e.transaction_id
+     left join agent_activity_runs r on r.id = e.activity_run_id
+     left join transactions rt on rt.id = r.transaction_id
+     where e.activity_run_id = $1 and e.user_id = $2
+     order by e.occurred_at, e.id`,
+    [input.activityRunId, input.userId]
+  );
+  const events = eventResult.rows.map(toActivityEvent);
+
+  const transactionIds = new Set<string>();
+  const messageIds = new Set<string>();
+  const threadIds = new Set<string>();
+  const decisionIds = new Set<string>();
+  const approvalIds = new Set<string>();
+  const taskIds = new Set<string>();
+  const milestoneIds = new Set<string>();
+  const wakeupIds = new Set<string>();
+  const webhookEventIds = new Set<string>();
+
+  if (run.transactionId) transactionIds.add(run.transactionId);
+  const runMetadata = metadataRecord(run.metadata);
+  for (const key of ["messageId", "agentMailMessageId"]) {
+    collectStringId(messageIds, runMetadata, key);
+  }
+  collectStringId(threadIds, runMetadata, "threadId");
+  collectStringId(webhookEventIds, runMetadata, "webhookEventId");
+  collectStringId(wakeupIds, runMetadata, "wakeupId");
+  collectStringId(taskIds, runMetadata, "taskId");
+  collectStringId(milestoneIds, runMetadata, "milestoneId");
+  collectStringId(approvalIds, runMetadata, "approvalId");
+
+  for (const event of events) {
+    if (event.transactionId) transactionIds.add(event.transactionId);
+    if (event.agentDecisionId) decisionIds.add(event.agentDecisionId);
+    const metadata = metadataRecord(event.metadata);
+    for (const key of ["messageId", "agentMailMessageId", "requestMessageId", "sentMessageId"]) {
+      collectStringId(messageIds, metadata, key);
+    }
+    for (const key of ["threadId", "requestThreadId", "sentThreadId"]) {
+      collectStringId(threadIds, metadata, key);
+    }
+    collectStringId(decisionIds, metadata, "decisionId");
+    collectStringId(decisionIds, metadata, "agentDecisionId");
+    collectStringId(approvalIds, metadata, "approvalId");
+    collectStringId(taskIds, metadata, "taskId");
+    collectStringId(milestoneIds, metadata, "milestoneId");
+    collectStringId(wakeupIds, metadata, "wakeupId");
+    collectStringId(webhookEventIds, metadata, "webhookEventId");
+  }
+
+  const transactionIdList = setToArray(transactionIds);
+  const messageIdList = setToArray(messageIds);
+  const threadIdList = setToArray(threadIds);
+  const decisionIdList = setToArray(decisionIds);
+  const approvalIdList = setToArray(approvalIds);
+  const taskIdList = setToArray(taskIds);
+  const milestoneIdList = setToArray(milestoneIds);
+  const wakeupIdList = setToArray(wakeupIds);
+  const webhookEventIdList = setToArray(webhookEventIds);
+
+  const [
+    transactions,
+    messages,
+    documents,
+    milestones,
+    tasks,
+    blockers,
+    approvals,
+    extractedContractFacts,
+    transactionFacts,
+    transactionChangeEvents,
+    transactionMemory,
+    agentDecisions,
+    agentWakeups,
+    auditEvents,
+    webhookEvents,
+    outboundEmailActions,
+    calendarFeeds
+  ] = await Promise.all([
+    query<Record<string, unknown>>(
+      `select id, user_id, tc_profile_id, property_address, market, side, status, phase,
+              current_risk, effective_date::text, closing_date::text, intake_source_key,
+              created_at::text, updated_at::text
+       from transactions
+       where user_id = $1 and id = any($2::uuid[])
+       order by updated_at desc`,
+      [input.userId, transactionIdList]
+    ),
+    query<Record<string, unknown>>(
+      `select id, transaction_id, agentmail_message_id, thread_id, from_address,
+              to_addresses, cc_addresses, subject, received_at::text, sent_at::text, summary
+       from messages
+       where (transaction_id = any($1::uuid[])
+          or agentmail_message_id = any($2::text[])
+          or thread_id = any($3::text[]))
+       order by coalesce(received_at, sent_at) desc nulls last, id`,
+      [transactionIdList, messageIdList, threadIdList]
+    ),
+    query<Record<string, unknown>>(
+      `select id, transaction_id, type, name, status, blob_key, source_message_id,
+              source_attachment_key, owner_role, due_date::text, metadata, created_at::text
+       from documents
+       where transaction_id = any($1::uuid[])
+          or source_message_id = any($2::text[])
+       order by created_at desc, id`,
+      [transactionIdList, messageIdList]
+    ),
+    query<Record<string, unknown>>(
+      `select id, transaction_id, key, title, phase, due_date::text, source_type,
+              source_reference, risk_level, completed_at::text, metadata
+       from milestones
+       where transaction_id = any($1::uuid[])
+          or id = any($2::uuid[])
+       order by due_date nulls last, title`,
+      [transactionIdList, milestoneIdList]
+    ),
+    query<Record<string, unknown>>(
+      `select id, transaction_id, milestone_id, title, owner_role, status,
+              due_date::text, follow_up_due_date::text, metadata, created_at::text
+       from tasks
+       where transaction_id = any($1::uuid[])
+          or id = any($2::uuid[])
+       order by due_date nulls last, created_at`,
+      [transactionIdList, taskIdList]
+    ),
+    query<Record<string, unknown>>(
+      `select id, transaction_id, title, details, risk_level, responsible_party_role,
+              deadline_id, task_id, resolved_at::text, created_at::text
+       from blockers
+       where transaction_id = any($1::uuid[])
+          or task_id = any($2::uuid[])
+          or deadline_id = any($3::uuid[])
+       order by created_at desc, id`,
+      [transactionIdList, taskIdList, milestoneIdList]
+    ),
+    query<Record<string, unknown>>(
+      `select id, transaction_id, agent_decision_id, task_id, idempotency_key, status,
+              proposed_subject, proposed_body, proposed_to, proposed_cc,
+              request_message_id, request_thread_id, sent_message_id, sent_thread_id,
+              expires_at::text, approved_at::text, rejected_at::text,
+              created_at::text, updated_at::text
+       from approvals
+       where transaction_id = any($1::uuid[])
+          or agent_decision_id = any($2::uuid[])
+          or id = any($3::uuid[])
+          or task_id = any($4::uuid[])
+       order by created_at desc, id`,
+      [transactionIdList, decisionIdList, approvalIdList, taskIdList]
+    ),
+    query<Record<string, unknown>>(
+      `select id, transaction_id, contract_version, facts, validation_status, created_at::text
+       from extracted_contract_facts
+       where transaction_id = any($1::uuid[])
+       order by created_at desc, id`,
+      [transactionIdList]
+    ),
+    query<Record<string, unknown>>(
+      `select transaction_id, key, value, confidence::text, source_type, source_reference,
+              needs_confirmation, updated_at::text
+       from transaction_facts
+       where transaction_id = any($1::uuid[])
+       order by transaction_id, key`,
+      [transactionIdList]
+    ),
+    query<Record<string, unknown>>(
+      `select id, transaction_id, agent_decision_id, change_type, target_type, target_id,
+              field_key, previous_value, new_value, source_type, source_reference,
+              confidence::text, approval_status, created_at::text
+       from transaction_change_events
+       where transaction_id = any($1::uuid[])
+          or agent_decision_id = any($2::uuid[])
+       order by created_at desc, id
+       limit 200`,
+      [transactionIdList, decisionIdList]
+    ),
+    query<Record<string, unknown>>(
+      `select transaction_id, summary, open_questions, known_context,
+              last_inbound_at::text, updated_at::text
+       from transaction_memory
+       where transaction_id = any($1::uuid[])
+       order by updated_at desc`,
+      [transactionIdList]
+    ),
+    query<Record<string, unknown>>(
+      `select id, user_id, transaction_id, inbound_message_id, inbound_thread_id,
+              intent, action, confidence::text, match_confidence::text,
+              requires_approval, policy_result, rationale, context_summary,
+              tool_plan, tool_results, status, idempotency_key,
+              created_at::text, executed_at::text
+       from agent_decisions
+       where user_id = $1
+         and (
+           transaction_id = any($2::uuid[])
+           or id = any($3::uuid[])
+           or inbound_message_id = any($4::text[])
+           or inbound_thread_id = any($5::text[])
+         )
+       order by created_at desc, id
+       limit 100`,
+      [input.userId, transactionIdList, decisionIdList, messageIdList, threadIdList]
+    ),
+    query<Record<string, unknown>>(
+      `select ${agentWakeupColumns}
+       from agent_wakeups
+       where user_id = $1
+         and (
+           transaction_id = any($2::uuid[])
+           or id = any($3::uuid[])
+           or task_id = any($4::uuid[])
+         )
+       order by created_at desc, id
+       limit 100`,
+      [input.userId, transactionIdList, wakeupIdList, taskIdList]
+    ),
+    query<Record<string, unknown>>(
+      `select id, user_id, transaction_id, actor, event_type, payload, created_at::text
+       from audit_events
+       where user_id = $1 and transaction_id = any($2::uuid[])
+       order by created_at desc, id
+       limit 200`,
+      [input.userId, transactionIdList]
+    ),
+    query<Record<string, unknown>>(
+      `select id, provider, external_id, payload, processed_at::text, created_at::text
+       from webhook_events
+       where id = any($1::uuid[])
+       order by created_at desc, id`,
+      [webhookEventIdList]
+    ),
+    query<Record<string, unknown>>(
+      `select id, idempotency_key, status, send_kind, inbox_id, message_id,
+              to_addresses, cc_addresses, bcc_addresses, subject, text_body,
+              html_body, labels, provider_message_id, provider_thread_id,
+              last_error, created_at::text, updated_at::text, sent_at::text
+       from outbound_email_actions
+       where message_id = any($1::text[])
+          or provider_message_id = any($1::text[])
+       order by created_at desc, id
+       limit 100`,
+      [messageIdList]
+    ),
+    query<Record<string, unknown>>(
+      `select id, transaction_id, token, created_at::text, revoked_at::text, last_accessed_at::text
+       from transaction_calendar_feeds
+       where transaction_id = any($1::uuid[])
+       order by created_at desc, id`,
+      [transactionIdList]
+    )
+  ]);
+
+  return {
+    run,
+    events,
+    related: {
+      transactions: transactions.rows,
+      messages: messages.rows,
+      documents: documents.rows,
+      milestones: milestones.rows,
+      tasks: tasks.rows,
+      blockers: blockers.rows,
+      approvals: approvals.rows,
+      extractedContractFacts: extractedContractFacts.rows,
+      transactionFacts: transactionFacts.rows,
+      transactionChangeEvents: transactionChangeEvents.rows,
+      transactionMemory: transactionMemory.rows,
+      agentDecisions: agentDecisions.rows,
+      agentWakeups: agentWakeups.rows,
+      auditEvents: auditEvents.rows,
+      webhookEvents: webhookEvents.rows,
+      outboundEmailActions: outboundEmailActions.rows,
+      calendarFeeds: calendarFeeds.rows
+    }
+  };
+}
+
 export async function createUser(input: CreateUserInput, client?: PoolClientLike) {
   const db = client ?? { query };
   const result = await db.query<{
