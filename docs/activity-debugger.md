@@ -93,3 +93,33 @@ Evidence reconciliation uses these event names:
 Transaction memory refresh uses:
 
 - `transaction_memory_refreshed`
+
+## Agent-readable diagnostics
+
+Human observability stays in `/observability`. Codex-readable diagnostics are
+generated JSON bundles over the same source-of-truth records, not a second
+observability store.
+
+Use the local CLI when Codex needs to inspect a run without copy/paste:
+
+```bash
+npm run debug:run -- --activity-run-id <run-id>
+npm run debug:run -- --activity-run-id <run-id> --depth standard
+npm run debug:run -- --activity-run-id <run-id> --depth raw --out diagnostics/run.json
+```
+
+The authenticated app route exposes the same bundle:
+
+```text
+GET /api/internal/diagnostics/activity-runs/<run-id>?depth=summary
+```
+
+Depths are intentionally layered:
+
+- `summary`: default compact context for first-pass debugging.
+- `standard`: adds related transaction records without raw bodies/payloads.
+- `raw`: includes stored raw JSON fields and email/action bodies.
+
+Diagnostics never include PDF or document binary bytes. They can include
+metadata, blob keys, provider ids, attachment diagnostics, and stored raw JSON
+fields depending on depth.
