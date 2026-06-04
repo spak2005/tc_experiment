@@ -18,15 +18,18 @@ export interface ExtractPdfFactsInput {
 const anthropicFileExtractionTimeoutMs = 240_000;
 const anthropicFileUploadTimeoutMs = 60_000;
 const anthropicExtractionMaxRetries = 0;
-const anthropicExtractionMaxTokens = 8_000;
+const anthropicExtractionMaxTokens = 12_000;
 const anthropicJsonRepairTimeoutMs = 30_000;
 
-const SYSTEM_PROMPT = `You are an expert Texas residential real estate transaction coordinator.
-Extract contract facts from Texas residential resale contracts, especially TREC 20-18.
-Do not provide legal advice. Do not infer facts that are not present.
-Return only valid JSON matching the requested schema.`;
+const SYSTEM_PROMPT = `You are an expert transaction coordinator extracting facts from real estate contract PDFs.
+Return JSON only. Do not provide legal advice. Do not infer facts that are not visible in the document.`;
 
-const USER_PROMPT = `Extract the transaction facts needed to open a Texas residential transaction file.
+const USER_PROMPT = `You are reading a Texas residential real estate contract package.
+
+Read the entire PDF using both page images and any text layer. Pay special attention to filled blanks, handwriting, stamped receipts, checked boxes, signature dates, addenda, and title/escrow receipt pages.
+
+Extract the real deal facts needed to open a transaction file. Do not rely on generic TREC template text when a filled value is visible elsewhere.
+Use ISO YYYY-MM-DD for dates when the date is clear. Preserve exact money values with currency symbols. If an email, phone number, handwriting, or checkbox mark is not fully legible, lower confidence and set needsConfirmation true.
 
 Use this output shape exactly:
 {
@@ -117,10 +120,9 @@ Each extractedValue must be:
 
 Critical required facts are Effective Date, Closing Date, cash vs financed, earnest money amount, option period length if option applies, title company/escrow officer, and property address.
 Extract all visible coordination contacts, especially buyer, seller, listing agent, title/escrow officer, lender/loan officer, HOA management, inspector, appraiser, and surveyor.
-Expected documents should include the executed contract, earnest money receipt, option fee receipt, title commitment, survey/T-47, seller disclosure, financing/lender/appraisal documents when financed, HOA resale certificate when applicable, closing disclosure, settlement statement, and commission disbursement if applicable.
 For TREC 20-18, Paragraph 5 contains earnest money, option fee, and option period. Paragraph 9 contains Closing Date. The execution page contains Effective Date.
+For expectedDocuments, include only documents clearly shown in or directly required by this package; use an empty array if unsure.
 If a value is blank, unreadable, absent, or ambiguous, set value to null, confidence below 0.5, needsConfirmation true, and include the field name in missingRequiredFacts.
-Use ISO YYYY-MM-DD dates when a date is clear.
 Return compact JSON only. Keep evidence strings under 16 words.`;
 
 function parseContractFactsText(text: string) {
@@ -161,60 +163,108 @@ async function repairContractFactsJson(input: {
   return parseContractFactsText(getFirstTextBlock(response.content));
 }
 
+function extractionStageError(input: {
+  error: unknown;
+  stage: "upload" | "message";
+  elapsedMs: number;
+}) {
+  const source = input.error instanceof Error ? input.error : undefined;
+  const sourceMessage = source?.message ?? String(input.error);
+  const error = new Error(
+    `Anthropic Files PDF ${input.stage} request failed after ${input.elapsedMs}ms: ${sourceMessage}`
+  );
+  error.name = source?.name ?? "Error";
+  (error as { stage?: string }).stage = input.stage;
+  (error as { elapsedMs?: number }).elapsedMs = input.elapsedMs;
+
+  const record = input.error as Record<string, unknown>;
+  if (record && typeof record === "object") {
+    if (typeof record.status === "number") {
+      (error as { status?: number }).status = record.status;
+    }
+    if (typeof record.type === "string") {
+      (error as { type?: string }).type = record.type;
+    }
+  }
+
+  return error;
+}
+
 export async function extractContractFactsFromPdfFile(
   input: ExtractPdfFactsInput
 ): Promise<ContractFacts> {
   const client = getAnthropicClient();
   const temporalContext = input.temporalContext ?? getTemporalContext();
-  const file = await client.beta.files.upload(
-    {
-      file: new File([new Uint8Array(input.pdf)], input.filename, {
-        type: "application/pdf"
-      }),
-      betas: ["files-api-2025-04-14"]
-    },
-    {
-      maxRetries: anthropicExtractionMaxRetries,
-      timeout: anthropicFileUploadTimeoutMs
-    }
-  );
-  const response = await client.beta.messages.create(
-    {
-      model: getAnthropicModel(),
-      max_tokens: anthropicExtractionMaxTokens,
-      temperature: 0,
-      system: SYSTEM_PROMPT,
-      betas: ["files-api-2025-04-14"],
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "document",
-              title: input.filename,
-              source: {
-                type: "file",
-                file_id: file.id
+  const uploadStartedAt = Date.now();
+  let file: { id: string };
+  try {
+    file = await client.beta.files.upload(
+      {
+        file: new File([new Uint8Array(input.pdf)], input.filename, {
+          type: "application/pdf"
+        }),
+        betas: ["files-api-2025-04-14"]
+      },
+      {
+        maxRetries: anthropicExtractionMaxRetries,
+        timeout: anthropicFileUploadTimeoutMs
+      }
+    );
+  } catch (error) {
+    throw extractionStageError({
+      error,
+      stage: "upload",
+      elapsedMs: Date.now() - uploadStartedAt
+    });
+  }
+
+  const messageStartedAt = Date.now();
+  let response: Awaited<ReturnType<typeof client.beta.messages.create>>;
+  try {
+    response = await client.beta.messages.create(
+      {
+        model: getAnthropicModel(),
+        max_tokens: anthropicExtractionMaxTokens,
+        temperature: 0,
+        system: SYSTEM_PROMPT,
+        betas: ["files-api-2025-04-14"],
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "document",
+                title: input.filename,
+                source: {
+                  type: "file",
+                  file_id: file.id
+                },
+                cache_control: {
+                  type: "ephemeral"
+                }
               },
-              cache_control: {
-                type: "ephemeral"
+              {
+                type: "text",
+                text: `${USER_PROMPT}\n\n${formatTemporalContextLine(
+                  temporalContext
+                )}\n\nEmail context:\n${input.emailContext ?? "None"}`
               }
-            },
-            {
-              type: "text",
-              text: `${USER_PROMPT}\n\n${formatTemporalContextLine(
-                temporalContext
-              )}\n\nEmail context:\n${input.emailContext ?? "None"}`
-            }
-          ]
-        }
-      ]
-    },
-    {
-      maxRetries: anthropicExtractionMaxRetries,
-      timeout: anthropicFileExtractionTimeoutMs
-    }
-  );
+            ]
+          }
+        ]
+      },
+      {
+        maxRetries: anthropicExtractionMaxRetries,
+        timeout: anthropicFileExtractionTimeoutMs
+      }
+    );
+  } catch (error) {
+    throw extractionStageError({
+      error,
+      stage: "message",
+      elapsedMs: Date.now() - messageStartedAt
+    });
+  }
 
   const text = getFirstTextBlock(response.content);
   try {

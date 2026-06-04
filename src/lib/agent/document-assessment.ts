@@ -26,6 +26,8 @@ export interface ExtractionErrorSummary {
   message: string;
   status?: number;
   type?: string;
+  stage?: string;
+  elapsedMs?: number;
   previousAttempt?: string;
 }
 
@@ -113,6 +115,8 @@ function summarizeExtractionError(
     message: message.slice(0, 500),
     status: typeof record.status === "number" ? record.status : undefined,
     type: typeof record.type === "string" ? record.type : undefined,
+    stage: typeof record.stage === "string" ? record.stage : undefined,
+    elapsedMs: typeof record.elapsedMs === "number" ? record.elapsedMs : undefined,
     ...(previousAttempt
       ? { previousAttempt: errorMessage(previousAttempt).slice(0, 500) }
       : {})

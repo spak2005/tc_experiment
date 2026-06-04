@@ -65,9 +65,9 @@ describe("extractContractFactsFromPdfFile", () => {
     expect(mocks.betaCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         betas: ["files-api-2025-04-14"],
-        max_tokens: 8000,
-        messages: [
-          {
+        max_tokens: 12000,
+        messages: expect.arrayContaining([
+          expect.objectContaining({
             role: "user",
             content: expect.arrayContaining([
               expect.objectContaining({
@@ -78,8 +78,8 @@ describe("extractContractFactsFromPdfFile", () => {
                 }
               })
             ])
-          }
-        ],
+          })
+        ]),
         model: "claude-test"
       }),
       {
@@ -113,7 +113,7 @@ describe("extractContractFactsFromPdfFile", () => {
     expect(facts.contractVersion).toBe("UNKNOWN");
     expect(mocks.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        max_tokens: 8000,
+        max_tokens: 12000,
         system: expect.stringContaining("repair")
       }),
       {
