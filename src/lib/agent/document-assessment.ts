@@ -1,6 +1,7 @@
 import {
   extractContractFactsFromPdf,
-  extractContractFactsFromPdfChunks
+  extractContractFactsFromPdfChunks,
+  extractContractFactsFromPdfFile
 } from "@/lib/contracts/anthropic-extract";
 import { extractTexasContractFacts } from "@/lib/contracts/extract";
 import type { ContractFacts } from "@/lib/contracts/facts";
@@ -37,7 +38,11 @@ export interface DocumentAssessment {
   filename: string;
   kind: DocumentKind;
   usability: DocumentUsability;
-  extractionMode: "anthropic_pdf" | "anthropic_pdf_chunks" | "email_fallback";
+  extractionMode:
+    | "anthropic_pdf"
+    | "anthropic_pdf_file"
+    | "anthropic_pdf_chunks"
+    | "email_fallback";
   extractionError?: ExtractionErrorSummary;
   facts: ContractFacts;
   validationStatus: string;
@@ -194,23 +199,32 @@ async function extractContractFacts(input: {
   if (input.attachment.body.byteLength > maxFullPdfExtractionBytes) {
     try {
       return {
-        facts: await extractContractFactsFromPdfChunks({
+        facts: await extractContractFactsFromPdfFile({
           filename: input.attachment.filename,
           pdf: input.attachment.body,
           emailContext: input.emailText,
           temporalContext: input.temporalContext
         }),
-        extractionMode: "anthropic_pdf_chunks" as const
+        extractionMode: "anthropic_pdf_file" as const
       };
-    } catch (chunkedPdfError) {
-      return {
-        facts: extractTexasContractFacts(input.emailText),
-        extractionMode: "email_fallback" as const,
-        extractionError: summarizeExtractionError(
-          chunkedPdfError,
-          `Skipped full PDF extraction because the attachment was ${input.attachment.body.byteLength} bytes.`
-        )
-      };
+    } catch (filePdfError) {
+      try {
+        return {
+          facts: await extractContractFactsFromPdfChunks({
+            filename: input.attachment.filename,
+            pdf: input.attachment.body,
+            emailContext: input.emailText,
+            temporalContext: input.temporalContext
+          }),
+          extractionMode: "anthropic_pdf_chunks" as const
+        };
+      } catch (chunkedPdfError) {
+        return {
+          facts: extractTexasContractFacts(input.emailText),
+          extractionMode: "email_fallback" as const,
+          extractionError: summarizeExtractionError(chunkedPdfError, filePdfError)
+        };
+      }
     }
   }
 

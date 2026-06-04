@@ -23,6 +23,8 @@ export interface ExtractPdfFactsFromChunksInput extends ExtractPdfFactsInput {
 }
 
 const anthropicExtractionTimeoutMs = 75_000;
+const anthropicFileExtractionTimeoutMs = 180_000;
+const anthropicFileUploadTimeoutMs = 60_000;
 const anthropicExtractionMaxRetries = 0;
 const anthropicExtractionMaxTokens = 8_000;
 const anthropicJsonRepairTimeoutMs = 30_000;
@@ -206,6 +208,75 @@ export async function extractContractFactsFromPdf(
     {
       maxRetries: anthropicExtractionMaxRetries,
       timeout: anthropicExtractionTimeoutMs
+    }
+  );
+
+  const text = getFirstTextBlock(response.content);
+  try {
+    return parseContractFactsText(text);
+  } catch (parseError) {
+    if ((response as { stop_reason?: string }).stop_reason === "max_tokens") {
+      throw new Error(
+        `Anthropic returned malformed JSON after reaching the ${anthropicExtractionMaxTokens} token output limit: ${parseError instanceof Error ? parseError.message : String(parseError)}`
+      );
+    }
+
+    return repairContractFactsJson({ text, parseError });
+  }
+}
+
+export async function extractContractFactsFromPdfFile(
+  input: ExtractPdfFactsInput
+): Promise<ContractFacts> {
+  const client = getAnthropicClient();
+  const temporalContext = input.temporalContext ?? getTemporalContext();
+  const file = await client.beta.files.upload(
+    {
+      file: new File([new Uint8Array(input.pdf)], input.filename, {
+        type: "application/pdf"
+      }),
+      betas: ["files-api-2025-04-14"]
+    },
+    {
+      maxRetries: anthropicExtractionMaxRetries,
+      timeout: anthropicFileUploadTimeoutMs
+    }
+  );
+  const response = await client.beta.messages.create(
+    {
+      model: getAnthropicModel(),
+      max_tokens: anthropicExtractionMaxTokens,
+      temperature: 0,
+      system: SYSTEM_PROMPT,
+      betas: ["files-api-2025-04-14"],
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "document",
+              title: input.filename,
+              source: {
+                type: "file",
+                file_id: file.id
+              },
+              cache_control: {
+                type: "ephemeral"
+              }
+            },
+            {
+              type: "text",
+              text: `${USER_PROMPT}\n\n${formatTemporalContextLine(
+                temporalContext
+              )}\n\nEmail context:\n${input.emailContext ?? "None"}`
+            }
+          ]
+        }
+      ]
+    },
+    {
+      maxRetries: anthropicExtractionMaxRetries,
+      timeout: anthropicFileExtractionTimeoutMs
     }
   );
 

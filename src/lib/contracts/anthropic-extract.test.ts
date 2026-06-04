@@ -1,16 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   extractContractFactsFromPdf,
-  extractContractFactsFromPdfChunks
+  extractContractFactsFromPdfChunks,
+  extractContractFactsFromPdfFile
 } from "@/lib/contracts/anthropic-extract";
 import { PDFDocument } from "pdf-lib";
 
 const mocks = vi.hoisted(() => ({
-  create: vi.fn()
+  betaCreate: vi.fn(),
+  create: vi.fn(),
+  upload: vi.fn()
 }));
 
 vi.mock("@/lib/llm/anthropic", () => ({
   getAnthropicClient: () => ({
+    beta: {
+      files: {
+        upload: mocks.upload
+      },
+      messages: {
+        create: mocks.betaCreate
+      }
+    },
     messages: {
       create: mocks.create
     }
@@ -29,7 +40,9 @@ const validFactsJson = JSON.stringify({
 
 describe("extractContractFactsFromPdf", () => {
   beforeEach(() => {
+    mocks.betaCreate.mockReset();
     mocks.create.mockReset();
+    mocks.upload.mockReset();
   });
 
   it("uses bounded Anthropic extraction request options", async () => {
@@ -91,9 +104,68 @@ describe("extractContractFactsFromPdf", () => {
   });
 });
 
+describe("extractContractFactsFromPdfFile", () => {
+  beforeEach(() => {
+    mocks.betaCreate.mockReset();
+    mocks.create.mockReset();
+    mocks.upload.mockReset();
+  });
+
+  it("uploads the PDF and extracts facts from the file source", async () => {
+    mocks.upload.mockResolvedValue({ id: "file_123" });
+    mocks.betaCreate.mockResolvedValue({
+      content: [{ type: "text", text: validFactsJson }],
+      stop_reason: "end_turn"
+    });
+
+    await extractContractFactsFromPdfFile({
+      filename: "contract.pdf",
+      pdf: Buffer.from("%PDF-contract")
+    });
+
+    expect(mocks.upload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        betas: ["files-api-2025-04-14"],
+        file: expect.any(File)
+      }),
+      {
+        maxRetries: 0,
+        timeout: 60000
+      }
+    );
+    expect(mocks.betaCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        betas: ["files-api-2025-04-14"],
+        max_tokens: 8000,
+        messages: [
+          {
+            role: "user",
+            content: expect.arrayContaining([
+              expect.objectContaining({
+                type: "document",
+                source: {
+                  type: "file",
+                  file_id: "file_123"
+                }
+              })
+            ])
+          }
+        ],
+        model: "claude-test"
+      }),
+      {
+        maxRetries: 0,
+        timeout: 180000
+      }
+    );
+  });
+});
+
 describe("extractContractFactsFromPdfChunks", () => {
   beforeEach(() => {
+    mocks.betaCreate.mockReset();
     mocks.create.mockReset();
+    mocks.upload.mockReset();
   });
 
   async function createPdf(pageCount: number) {
