@@ -77,6 +77,35 @@ function stringValue(value: unknown) {
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
 }
 
+function summarizeFact(fact?: ExtractedValue) {
+  if (!fact) return undefined;
+
+  return {
+    value: fact.value,
+    confidence: fact.confidence,
+    needsConfirmation: fact.needsConfirmation,
+    sourceReference: fact.sourceReference,
+    evidence: fact.evidence
+  };
+}
+
+function summarizeOpeningFacts(facts: ContractFacts) {
+  return {
+    propertyAddress: summarizeFact(facts.propertyAddress),
+    buyerNames: summarizeFact(facts.buyerNames),
+    sellerNames: summarizeFact(facts.sellerNames),
+    salesPrice: summarizeFact(facts.salesPrice),
+    cashOrFinanced: summarizeFact(facts.cashOrFinanced),
+    earnestMoneyAmount: summarizeFact(facts.earnestMoneyAmount),
+    optionFeeAmount: summarizeFact(facts.optionFeeAmount),
+    optionPeriodDays: summarizeFact(facts.optionPeriodDays),
+    effectiveDate: summarizeFact(facts.effectiveDate),
+    closingDate: summarizeFact(facts.closingDate),
+    titleCompany: summarizeFact(facts.titleCompany),
+    signatureStatus: facts.signatureStatus
+  };
+}
+
 function transactionMapMilestones(context: AgentContextPack) {
   return (context.transactionContext?.milestones ?? []).map((milestone) => ({
     title: stringValue(milestone.title) ?? "Untitled milestone",
@@ -995,6 +1024,7 @@ export async function processAgentMailInbound(input: {
           extractionMode: documentAssessment.extractionMode,
           extractionError: documentAssessment.extractionError,
           contractVersion: documentAssessment.facts.contractVersion,
+          extractedFacts: summarizeOpeningFacts(documentAssessment.facts),
           missingItems: documentAssessment.missingItems,
           findings: documentAssessment.findings
         }
