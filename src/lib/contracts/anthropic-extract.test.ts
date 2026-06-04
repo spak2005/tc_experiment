@@ -122,4 +122,30 @@ describe("extractContractFactsFromPdfFile", () => {
       }
     );
   });
+
+  it("labels timeouts from the JSON repair step", async () => {
+    mocks.upload.mockResolvedValue({ id: "file_123" });
+    mocks.betaCreate.mockResolvedValueOnce({
+      content: [
+        {
+          type: "text",
+          text: '{"contractVersion":"UNKNOWN","addenda":['
+        }
+      ],
+      stop_reason: "end_turn"
+    });
+    mocks.create.mockRejectedValueOnce(new Error("Request timed out."));
+
+    await expect(
+      extractContractFactsFromPdfFile({
+        filename: "contract.pdf",
+        pdf: Buffer.from("%PDF-contract")
+      })
+    ).rejects.toMatchObject({
+      stage: "repair",
+      message: expect.stringContaining(
+        "Anthropic Files PDF repair request failed"
+      )
+    });
+  });
 });

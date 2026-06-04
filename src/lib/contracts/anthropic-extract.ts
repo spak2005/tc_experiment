@@ -21,6 +21,8 @@ const anthropicExtractionMaxRetries = 0;
 const anthropicExtractionMaxTokens = 12_000;
 const anthropicJsonRepairTimeoutMs = 30_000;
 
+type ExtractionStage = "upload" | "message" | "repair";
+
 const SYSTEM_PROMPT = `You are an expert transaction coordinator extracting facts from real estate contract PDFs.
 Return JSON only. Do not provide legal advice. Do not infer facts that are not visible in the document.`;
 
@@ -125,47 +127,9 @@ For expectedDocuments, include only documents clearly shown in or directly requi
 If a value is blank, unreadable, absent, or ambiguous, set value to null, confidence below 0.5, needsConfirmation true, and include the field name in missingRequiredFacts.
 Return compact JSON only. Keep evidence strings under 16 words.`;
 
-function parseContractFactsText(text: string) {
-  const parsed = parseJsonObject<unknown>(text);
-  return contractFactsSchema.parse(parsed);
-}
-
-async function repairContractFactsJson(input: {
-  text: string;
-  parseError: unknown;
-}): Promise<ContractFacts> {
-  const client = getAnthropicClient();
-  const response = await client.messages.create(
-    {
-      model: getAnthropicModel(),
-      max_tokens: anthropicExtractionMaxTokens,
-      temperature: 0,
-      system:
-        "You repair malformed JSON. Return only valid JSON. Do not add new facts or prose.",
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: `Repair this malformed JSON so it matches the requested contract facts object. Preserve the values already present. If a field is cut off or impossible to repair, omit that optional field or use an empty array for arrays. Return only valid JSON.\n\nParse error:\n${input.parseError instanceof Error ? input.parseError.message : String(input.parseError)}\n\nMalformed JSON/text:\n${input.text}`
-            }
-          ]
-        }
-      ]
-    },
-    {
-      maxRetries: anthropicExtractionMaxRetries,
-      timeout: anthropicJsonRepairTimeoutMs
-    }
-  );
-
-  return parseContractFactsText(getFirstTextBlock(response.content));
-}
-
 function extractionStageError(input: {
   error: unknown;
-  stage: "upload" | "message";
+  stage: ExtractionStage;
   elapsedMs: number;
 }) {
   const source = input.error instanceof Error ? input.error : undefined;
@@ -188,6 +152,54 @@ function extractionStageError(input: {
   }
 
   return error;
+}
+
+function parseContractFactsText(text: string) {
+  const parsed = parseJsonObject<unknown>(text);
+  return contractFactsSchema.parse(parsed);
+}
+
+async function repairContractFactsJson(input: {
+  text: string;
+  parseError: unknown;
+}): Promise<ContractFacts> {
+  const client = getAnthropicClient();
+  const repairStartedAt = Date.now();
+  let response: Awaited<ReturnType<typeof client.messages.create>>;
+  try {
+    response = await client.messages.create(
+      {
+        model: getAnthropicModel(),
+        max_tokens: anthropicExtractionMaxTokens,
+        temperature: 0,
+        system:
+          "You repair malformed JSON. Return only valid JSON. Do not add new facts or prose.",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `Repair this malformed JSON so it matches the requested contract facts object. Preserve the values already present. If a field is cut off or impossible to repair, omit that optional field or use an empty array for arrays. Return only valid JSON.\n\nParse error:\n${input.parseError instanceof Error ? input.parseError.message : String(input.parseError)}\n\nMalformed JSON/text:\n${input.text}`
+              }
+            ]
+          }
+        ]
+      },
+      {
+        maxRetries: anthropicExtractionMaxRetries,
+        timeout: anthropicJsonRepairTimeoutMs
+      }
+    );
+  } catch (error) {
+    throw extractionStageError({
+      error,
+      stage: "repair",
+      elapsedMs: Date.now() - repairStartedAt
+    });
+  }
+
+  return parseContractFactsText(getFirstTextBlock(response.content));
 }
 
 export async function extractContractFactsFromPdfFile(
