@@ -1001,34 +1001,23 @@ export async function processAgentMailInbound(input: {
         temporalContext: context.temporalContext
       });
       const extractedFromPdf =
-        documentAssessment.extractionMode === "anthropic_pdf" ||
-        documentAssessment.extractionMode === "anthropic_pdf_file" ||
-        documentAssessment.extractionMode === "anthropic_pdf_chunks";
+        documentAssessment.extractionMode === "anthropic_pdf_file";
       await logActivity(activityContext, {
         sourceType: "extraction",
         eventType: "contract_extraction_completed",
         title:
-          documentAssessment.extractionMode === "anthropic_pdf"
-            ? "Extracted contract facts from PDF"
-            : documentAssessment.extractionMode === "anthropic_pdf_file"
-              ? "Extracted contract facts from uploaded PDF"
-            : documentAssessment.extractionMode === "anthropic_pdf_chunks"
-              ? "Extracted contract facts from PDF chunks"
+          documentAssessment.extractionMode === "anthropic_pdf_file"
+            ? "Extracted contract facts from uploaded PDF"
             : "Used fallback contract extraction",
         summary:
-          documentAssessment.extractionMode === "anthropic_pdf"
-            ? `Extracted facts from ${pdfAttachment.filename} with Anthropic PDF mode.`
-            : documentAssessment.extractionMode === "anthropic_pdf_file"
-              ? `Extracted facts from ${pdfAttachment.filename} with Anthropic Files PDF mode.`
-            : documentAssessment.extractionMode === "anthropic_pdf_chunks"
-              ? `Extracted facts from ${pdfAttachment.filename} with chunked Anthropic PDF mode.`
+          documentAssessment.extractionMode === "anthropic_pdf_file"
+            ? `Extracted facts from ${pdfAttachment.filename} with Anthropic Files PDF mode.`
             : `Could not use PDF extraction for ${pdfAttachment.filename}; used fallback assessment.`,
         status: extractedFromPdf ? "completed" : "failed",
         metadata: {
           filename: pdfAttachment.filename,
           extractionMode: documentAssessment.extractionMode,
           extractionError: documentAssessment.extractionError,
-          extractionAttemptErrors: documentAssessment.extractionAttemptErrors,
           contractVersion: documentAssessment.facts.contractVersion,
           extractedFacts: summarizeOpeningFacts(documentAssessment.facts),
           missingItems: documentAssessment.missingItems,

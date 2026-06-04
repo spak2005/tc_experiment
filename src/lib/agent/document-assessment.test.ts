@@ -5,14 +5,10 @@ import {
 } from "@/lib/agent/document-assessment";
 
 const mocks = vi.hoisted(() => ({
-  extractContractFactsFromPdf: vi.fn(),
-  extractContractFactsFromPdfChunks: vi.fn(),
   extractContractFactsFromPdfFile: vi.fn()
 }));
 
 vi.mock("@/lib/contracts/anthropic-extract", () => ({
-  extractContractFactsFromPdf: mocks.extractContractFactsFromPdf,
-  extractContractFactsFromPdfChunks: mocks.extractContractFactsFromPdfChunks,
   extractContractFactsFromPdfFile: mocks.extractContractFactsFromPdfFile
 }));
 
@@ -62,14 +58,11 @@ const usableFacts = {
 
 describe("assessContractDocument", () => {
   beforeEach(() => {
-    mocks.extractContractFactsFromPdf.mockReset();
-    mocks.extractContractFactsFromPdfChunks.mockReset();
     mocks.extractContractFactsFromPdfFile.mockReset();
   });
 
-  it("uses chunked PDF extraction when full PDF extraction fails", async () => {
-    mocks.extractContractFactsFromPdf.mockRejectedValue(new Error("Request too large"));
-    mocks.extractContractFactsFromPdfChunks.mockResolvedValue(usableFacts);
+  it("uses uploaded PDF extraction for valid PDFs", async () => {
+    mocks.extractContractFactsFromPdfFile.mockResolvedValue(usableFacts);
 
     const assessment = await assessContractDocument({
       attachment: {
@@ -79,9 +72,9 @@ describe("assessContractDocument", () => {
       emailText: "Please see attached contract."
     });
 
-    expect(assessment.extractionMode).toBe("anthropic_pdf_chunks");
+    expect(mocks.extractContractFactsFromPdfFile).toHaveBeenCalled();
+    expect(assessment.extractionMode).toBe("anthropic_pdf_file");
     expect(assessment.usability).toBe("usable");
-    expect(assessment.extractionError).toBeUndefined();
   });
 
   it("uses uploaded PDF extraction for large PDFs", async () => {
@@ -99,18 +92,15 @@ describe("assessContractDocument", () => {
       emailText: "Please see attached contract."
     });
 
-    expect(mocks.extractContractFactsFromPdf).not.toHaveBeenCalled();
     expect(mocks.extractContractFactsFromPdfFile).toHaveBeenCalled();
-    expect(mocks.extractContractFactsFromPdfChunks).not.toHaveBeenCalled();
     expect(assessment.extractionMode).toBe("anthropic_pdf_file");
     expect(assessment.usability).toBe("usable");
   });
 
-  it("falls back to chunks when uploaded PDF extraction fails", async () => {
+  it("falls back to email assessment when uploaded PDF extraction fails", async () => {
     mocks.extractContractFactsFromPdfFile.mockRejectedValue(
       new Error("Files API failed")
     );
-    mocks.extractContractFactsFromPdfChunks.mockResolvedValue(usableFacts);
     const largePdf = Buffer.concat([
       Buffer.from("%PDF-contract"),
       Buffer.alloc(10 * 1024 * 1024 + 1)
@@ -124,69 +114,9 @@ describe("assessContractDocument", () => {
       emailText: "Please see attached contract."
     });
 
-    expect(mocks.extractContractFactsFromPdf).not.toHaveBeenCalled();
     expect(mocks.extractContractFactsFromPdfFile).toHaveBeenCalled();
-    expect(mocks.extractContractFactsFromPdfChunks).toHaveBeenCalled();
-    expect(assessment.extractionMode).toBe("anthropic_pdf_chunks");
-    expect(assessment.extractionAttemptErrors).toEqual([
-      expect.objectContaining({
-        mode: "anthropic_pdf_file",
-        message: "Files API failed"
-      })
-    ]);
-    expect(assessment.usability).toBe("usable");
-  });
-
-  it("records the uploaded PDF error when large PDF chunks fail", async () => {
-    mocks.extractContractFactsFromPdfFile.mockRejectedValue(
-      new Error("Files API failed")
-    );
-    mocks.extractContractFactsFromPdfChunks.mockRejectedValue(
-      new Error("All PDF chunk extraction attempts failed.")
-    );
-    const largePdf = Buffer.concat([
-      Buffer.from("%PDF-contract"),
-      Buffer.alloc(10 * 1024 * 1024 + 1)
-    ]);
-
-    const assessment = await assessContractDocument({
-      attachment: {
-        filename: "contract.pdf",
-        body: largePdf
-      },
-      emailText: "Please see attached contract."
-    });
-
     expect(assessment.extractionMode).toBe("email_fallback");
-    expect(assessment.extractionError?.message).toBe(
-      "All PDF chunk extraction attempts failed."
-    );
-    expect(assessment.extractionError?.previousAttempt).toBe("Files API failed");
-  });
-
-  it("keeps a safe extraction error summary when all PDF extraction fails", async () => {
-    const error = new Error("PDF pages exceeded model limit");
-    error.name = "BadRequestError";
-    mocks.extractContractFactsFromPdf.mockRejectedValue(error);
-    mocks.extractContractFactsFromPdfChunks.mockRejectedValue(
-      new Error("All PDF chunk extraction attempts failed.")
-    );
-
-    const assessment = await assessContractDocument({
-      attachment: {
-        filename: "contract.pdf",
-        body: Buffer.from("%PDF-contract")
-      },
-      emailText: "Please see attached contract."
-    });
-
-    expect(assessment.extractionMode).toBe("email_fallback");
-    expect(assessment.extractionError?.message).toBe(
-      "All PDF chunk extraction attempts failed."
-    );
-    expect(assessment.extractionError?.previousAttempt).toBe(
-      "PDF pages exceeded model limit"
-    );
+    expect(assessment.extractionError?.message).toBe("Files API failed");
   });
 
   it("fails locally when a PDF attachment has no PDF header", async () => {
@@ -202,9 +132,7 @@ describe("assessContractDocument", () => {
     expect(assessment.extractionError?.message).toContain(
       "did not contain a PDF header"
     );
-    expect(mocks.extractContractFactsFromPdf).not.toHaveBeenCalled();
     expect(mocks.extractContractFactsFromPdfFile).not.toHaveBeenCalled();
-    expect(mocks.extractContractFactsFromPdfChunks).not.toHaveBeenCalled();
   });
 });
 
