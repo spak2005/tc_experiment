@@ -24,6 +24,8 @@ export interface ExtractPdfFactsFromChunksInput extends ExtractPdfFactsInput {
 
 const anthropicExtractionTimeoutMs = 75_000;
 const anthropicExtractionMaxRetries = 0;
+const anthropicExtractionMaxTokens = 8_000;
+const anthropicJsonRepairTimeoutMs = 30_000;
 const defaultChunkConcurrency = 3;
 
 const SYSTEM_PROMPT = `You are an expert Texas residential real estate transaction coordinator.
@@ -125,7 +127,46 @@ Extract all visible coordination contacts, especially buyer, seller, listing age
 Expected documents should include the executed contract, earnest money receipt, option fee receipt, title commitment, survey/T-47, seller disclosure, financing/lender/appraisal documents when financed, HOA resale certificate when applicable, closing disclosure, settlement statement, and commission disbursement if applicable.
 For TREC 20-18, Paragraph 5 contains earnest money, option fee, and option period. Paragraph 9 contains Closing Date. The execution page contains Effective Date.
 If a value is blank, unreadable, absent, or ambiguous, set value to null, confidence below 0.5, needsConfirmation true, and include the field name in missingRequiredFacts.
-Use ISO YYYY-MM-DD dates when a date is clear.`;
+Use ISO YYYY-MM-DD dates when a date is clear.
+Return compact JSON only. Keep evidence strings under 16 words. For page chunks, include only facts, contacts, addenda, and documents visible or directly implied in that chunk.`;
+
+function parseContractFactsText(text: string) {
+  const parsed = parseJsonObject<unknown>(text);
+  return contractFactsSchema.parse(parsed);
+}
+
+async function repairContractFactsJson(input: {
+  text: string;
+  parseError: unknown;
+}): Promise<ContractFacts> {
+  const client = getAnthropicClient();
+  const response = await client.messages.create(
+    {
+      model: getAnthropicModel(),
+      max_tokens: anthropicExtractionMaxTokens,
+      temperature: 0,
+      system:
+        "You repair malformed JSON. Return only valid JSON. Do not add new facts or prose.",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `Repair this malformed JSON so it matches the requested contract facts object. Preserve the values already present. If a field is cut off or impossible to repair, omit that optional field or use an empty array for arrays. Return only valid JSON.\n\nParse error:\n${input.parseError instanceof Error ? input.parseError.message : String(input.parseError)}\n\nMalformed JSON/text:\n${input.text}`
+            }
+          ]
+        }
+      ]
+    },
+    {
+      maxRetries: anthropicExtractionMaxRetries,
+      timeout: anthropicJsonRepairTimeoutMs
+    }
+  );
+
+  return parseContractFactsText(getFirstTextBlock(response.content));
+}
 
 export async function extractContractFactsFromPdf(
   input: ExtractPdfFactsInput
@@ -135,7 +176,7 @@ export async function extractContractFactsFromPdf(
   const response = await client.messages.create(
     {
       model: getAnthropicModel(),
-      max_tokens: 4000,
+      max_tokens: anthropicExtractionMaxTokens,
       temperature: 0,
       system: SYSTEM_PROMPT,
       messages: [
@@ -168,9 +209,17 @@ export async function extractContractFactsFromPdf(
   );
 
   const text = getFirstTextBlock(response.content);
-  const parsed = parseJsonObject<unknown>(text);
+  try {
+    return parseContractFactsText(text);
+  } catch (parseError) {
+    if ((response as { stop_reason?: string }).stop_reason === "max_tokens") {
+      throw new Error(
+        `Anthropic returned malformed JSON after reaching the ${anthropicExtractionMaxTokens} token output limit: ${parseError instanceof Error ? parseError.message : String(parseError)}`
+      );
+    }
 
-  return contractFactsSchema.parse(parsed);
+    return repairContractFactsJson({ text, parseError });
+  }
 }
 
 function betterValue(left?: ExtractedValue, right?: ExtractedValue) {
