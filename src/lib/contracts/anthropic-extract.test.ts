@@ -104,7 +104,7 @@ describe("extractContractFactsFromPdfChunks", () => {
     return Buffer.from(await pdf.save());
   }
 
-  it("uses two-page chunks and starts all chunks concurrently by default", async () => {
+  it("uses one-page chunks and starts all chunks concurrently by default", async () => {
     let resolveFirstCall: ((value: unknown) => void) | undefined;
     const firstCall = new Promise((resolve) => {
       resolveFirstCall = resolve;
@@ -123,15 +123,15 @@ describe("extractContractFactsFromPdfChunks", () => {
     });
 
     await vi.waitFor(() => {
-      expect(mocks.create).toHaveBeenCalledTimes(3);
+      expect(mocks.create).toHaveBeenCalledTimes(5);
     });
 
-    const titles = mocks.create.mock.calls.map(
-      ([body]) => body.messages[0].content[0].title
-    );
+    const titles = mocks.create.mock.calls.map(([body]) => body.messages[0].content[0].title);
     expect(titles).toEqual([
-      "contract.pdf pages 1-2",
-      "contract.pdf pages 3-4",
+      "contract.pdf pages 1-1",
+      "contract.pdf pages 2-2",
+      "contract.pdf pages 3-3",
+      "contract.pdf pages 4-4",
       "contract.pdf pages 5-5"
     ]);
 

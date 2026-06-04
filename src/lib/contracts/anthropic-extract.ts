@@ -26,7 +26,7 @@ const anthropicExtractionTimeoutMs = 75_000;
 const anthropicExtractionMaxRetries = 0;
 const anthropicExtractionMaxTokens = 8_000;
 const anthropicJsonRepairTimeoutMs = 30_000;
-const defaultPagesPerChunk = 2;
+const defaultPagesPerChunk = 1;
 const defaultChunkConcurrency = Number.MAX_SAFE_INTEGER;
 
 const SYSTEM_PROMPT = `You are an expert Texas residential real estate transaction coordinator.
