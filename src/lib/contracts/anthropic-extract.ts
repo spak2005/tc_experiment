@@ -26,7 +26,8 @@ const anthropicExtractionTimeoutMs = 75_000;
 const anthropicExtractionMaxRetries = 0;
 const anthropicExtractionMaxTokens = 8_000;
 const anthropicJsonRepairTimeoutMs = 30_000;
-const defaultChunkConcurrency = 3;
+const defaultPagesPerChunk = 2;
+const defaultChunkConcurrency = Number.MAX_SAFE_INTEGER;
 
 const SYSTEM_PROMPT = `You are an expert Texas residential real estate transaction coordinator.
 Extract contract facts from Texas residential resale contracts, especially TREC 20-18.
@@ -422,7 +423,7 @@ function mergeContractFacts(facts: ContractFacts[]) {
 
 async function splitPdfIntoChunks(input: ExtractPdfFactsFromChunksInput) {
   const source = await PDFDocument.load(input.pdf, { ignoreEncryption: true });
-  const pagesPerChunk = input.pagesPerChunk ?? 8;
+  const pagesPerChunk = input.pagesPerChunk ?? defaultPagesPerChunk;
   const chunks: Array<{ filename: string; pdf: Buffer; pageStart: number; pageEnd: number }> = [];
 
   for (let start = 0; start < source.getPageCount(); start += pagesPerChunk) {

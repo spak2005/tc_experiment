@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { extractContractFactsFromPdf } from "@/lib/contracts/anthropic-extract";
+import {
+  extractContractFactsFromPdf,
+  extractContractFactsFromPdfChunks
+} from "@/lib/contracts/anthropic-extract";
+import { PDFDocument } from "pdf-lib";
 
 const mocks = vi.hoisted(() => ({
   create: vi.fn()
@@ -84,5 +88,58 @@ describe("extractContractFactsFromPdf", () => {
         timeout: 30000
       }
     );
+  });
+});
+
+describe("extractContractFactsFromPdfChunks", () => {
+  beforeEach(() => {
+    mocks.create.mockReset();
+  });
+
+  async function createPdf(pageCount: number) {
+    const pdf = await PDFDocument.create();
+    for (let index = 0; index < pageCount; index += 1) {
+      pdf.addPage();
+    }
+    return Buffer.from(await pdf.save());
+  }
+
+  it("uses two-page chunks and starts all chunks concurrently by default", async () => {
+    let resolveFirstCall: ((value: unknown) => void) | undefined;
+    const firstCall = new Promise((resolve) => {
+      resolveFirstCall = resolve;
+    });
+
+    mocks.create
+      .mockReturnValueOnce(firstCall)
+      .mockResolvedValue({
+        content: [{ type: "text", text: validFactsJson }],
+        stop_reason: "end_turn"
+      });
+
+    const extraction = extractContractFactsFromPdfChunks({
+      filename: "contract.pdf",
+      pdf: await createPdf(5)
+    });
+
+    await vi.waitFor(() => {
+      expect(mocks.create).toHaveBeenCalledTimes(3);
+    });
+
+    const titles = mocks.create.mock.calls.map(
+      ([body]) => body.messages[0].content[0].title
+    );
+    expect(titles).toEqual([
+      "contract.pdf pages 1-2",
+      "contract.pdf pages 3-4",
+      "contract.pdf pages 5-5"
+    ]);
+
+    resolveFirstCall?.({
+      content: [{ type: "text", text: validFactsJson }],
+      stop_reason: "end_turn"
+    });
+
+    await extraction;
   });
 });
