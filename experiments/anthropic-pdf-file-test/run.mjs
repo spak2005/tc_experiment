@@ -11,6 +11,9 @@ const defaultModel = "claude-sonnet-4-6";
 const defaultMaxTokens = 12000;
 const defaultTimeoutMs = 240000;
 
+const experimentSystemPrompt =
+  "You are an expert transaction coordinator extracting facts from real estate contract PDFs. Return JSON only.";
+
 const defaultPrompt = `You are reading a Texas residential real estate contract package.
 
 Read the entire PDF using both page images and any text layer. Pay special attention to filled blanks, handwriting, stamped receipts, checked boxes, signature dates, addenda, and title/escrow receipt pages.
@@ -42,10 +45,125 @@ Return only valid JSON in this shape:
   "warnings": string[]
 }`;
 
+const stephanieSystemPrompt = `You are an expert transaction coordinator extracting facts from real estate contract PDFs.
+Return JSON only. Do not provide legal advice. Do not infer facts that are not visible in the document.`;
+
+const stephanieUserPrompt = `You are reading a Texas residential real estate contract package.
+
+Read the entire PDF using both page images and any text layer. Pay special attention to filled blanks, handwriting, stamped receipts, checked boxes, signature dates, addenda, and title/escrow receipt pages.
+
+Extract the real deal facts needed to open a transaction file. Do not rely on generic TREC template text when a filled value is visible elsewhere.
+Use ISO YYYY-MM-DD for dates when the date is clear. Preserve exact money values with currency symbols. If an email, phone number, handwriting, or checkbox mark is not fully legible, lower confidence and set needsConfirmation true.
+
+Use this output shape exactly:
+{
+  "contractVersion": "TREC_20_18" | "TREC_20_17" | "TREC_20_14" | "UNKNOWN",
+  "propertyAddress": extractedValue?,
+  "buyerNames": extractedValue?,
+  "sellerNames": extractedValue?,
+  "salesPrice": extractedValue?,
+  "cashOrFinanced": extractedValue?,
+  "titleCompany": extractedValue?,
+  "earnestMoneyAmount": extractedValue?,
+  "optionFeeAmount": extractedValue?,
+  "optionPeriodDays": extractedValue?,
+  "effectiveDate": extractedValue?,
+  "closingDate": extractedValue?,
+  "surveySelection": extractedValue?,
+  "surveyDeadlineDays": extractedValue?,
+  "sellerDisclosureDeadlineDays": extractedValue?,
+  "titleObjectionDays": extractedValue?,
+  "hoaRequired": extractedValue?,
+  "addenda": extractedValue[],
+  "contacts": [
+    {
+      "role": "buyer" | "seller" | "buyer_agent" | "listing_agent" | "title" | "lender" | "inspector" | "appraiser" | "surveyor" | "attorney" | "hoa" | "broker_compliance" | "vendor" | "agent_client",
+      "name": "optional person name",
+      "email": "optional email",
+      "phone": "optional phone",
+      "organization": "optional company",
+      "confidence": number from 0 to 1,
+      "sourceReference": "paragraph/page reference",
+      "evidence": "short quote or description",
+      "needsConfirmation": boolean
+    }
+  ],
+  "expectedDocuments": [
+    {
+      "key": "stable_snake_case_key",
+      "type": "document type",
+      "name": "human document name",
+      "ownerRole": "buyer" | "seller" | "buyer_agent" | "listing_agent" | "title" | "lender" | "hoa" | "agent" | "tc",
+      "status": "needed" | "requested" | "received" | "under_review" | "needs_correction" | "submitted" | "approved" | "rejected" | "not_applicable",
+      "dueDate": "optional ISO YYYY-MM-DD",
+      "sourceReference": "contract/addendum reference",
+      "evidence": "short quote or description",
+      "confidence": number from 0 to 1,
+      "needsConfirmation": boolean
+    }
+  ],
+  "financing": {
+    "financingType": extractedValue?,
+    "lenderName": extractedValue?,
+    "loanOfficerName": extractedValue?,
+    "loanOfficerEmail": extractedValue?,
+    "loanApprovalDeadlineDays": extractedValue?,
+    "appraisalRequired": extractedValue?,
+    "appraisalDeadlineDays": extractedValue?
+  },
+  "titleEscrow": {
+    "titleCompany": extractedValue?,
+    "escrowOfficerName": extractedValue?,
+    "escrowOfficerEmail": extractedValue?,
+    "titleCommitmentDeadlineDays": extractedValue?,
+    "titleObjectionDeadlineDays": extractedValue?
+  },
+  "hoa": {
+    "required": extractedValue?,
+    "managementCompany": extractedValue?,
+    "contactEmail": extractedValue?,
+    "resaleCertificateRequired": extractedValue?
+  },
+  "disclosures": {
+    "sellerDisclosureRequired": extractedValue?,
+    "sellerDisclosureDeadlineDays": extractedValue?,
+    "leadBasedPaintRequired": extractedValue?
+  },
+  "signatureStatus": "appears_executed" | "missing_signature" | "unknown",
+  "missingRequiredFacts": string[]
+}
+
+Each extractedValue must be:
+{
+  "value": string | number | boolean | null,
+  "confidence": number from 0 to 1,
+  "sourceReference": "paragraph/page reference",
+  "evidence": "short quote or description",
+  "needsConfirmation": boolean
+}
+
+Critical required facts are Effective Date, Closing Date, cash vs financed, earnest money amount, option period length if option applies, title company/escrow officer, and property address.
+Extract all visible coordination contacts, especially buyer, seller, listing agent, title/escrow officer, lender/loan officer, HOA management, inspector, appraiser, and surveyor.
+For TREC 20-18, Paragraph 5 contains earnest money, option fee, and option period. Paragraph 9 contains Closing Date. The execution page contains Effective Date.
+For expectedDocuments, include only documents clearly shown in or directly required by this package; use an empty array if unsure.
+If a value is blank, unreadable, absent, or ambiguous, set value to null, confidence below 0.5, needsConfirmation true, and include the field name in missingRequiredFacts.
+Return compact JSON only. Keep evidence strings under 16 words.`;
+
+function temporalContextLine() {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Chicago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  });
+  return `Current date: ${formatter.format(new Date())}. Timezone: America/Chicago.`;
+}
+
 function parseArgs(argv) {
   const args = {
     cleanup: true,
     maxTokens: defaultMaxTokens,
+    mode: "experiment",
     model: process.env.ANTHROPIC_MODEL ?? defaultModel,
     outputDir: "experiments/anthropic-pdf-file-test/output",
     timeoutMs: defaultTimeoutMs
@@ -62,6 +180,12 @@ function parseArgs(argv) {
       index += 1;
     } else if (arg === "--prompt" && next) {
       args.promptPath = next;
+      index += 1;
+    } else if (arg === "--mode" && next) {
+      if (!["experiment", "stephanie"].includes(next)) {
+        throw new Error("--mode must be experiment or stephanie");
+      }
+      args.mode = next;
       index += 1;
     } else if (arg === "--out" && next) {
       args.outputDir = next;
@@ -118,6 +242,7 @@ Usage:
 
 Options:
   --pdf PATH          PDF to upload and analyze
+  --mode MODE         experiment or stephanie, default experiment
   --prompt PATH       Optional prompt file to use instead of the default
   --out DIR           Output directory, default experiments/anthropic-pdf-file-test/output
   --model MODEL       Anthropic model, default ANTHROPIC_MODEL or ${defaultModel}
@@ -180,13 +305,19 @@ async function main() {
 
   const pdfPath = path.resolve(args.pdf);
   const pdfBytes = await readFile(pdfPath);
+  const systemPrompt =
+    args.mode === "stephanie" ? stephanieSystemPrompt : experimentSystemPrompt;
+  const basePrompt =
+    args.mode === "stephanie"
+      ? `${stephanieUserPrompt}\n\n${temporalContextLine()}\n\nEmail context:\nNone`
+      : defaultPrompt;
   const prompt = args.promptPath
     ? await readFile(path.resolve(args.promptPath), "utf8")
-    : defaultPrompt;
+    : basePrompt;
   const client = new Anthropic({ apiKey });
 
   await mkdir(args.outputDir, { recursive: true });
-  const runId = `${safeOutputName(pdfPath)}-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+  const runId = `${args.mode}-${safeOutputName(pdfPath)}-${new Date().toISOString().replace(/[:.]/g, "-")}`;
   const rawPath = path.join(args.outputDir, `${runId}.raw.txt`);
   const jsonPath = path.join(args.outputDir, `${runId}.json`);
   const metadataPath = path.join(args.outputDir, `${runId}.metadata.json`);
@@ -217,8 +348,7 @@ async function main() {
         model: args.model,
         max_tokens: args.maxTokens,
         temperature: 0,
-        system:
-          "You are an expert transaction coordinator extracting facts from real estate contract PDFs. Return JSON only.",
+        system: systemPrompt,
         betas: filesBeta,
         messages: [
           {
@@ -260,6 +390,7 @@ async function main() {
       `${JSON.stringify(
         {
           model: args.model,
+          mode: args.mode,
           pdfPath,
           pdfBytes: pdfBytes.byteLength,
           uploadedFile,
@@ -270,6 +401,12 @@ async function main() {
           },
           usage: response.usage,
           stopReason: response.stop_reason,
+          prompt: {
+            system: systemPrompt,
+            user: prompt,
+            maxTokens: args.maxTokens,
+            timeoutMs: args.timeoutMs
+          },
           output: {
             rawPath,
             jsonPath,
