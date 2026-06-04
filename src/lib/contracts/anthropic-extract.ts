@@ -15,7 +15,7 @@ export interface ExtractPdfFactsInput {
   temporalContext?: TemporalContext;
 }
 
-const anthropicFileExtractionTimeoutMs = 180_000;
+const anthropicFileExtractionTimeoutMs = 240_000;
 const anthropicFileUploadTimeoutMs = 60_000;
 const anthropicExtractionMaxRetries = 0;
 const anthropicExtractionMaxTokens = 8_000;
