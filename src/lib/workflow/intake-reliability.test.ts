@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   createAgentDecisionOnce: vi.fn(),
   createAuditEvent: vi.fn(),
   createIntakeArtifact: vi.fn(),
+  createIntakeArtifactAttachment: vi.fn(),
   createMessage: vi.fn(),
   createOrReuseTransactionCalendarFeed: vi.fn(),
   findOrCreateTransactionForIntake: vi.fn(),
@@ -101,6 +102,7 @@ vi.mock("@/lib/db/repositories", () => ({
   createAgentDecisionOnce: mocks.createAgentDecisionOnce,
   createAuditEvent: mocks.createAuditEvent,
   createIntakeArtifact: mocks.createIntakeArtifact,
+  createIntakeArtifactAttachment: mocks.createIntakeArtifactAttachment,
   createMessage: mocks.createMessage,
   createOrReuseTransactionCalendarFeed: mocks.createOrReuseTransactionCalendarFeed,
   findOrCreateTransactionForIntake: mocks.findOrCreateTransactionForIntake,
@@ -322,6 +324,7 @@ function setupContractIntake(input: {
   mocks.findOrCreateTransactionForIntake.mockResolvedValue({ id: "tx-1" });
   mocks.storeIncomingAttachment.mockResolvedValue({
     documentId: "document-1",
+    sourceAttachmentKey: "inbox-1:message-1:attachment-1",
     filename: "contract.pdf",
     contentType: "application/pdf",
     blobKey: "blob-1",
@@ -455,6 +458,14 @@ describe("processAgentMailInbound reliability guards", () => {
       expect.objectContaining({
         intakeArtifactId: "artifact-1",
         attachment: expect.objectContaining({ id: "attachment-1" })
+      })
+    );
+    expect(mocks.createIntakeArtifactAttachment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intakeArtifactId: "artifact-1",
+        attachmentKey: "inbox-1:message-1:attachment-1",
+        documentId: "document-1",
+        metadata: { linkedToTransactionDocument: true }
       })
     );
     expect(mocks.createIntakeArtifact.mock.invocationCallOrder[0]).toBeLessThan(

@@ -15,6 +15,7 @@ export interface IncomingAttachment {
 
 export interface StoredAttachment {
   documentId: string;
+  sourceAttachmentKey: string;
   filename: string;
   contentType: string;
   body: Buffer;
@@ -255,6 +256,7 @@ export async function storeIncomingAttachment(input: {
 
     return {
       documentId: existing.id,
+      sourceAttachmentKey,
       filename: fetched.filename,
       contentType: fetched.contentType,
       body: fetched.body,
@@ -315,6 +317,7 @@ export async function storeIncomingAttachment(input: {
 
   return {
     documentId: document.id,
+    sourceAttachmentKey,
     filename: fetched.filename,
     contentType: fetched.contentType,
     body: fetched.body,

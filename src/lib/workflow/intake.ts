@@ -28,6 +28,7 @@ import {
   createAgentDecisionOnce,
   createAuditEvent,
   createIntakeArtifact,
+  createIntakeArtifactAttachment,
   createMessage,
   findOrCreateTransactionForIntake,
   findPendingApprovalByReply,
@@ -843,6 +844,25 @@ async function storeInboundAttachments(input: {
   return storedAttachments;
 }
 
+async function linkArtifactAttachmentsToDocuments(input: {
+  intakeArtifactId: string;
+  attachments: StoredAttachment[];
+}) {
+  for (const attachment of input.attachments) {
+    await createIntakeArtifactAttachment({
+      intakeArtifactId: input.intakeArtifactId,
+      attachmentKey: attachment.sourceAttachmentKey,
+      filename: attachment.filename,
+      contentType: attachment.contentType,
+      blobKey: attachment.blobKey,
+      documentId: attachment.documentId,
+      metadata: {
+        linkedToTransactionDocument: true
+      }
+    });
+  }
+}
+
 export async function processAgentMailInbound(input: {
   webhookEventId: string;
   agentMailEvent: Record<string, unknown>;
@@ -1341,6 +1361,10 @@ export async function processAgentMailInbound(input: {
           transactionId,
           fetchedAttachments
         });
+        await linkArtifactAttachmentsToDocuments({
+          intakeArtifactId: intakeArtifact.id,
+          attachments: storedAttachments
+        });
         evidenceDocuments.push(
           ...storedAttachments.map((attachment) => ({
             documentId: attachment.documentId,
@@ -1423,6 +1447,10 @@ export async function processAgentMailInbound(input: {
           context,
           transactionId,
           fetchedAttachments
+        });
+        await linkArtifactAttachmentsToDocuments({
+          intakeArtifactId: intakeArtifact.id,
+          attachments: storedAttachments
         });
         evidenceDocuments.push(
           ...storedAttachments.map((attachment) => ({
