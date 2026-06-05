@@ -21,6 +21,7 @@ end-to-end. Use the function names below with `rg` to jump.
 | Users, auth mapping, TC profiles | `createUser`, `findUserByAuthUserId`, `findUserByEmail`, `createTcProfile`, `findTcProfileByInbox`, `findTcProfileByUser` | search by function |
 | Webhook events | `recordWebhookEvent`, `markWebhookEventProcessed` | search by function |
 | Audit events | `createAuditEvent` | search by function |
+| Intake artifacts | `createIntakeArtifact`, `updateIntakeArtifact`, `createIntakeArtifactAttachment`, `listIntakeArtifactAttachments` | search by function |
 | Transactions (writes) | `createTransaction`, `updateTransactionFromFacts`, `saveExtractedContractFacts` | search by function |
 | Milestones + tasks | `insertMilestones`, `insertTasks`, `upsertMilestoneRecord`, `upsertTaskRecord`, `getTaskById`, `findOpenTasksByOwnerRole` | search by function |
 | Parties | `upsertParty`, `findPartyRolesByEmails` | search by function |
@@ -62,6 +63,13 @@ end-to-end. Use the function names below with `rg` to jump.
 - `agent_wakeups` stores future proactive work. A static Inngest cron
   claims due rows with `claimDueAgentWakeups`; the app does not create
   per-task infrastructure cron jobs.
+- `intake_artifacts` and `intake_artifact_attachments` preserve inbound
+  packages before they become transactions. Active orientation links
+  artifact attachments to transaction `documents`; non-active
+  orientation keeps them artifact-only.
+- `transactions.coordination_enabled` is the downstream activity gate.
+  Deadline queries, stale-response queries, wakeup claiming, and
+  heartbeat scheduling only operate on coordination-enabled transactions.
 - Activity row rows returned to callers are mapped through the local
   `toActivityEvent` helper so callers receive the camelCase
   `AgentActivityEvent` shape defined in
@@ -84,5 +92,5 @@ end-to-end. Use the function names below with `rg` to jump.
 
 ## Related docs
 
-- The schema itself: migrations `001` through `010` in [../../../migrations](../../../migrations).
+- The schema itself: migrations in [../../../migrations](../../../migrations).
 - The observability event contract: [../../../docs/activity-debugger.md](../../../docs/activity-debugger.md).

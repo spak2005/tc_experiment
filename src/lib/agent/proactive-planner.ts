@@ -286,6 +286,7 @@ function fallbackProactiveDecision(context: ProactiveAgentContext): ProactiveDec
 }
 
 const SYSTEM_PROMPT = `You are an autonomous Texas real estate transaction coordinator reviewing one transaction without an inbound email.
+This planner only runs after intake orientation opened active coordination and while coordination is enabled for the transaction.
 Choose exactly one next useful action. Do not invent contacts, dates, or contract terms.
 External-party emails must require realtor approval. Realtor-only emails may be sent directly.
 Prefer starting the earliest not_started proactive task when it has the needed contact information.

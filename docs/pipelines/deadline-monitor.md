@@ -20,8 +20,9 @@ deadlines and stale response tasks.
 
 `checkDeadlineRisk` first handles milestones whose due date is within
 `daysAhead = 2` days from "today" (Central Time), is not yet completed,
-has no open blocker for that milestone, and whose transaction is neither
-`closed` nor `terminated`.
+has no open blocker for that milestone, whose transaction is neither
+`closed` nor `terminated`, and whose transaction has
+`coordination_enabled = true`.
 
 | Step | What happens |
 | --- | --- |
@@ -85,11 +86,13 @@ It is defined by the SQL inside `findAtRiskMilestones` in
 - `m.due_date is not null`
 - `m.due_date <= today + daysAhead`
 - `t.status not in ('closed', 'terminated')`
+- `t.coordination_enabled = true`
 - no open blocker already exists for the milestone
 
 Stale response risk is defined by `findStaleResponseTasks`: task status is
 `waiting_response`, `follow_up_due_date <= today`, the transaction is open,
-and no open blocker already exists for that task.
+`coordination_enabled = true`, and no open blocker already exists for that
+task.
 
 To change the milestone lead time, change the constant passed in (`2`
 today) in `checkDeadlineRisk`. To change cadence, edit the cron expression

@@ -18,6 +18,8 @@ elsewhere.
 | Active | [src/lib/workflow/intake.ts](../src/lib/workflow/intake.ts) | Main inbound-email pipeline; read pipeline doc before the file |
 | Active | [src/lib/db/repositories.ts](../src/lib/db/repositories.ts) | Single large Postgres repository file; use DB README/function search |
 | Active | [src/lib/agent/decision.ts](../src/lib/agent/decision.ts) | LLM-driven intent and action picker |
+| Active | [src/lib/agent/orientation.ts](../src/lib/agent/orientation.ts) | Agent-first intake posture gate before transaction creation |
+| Active | [src/lib/agent/orientation-signals.ts](../src/lib/agent/orientation-signals.ts) | Deterministic temporal/document/matching signals passed to orientation as evidence |
 | Active | [src/lib/agent/executor.ts](../src/lib/agent/executor.ts) | Sends emails, creates approvals, records execution |
 | Active | [src/lib/workflow/proactive.ts](../src/lib/workflow/proactive.ts) | Executes DB-backed proactive wakeups and dispatches due work |
 | Active | [src/lib/workflow/proactive-scheduling.ts](../src/lib/workflow/proactive-scheduling.ts) | Schedules/cancels wakeups and computes adaptive heartbeats |
@@ -29,6 +31,7 @@ elsewhere.
 | Active | [src/lib/agent/activity.ts](../src/lib/agent/activity.ts) | Activity event types, status helpers, body preview |
 | Active | [src/lib/agent/activity-timeline.ts](../src/lib/agent/activity-timeline.ts) | Maps legacy records into the same activity stream |
 | Active | [src/lib/documents/attachments.ts](../src/lib/documents/attachments.ts) | Fetch / store inbound attachments and write document records |
+| Active | [src/lib/documents/intake-artifacts.ts](../src/lib/documents/intake-artifacts.ts) | Store inbound attachment bodies before a package becomes a transaction |
 | Stable | [src/lib/agent/types.ts](../src/lib/agent/types.ts) | Shared types: intents, actions, context pack, decision, policy |
 | Stable | [src/lib/agent/context.ts](../src/lib/agent/context.ts) | Builds the agent context pack for one inbound email |
 | Stable | [src/lib/agent/memory.ts](../src/lib/agent/memory.ts) | Maps `transaction_memory` into prompt-facing deal memory |
@@ -70,7 +73,7 @@ elsewhere.
 
 ## Subsystem one-liners
 
-- `src/lib/agent` — the agent "brain": context pack, matching, decision, policy, executor, response writer, document assessment, and observability helpers. See [src/lib/agent/README.md](../src/lib/agent/README.md).
+- `src/lib/agent` — the agent "brain": context pack, matching, intake orientation, decision, policy, executor, response writer, document assessment, and observability helpers. See [src/lib/agent/README.md](../src/lib/agent/README.md).
 - `src/lib/workflow` — orchestrators (intake, evidence reconciliation, memory refresh, proactive wakeups, deadline/stale monitor, contract routing, status responder, tasks). See [src/lib/workflow/README.md](../src/lib/workflow/README.md).
 - `src/lib/db` — Postgres connection pool + a single very large repositories file. See [src/lib/db/README.md](../src/lib/db/README.md).
 - `src/lib/agentmail` — inbound normalization + outbound send/reply + inbox provisioning. See [src/lib/agentmail/README.md](../src/lib/agentmail/README.md).
@@ -95,6 +98,7 @@ elsewhere.
 | Change | File |
 | --- | --- |
 | Decision prompt or schema (what the agent can do) | [src/lib/agent/decision.ts](../src/lib/agent/decision.ts) |
+| Intake posture before transaction creation | [src/lib/agent/orientation.ts](../src/lib/agent/orientation.ts) + [src/lib/agent/orientation-signals.ts](../src/lib/agent/orientation-signals.ts) |
 | Inbound event categories (`confirmation`, `document_received`, etc.) | [src/lib/agent/types.ts](../src/lib/agent/types.ts) + [src/lib/agent/decision.ts](../src/lib/agent/decision.ts) |
 | Outbound email-writer prompt or rules | [src/lib/agent/response-writer.ts](../src/lib/agent/response-writer.ts) |
 | Allow / require-approval / block rules | [src/lib/agent/policy.ts](../src/lib/agent/policy.ts) |
@@ -122,6 +126,7 @@ elsewhere.
 | Validation thresholds for facts | [src/lib/contracts/validate.ts](../src/lib/contracts/validate.ts) |
 | Document classification (`usable` / `unusable`) | [src/lib/agent/document-assessment.ts](../src/lib/agent/document-assessment.ts) |
 | What gets stored on inbound attachments | [src/lib/documents/attachments.ts](../src/lib/documents/attachments.ts) |
+| What gets preserved before transaction activation | [src/lib/documents/intake-artifacts.ts](../src/lib/documents/intake-artifacts.ts) + intake artifact helpers in [src/lib/db/repositories.ts](../src/lib/db/repositories.ts) |
 | Signup flow (team, user, TC profile, AgentMail inbox) | [src/lib/onboarding/service.ts](../src/lib/onboarding/service.ts) |
 | Add a new SQL repository function | [src/lib/db/repositories.ts](../src/lib/db/repositories.ts) (read [src/lib/db/README.md](../src/lib/db/README.md) for the aggregate map) |
 | Add a new database table | New migration in `migrations/` + a function in `repositories.ts` |

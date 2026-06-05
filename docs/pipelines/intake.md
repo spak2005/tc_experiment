@@ -27,6 +27,7 @@ all behavior lives in `intake.ts`.
 | Top | Imports and small helpers (`isoDateOrUndefined`, `normalizeEmail`, `isFromTcInbox`) |
 | Logging helpers | `ActivityContext` + `logActivity` wrapper used throughout the file |
 | Context helpers | `withTransactionContext`, `refreshDealMemory`, and `documentStatusForUsability` |
+| Intake orientation | Intake artifact creation/linking, orientation reply text, and artifact-only stop path |
 | Contract persistence | `persistContractAssessment` writes facts, contacts, checklist, milestones, tasks, memory, audit |
 | Attachment persistence | `storeInboundAttachments` loops over inbound attachments and persists each |
 | Entry point | `processAgentMailInbound` runs the actual pipeline |
@@ -41,14 +42,18 @@ Numbered by the order operations run.
 | 2 | Ignore unknown inboxes and self-authored TC mail |
 | 3 | Approval-by-reply shortcut: realtor replies in pending approval threads go to `executeApprovalReply`, refresh transaction memory, and skip generic decisioning |
 | 4 | Build the agent context pack and log inbound/matching activity |
-| 5 | If attachments exist, log each attachment and assess the first PDF as a possible contract |
-| 6 | Route usable contract PDFs to create/update/clarify transaction identity |
-| 7 | Store inbound attachments; if this is contract intake, persist facts, contacts, checklist documents, milestones, tasks, memory, and audit |
-| 8 | If non-PDF attachments arrive on a matched transaction, store them as transaction documents |
-| 9 | Persist the inbound message |
-| 10 | Reconcile routine inbound evidence into transaction writes; if anything changed, refresh the deal brief / active questions memory and rebuild context |
-| 11 | Call `decideNextAction`; it returns intent/action, inbound event category, optional response (with an optional `taskId` linking the send to an open task), and structured transaction writes |
-| 12 | Persist the decision, evaluate policy, execute allowed/approval-gated work, refresh transaction memory, mark the webhook processed, and return. The executor flips the matched task to `waiting_response` on the actual send via [../../src/lib/workflow/task-transitions.ts](../../src/lib/workflow/task-transitions.ts) (directly for inline sends, or through `sendApprovedApproval` once the realtor approves an approval-gated draft) |
+| 5 | Create or reuse an `intake_artifacts` row before transaction work |
+| 6 | If attachments exist, log and store each attachment as an intake artifact attachment |
+| 7 | Assess the first PDF as a possible contract |
+| 8 | Route usable contract PDFs to create/update/clarify transaction identity |
+| 9 | Ask Stephanie to orient the intake posture (`active_coordination`, `historical_or_closed`, `informational_only`, `ambiguous`, `blocked`, or `noise`) using temporal context, document facts, routing, and deterministic signals as evidence |
+| 10 | If orientation is non-active, persist the inbound message, send a realtor-only explanation/clarification, mark the webhook processed, and stop. No transaction file, milestones, tasks, calendar feed, wakeups, evidence reconciliation, or decision execution runs |
+| 11 | If orientation is active, create/update the transaction, link the artifact attachments to transaction document records, and persist facts, contacts, checklist documents, milestones, tasks, memory, and audit |
+| 12 | If non-PDF attachments arrive on a matched transaction, store them as transaction documents |
+| 13 | Persist the inbound message |
+| 14 | Reconcile routine inbound evidence into transaction writes; if anything changed, refresh the deal brief / active questions memory and rebuild context |
+| 15 | Call `decideNextAction`; it returns intent/action, inbound event category, optional response (with an optional `taskId` linking the send to an open task), and structured transaction writes |
+| 16 | Persist the decision, evaluate policy, execute allowed/approval-gated work, refresh transaction memory, mark the webhook processed, and return. The executor flips the matched task to `waiting_response` on the actual send via [../../src/lib/workflow/task-transitions.ts](../../src/lib/workflow/task-transitions.ts) (directly for inline sends, or through `sendApprovedApproval` once the realtor approves an approval-gated draft) |
 
 ## Tips for changing this file
 
@@ -58,6 +63,11 @@ Numbered by the order operations run.
   depends on it.
 - Behavior changes for the contract intake persistence path usually
   belong in `persistContractAssessment`, not in the main pipeline.
+- Behavior changes for whether an inbound package should become active
+  coordination belong in `src/lib/agent/orientation.ts` and
+  `src/lib/agent/orientation-signals.ts`. The deterministic code builds
+  evidence; Stephanie owns the posture decision before transaction
+  creation.
 - Contact/checklist persistence is driven by `canonicalFactWrites` in
   this file plus `src/lib/transaction-writes`.
 - Deal memory refresh belongs in
@@ -84,9 +94,12 @@ Numbered by the order operations run.
 - [../../src/lib/approvals/executor.ts](../../src/lib/approvals/executor.ts) — `executeApprovalReply`
 - [../../src/lib/agent/context.ts](../../src/lib/agent/context.ts) — `buildAgentContextPack`, `getTransactionContext`
 - [../../src/lib/agent/document-assessment.ts](../../src/lib/agent/document-assessment.ts) — `assessContractDocument`
+- [../../src/lib/agent/orientation.ts](../../src/lib/agent/orientation.ts) — `orientContractIntake`
+- [../../src/lib/agent/orientation-signals.ts](../../src/lib/agent/orientation-signals.ts) — deterministic signal builder used as context, not a hard-coded decision-maker
 - [../../src/lib/contracts/checklist.ts](../../src/lib/contracts/checklist.ts) — `buildExpectedDocumentChecklist`
 - [../../src/lib/workflow/contract-routing.ts](../../src/lib/workflow/contract-routing.ts) — `routeContractIntake`
 - [../../src/lib/documents/attachments.ts](../../src/lib/documents/attachments.ts) — `fetchIncomingAttachment`, `storeIncomingAttachment`, `markStoredAttachmentProcessed`
+- [../../src/lib/documents/intake-artifacts.ts](../../src/lib/documents/intake-artifacts.ts) — stores raw inbound attachments before transaction activation
 - [../../src/lib/milestones/engine.ts](../../src/lib/milestones/engine.ts) — `generateTexasMilestones`
 - [../../src/lib/workflow/tasks.ts](../../src/lib/workflow/tasks.ts) — `createOpeningTasks`, `createTasksForMilestone`
 - [../../src/lib/workflow/memory-refresh.ts](../../src/lib/workflow/memory-refresh.ts) — rewrites the prompt-facing deal brief and active questions/warnings

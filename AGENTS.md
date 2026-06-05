@@ -10,7 +10,9 @@ everything" before you change anything.
 `tc-experiment` is an autonomous AI Transaction Coordinator (TC) prototype
 for Texas residential resale real estate. A realtor signs up with Supabase
 Auth, the app provisions Stephanie's named AgentMail inbox, the realtor
-forwards an executed contract PDF to that inbox, and the system opens a
+forwards a contract package to that inbox, and the system preserves the
+package as an intake artifact before Stephanie orients on whether it is
+active coordination work. Only active coordination opens or updates a
 transaction file, extracts a coordination payload (facts, contacts,
 checklist), generates operational milestones/tasks, drafts and sends or
 approval-gates emails, and escalates deadline or stale-response risk back
@@ -27,10 +29,13 @@ flowchart TD
   AgentMail -->|webhook| WebhookRoute["POST /api/webhooks/agentmail"]
   WebhookRoute -->|enqueue| InngestEvent["Inngest event<br/>agentmail/inbound.received"]
   InngestEvent --> Intake["processAgentMailInbound<br/>src/lib/workflow/intake.ts"]
+  Intake --> Artifact["Preserve intake artifact<br/>intake_artifacts + attachments"]
   Intake --> Match["Match inbound to transaction<br/>src/lib/agent/matching.ts"]
   Intake --> Assess["Assess contract PDF<br/>src/lib/agent/document-assessment.ts"]
-  Intake --> Persist["Save facts, contacts, checklist,<br/>milestones, tasks<br/>src/lib/db/repositories.ts"]
-  Intake --> Decide["Decide next action<br/>src/lib/agent/decision.ts"]
+  Assess --> Orient["Orient intake posture<br/>src/lib/agent/orientation.ts"]
+  Orient -->|non-active| RealtorOnly["Realtor-only clarification / store-only"]
+  Orient -->|active| Persist["Save facts, contacts, checklist,<br/>milestones, tasks<br/>src/lib/db/repositories.ts"]
+  Persist --> Decide["Decide next action<br/>src/lib/agent/decision.ts"]
   Decide --> Policy["Evaluate policy<br/>src/lib/agent/policy.ts"]
   Policy --> Execute["Execute decision<br/>src/lib/agent/executor.ts"]
   Execute --> Writes["Apply transaction writes<br/>src/lib/transaction-writes/executor.ts"]
