@@ -108,6 +108,32 @@ the right professional question:
 The exact schema can change. The important feature is that Stephanie orients
 before operational machinery runs.
 
+## Concrete Refactor Direction
+
+The first implementation should split "we received a package" from "we opened a
+live transaction file." Inbound packages should be stored as intake artifacts
+first, then Stephanie should decide whether they become active coordination
+work.
+
+The intended sequence is:
+
+1. Store the inbound email/package as an intake artifact.
+2. Extract facts and build deterministic signals, including temporal signals.
+3. Ask Stephanie for an intake orientation before transaction creation.
+4. Create/update a transaction only for active coordination.
+5. Generate milestones, tasks, calendar feeds, wakeups, and alerts only after
+   active orientation.
+6. For historical, informational, ambiguous, blocked, or noise inbounds, reply
+   to the realtor without creating a transaction file.
+
+This preserves auditability without letting every valid-looking contract become
+live operational work.
+
+Transactions should also carry an explicit coordination gate so downstream
+automation can distinguish "stored/known" from "safe to coordinate." Deadline
+monitoring, stale-response checks, and proactive heartbeats should ignore any
+transaction where coordination is disabled.
+
 ## Market Expansion Implication
 
 A good transaction coordinator can work across markets because the fundamentals
