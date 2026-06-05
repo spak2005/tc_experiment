@@ -156,7 +156,6 @@ function transactionMapMilestones(context: AgentContextPack) {
 }
 
 function orientationReplyBody(input: {
-  displayName: string;
   orientation: Awaited<ReturnType<typeof orientContractIntake>>;
 }) {
   const dateLine =
@@ -172,7 +171,8 @@ function orientationReplyBody(input: {
       "",
       "If you still want me to do something with this package, reply with what you need and I will take it from there.",
       "",
-      input.displayName
+      "Best,",
+      "Stephanie"
     ].join("\n");
   }
 
@@ -184,7 +184,8 @@ function orientationReplyBody(input: {
       "",
       input.orientation.nextAction,
       "",
-      input.displayName
+      "Best,",
+      "Stephanie"
     ].join("\n");
   }
 
@@ -196,7 +197,8 @@ function orientationReplyBody(input: {
       "",
       input.orientation.nextAction,
       "",
-      input.displayName
+      "Best,",
+      "Stephanie"
     ].join("\n");
   }
 
@@ -208,7 +210,8 @@ function orientationReplyBody(input: {
       "",
       "Reply if you want me to start coordination from this package.",
       "",
-      input.displayName
+      "Best,",
+      "Stephanie"
     ].join("\n");
   }
 
@@ -219,7 +222,8 @@ function orientationReplyBody(input: {
     "",
     input.orientation.nextAction,
     "",
-    input.displayName
+    "Best,",
+    "Stephanie"
   ].join("\n");
 }
 
@@ -230,7 +234,6 @@ async function sendOrientationReply(input: {
 }) {
   const subject = `Re: ${input.context.inbound.subject}`;
   const text = orientationReplyBody({
-    displayName: input.context.tcProfile.displayName,
     orientation: input.orientation
   });
   const labels = ["intake_orientation", input.orientation.posture];

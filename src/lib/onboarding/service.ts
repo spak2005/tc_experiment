@@ -46,8 +46,7 @@ I work through this inbox, so you can assign me a file by forwarding it here. I'
 Looking forward to working with you.
 
 Best,
-Stephanie
-Your AI TC`;
+Stephanie`;
 }
 
 export async function assertEmailNotOnboarded(email: string) {

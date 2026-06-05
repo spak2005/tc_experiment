@@ -116,7 +116,7 @@ function missingContactDecision(input: {
       subject: `Contact needed: ${property}`,
       to: [input.context.tcProfile.escalationEmail],
       labels: ["proactive", "missing_contact"],
-      body: `Hi there,\n\nI am ready to work on ${property}, but I need the ${missingRoles} contact before I can handle "${taskTitle}".\n\nPlease send the name and email when you have it, and I will pick this back up.\n\nBest,\n${input.context.tcProfile.displayName}`
+      body: `Hi there,\n\nI am ready to work on ${property}, but I need the ${missingRoles} contact before I can handle "${taskTitle}".\n\nPlease send the name and email when you have it, and I will pick this back up.\n\nBest,\nStephanie`
     },
     transactionWrites: writes
   };
@@ -144,7 +144,7 @@ function missingStakeholdersDecision(
       subject: `Contacts needed: ${property}`,
       to: [context.tcProfile.escalationEmail],
       labels: ["proactive", "missing_contacts"],
-      body: `Hi there,\n\nI am organizing ${property} and need a few contact details before I can keep moving.\n\nPlease send what you have for:\n${missingItems}\n\nOnce I have those, I will continue opening the file and coordinating the next steps.\n\nBest,\n${context.tcProfile.displayName}`
+      body: `Hi there,\n\nI am organizing ${property} and need a few contact details before I can keep moving.\n\nPlease send what you have for:\n${missingItems}\n\nOnce I have those, I will continue opening the file and coordinating the next steps.\n\nBest,\nStephanie`
     },
     transactionWrites: taskId
       ? [
@@ -218,7 +218,7 @@ function oppositeAgentDecision(
       subject: `Transaction coordination: ${property}`,
       to: [party.email as string],
       labels: ["proactive", "opposite_agent_intro"],
-      body: `Hi ${party.name ?? "there"},\n\nI am coordinating the transaction for ${property}. I wanted to introduce myself and confirm the best contact for transaction coordination items on your side.\n\nPlease send any immediate notes, document needs, or timeline concerns when you have a chance.\n\nBest,\n${context.tcProfile.displayName}`
+      body: `Hi ${party.name ?? "there"},\n\nI am coordinating the transaction for ${property}. I wanted to introduce myself and confirm the best contact for transaction coordination items on your side.\n\nPlease send any immediate notes, document needs, or timeline concerns when you have a chance.\n\nBest,\nStephanie`
     },
     transactionWrites: []
   };

@@ -20,7 +20,7 @@ function context(overrides: Partial<ProactiveAgentContext> = {}): ProactiveAgent
     tcProfile: {
       id: "tc-1",
       userId: "user-1",
-      displayName: "Your TC",
+      displayName: "Stephanie",
       inboxAddress: "tc@example.com",
       inboxId: "inbox-1",
       escalationEmail: "agent@example.com"
@@ -106,6 +106,7 @@ describe("decideProactiveAction fallback", () => {
       }
     });
     expect(decision.response?.body).toContain("title");
+    expect(decision.response?.body).toContain("\n\nBest,\nStephanie");
     expect(decision.transactionWrites[0]).toMatchObject({
       name: "updateTasks",
       input: {

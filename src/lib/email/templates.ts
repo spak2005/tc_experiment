@@ -13,7 +13,7 @@ export function intakeConfirmationEmail(input: IntakeConfirmationInput) {
 
   return {
     subject: `Opening file: ${property}`,
-    text: `Hi ${input.agentName},\n\nI received the contract for ${property}. I am opening the file, reviewing the contract, and building the timeline now.${missing}\n\nI will follow up as soon as the transaction map is ready.\n\nBest,\nYour TC`
+    text: `Hi ${input.agentName},\n\nI received the contract for ${property}. I am opening the file, reviewing the contract, and building the timeline now.${missing}\n\nI will follow up as soon as the transaction map is ready.\n\nBest,\nStephanie`
   };
 }
 
@@ -26,7 +26,7 @@ export interface OpeningTitleEmailInput {
 export function openingTitleEmail(input: OpeningTitleEmailInput) {
   return {
     subject: `New contract: ${input.propertyAddress}`,
-    text: `Hi ${input.titleContactName ?? "there"},\n\nI am coordinating the transaction for ${input.propertyAddress} on behalf of ${input.agentName}. Please confirm receipt of the contract and let me know the escrow officer/contact for this file.\n\nI will also need confirmation once earnest money and the option fee are received.\n\nBest,\nTransaction Coordination`
+    text: `Hi ${input.titleContactName ?? "there"},\n\nI am coordinating the transaction for ${input.propertyAddress} on behalf of ${input.agentName}. Please confirm receipt of the contract and let me know the escrow officer/contact for this file.\n\nI will also need confirmation once earnest money and the option fee are received.\n\nBest,\nStephanie`
   };
 }
 
@@ -114,6 +114,6 @@ export function transactionMapEmail(input: TransactionMapEmailInput) {
 
   return {
     subject: `Transaction map: ${property}`,
-    text: `Hi there,\n\nI reviewed the contract and built the initial transaction map.\n\n${headline}\n\nKey milestones:\n${milestones}${missing}${calendar}\n\nI will keep monitoring the timeline and will escalate if a deadline is at risk.\n\nBest,\nYour TC`
+    text: `Hi there,\n\nI reviewed the contract and built the initial transaction map.\n\n${headline}\n\nKey milestones:\n${milestones}${missing}${calendar}\n\nI will keep monitoring the timeline and will escalate if a deadline is at risk.\n\nBest,\nStephanie`
   };
 }
