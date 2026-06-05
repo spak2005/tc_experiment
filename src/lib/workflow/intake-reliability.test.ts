@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   createAgentActivityRun: vi.fn(),
   createAgentDecisionOnce: vi.fn(),
   createAuditEvent: vi.fn(),
+  createIntakeArtifact: vi.fn(),
   createMessage: vi.fn(),
   createOrReuseTransactionCalendarFeed: vi.fn(),
   findOrCreateTransactionForIntake: vi.fn(),
@@ -24,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   insertTasks: vi.fn(),
   markWebhookEventProcessed: vi.fn(),
   saveExtractedContractFacts: vi.fn(),
+  updateIntakeArtifact: vi.fn(),
   updateAgentActivityRun: vi.fn(),
   updateTransactionFromFacts: vi.fn(),
   upsertTransactionMemory: vi.fn(),
@@ -31,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   isPdfAttachment: vi.fn(),
   markStoredAttachmentProcessed: vi.fn(),
   storeIncomingAttachment: vi.fn(),
+  storeIntakeArtifactAttachment: vi.fn(),
   generateTexasMilestones: vi.fn(),
   executeTransactionWrites: vi.fn(),
   routeContractIntake: vi.fn(),
@@ -83,6 +86,7 @@ vi.mock("@/lib/db/repositories", () => ({
   createAgentActivityRun: mocks.createAgentActivityRun,
   createAgentDecisionOnce: mocks.createAgentDecisionOnce,
   createAuditEvent: mocks.createAuditEvent,
+  createIntakeArtifact: mocks.createIntakeArtifact,
   createMessage: mocks.createMessage,
   createOrReuseTransactionCalendarFeed: mocks.createOrReuseTransactionCalendarFeed,
   findOrCreateTransactionForIntake: mocks.findOrCreateTransactionForIntake,
@@ -93,6 +97,7 @@ vi.mock("@/lib/db/repositories", () => ({
   insertTasks: mocks.insertTasks,
   markWebhookEventProcessed: mocks.markWebhookEventProcessed,
   saveExtractedContractFacts: mocks.saveExtractedContractFacts,
+  updateIntakeArtifact: mocks.updateIntakeArtifact,
   updateAgentActivityRun: mocks.updateAgentActivityRun,
   updateTransactionFromFacts: mocks.updateTransactionFromFacts,
   upsertTransactionMemory: mocks.upsertTransactionMemory
@@ -103,6 +108,10 @@ vi.mock("@/lib/documents/attachments", () => ({
   isPdfAttachment: mocks.isPdfAttachment,
   markStoredAttachmentProcessed: mocks.markStoredAttachmentProcessed,
   storeIncomingAttachment: mocks.storeIncomingAttachment
+}));
+
+vi.mock("@/lib/documents/intake-artifacts", () => ({
+  storeIntakeArtifactAttachment: mocks.storeIntakeArtifactAttachment
 }));
 
 vi.mock("@/lib/milestones/engine", () => ({
@@ -238,12 +247,20 @@ function setupContractIntake(input: {
   mocks.findTcProfileByInbox.mockResolvedValue(tcProfile);
   mocks.findPendingApprovalByReply.mockResolvedValue(null);
   mocks.buildAgentContextPack.mockResolvedValue(contextPack());
+  mocks.createIntakeArtifact.mockResolvedValue({
+    id: "artifact-1",
+    artifact_key: "inbox-1:message:message-1",
+    status: "received",
+    inserted: true
+  });
   mocks.buildExpectedDocumentChecklist.mockReturnValue([]);
   mocks.isPdfAttachment.mockReturnValue(true);
-  mocks.fetchIncomingAttachment.mockResolvedValue({
-    id: "attachment-1",
+  mocks.storeIntakeArtifactAttachment.mockResolvedValue({
+    intakeArtifactAttachmentId: "artifact-attachment-1",
+    sourceAttachmentKey: "inbox-1:message-1:attachment-1",
     filename: "contract.pdf",
     contentType: "application/pdf",
+    blobKey: "users/user-1/intake/contract.pdf",
     body: Buffer.from("pdf")
   });
   mocks.assessContractDocument.mockResolvedValue({
@@ -338,6 +355,7 @@ describe("processAgentMailInbound reliability guards", () => {
     mocks.markWebhookEventProcessed.mockResolvedValue(undefined);
     mocks.createAgentActivityRun.mockResolvedValue({ id: "run-1" });
     mocks.updateAgentActivityRun.mockResolvedValue({ id: "run-1" });
+    mocks.updateIntakeArtifact.mockResolvedValue({ id: "artifact-1" });
   });
 
   it("marks unknown inbox webhooks processed before ignoring them", async () => {
@@ -382,6 +400,21 @@ describe("processAgentMailInbound reliability guards", () => {
     expect(mocks.createOrReuseTransactionCalendarFeed).toHaveBeenCalledWith({
       transactionId: "tx-1"
     });
+    expect(mocks.createIntakeArtifact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        artifactKey: "inbox-1:message:message-1",
+        subject: "Executed contract"
+      })
+    );
+    expect(mocks.storeIntakeArtifactAttachment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intakeArtifactId: "artifact-1",
+        attachment: expect.objectContaining({ id: "attachment-1" })
+      })
+    );
+    expect(mocks.createIntakeArtifact.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.findOrCreateTransactionForIntake.mock.invocationCallOrder[0]
+    );
   });
 
   it("omits the calendar CTA when generated milestones are undated", async () => {

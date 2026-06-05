@@ -1,7 +1,8 @@
 import type { AgentContextPack } from "@/lib/agent/types";
 import {
   activityStatusForExecutionStatus,
-  activityStatusForPolicyResult
+  activityStatusForPolicyResult,
+  safeBodyPreview
 } from "@/lib/agent/activity";
 import { runWithActivityRun } from "@/lib/agent/activity-run-context";
 import { buildAgentContextPack, getTransactionContext } from "@/lib/agent/context";
@@ -20,6 +21,7 @@ import {
   createAgentActivityRun,
   createAgentDecisionOnce,
   createAuditEvent,
+  createIntakeArtifact,
   createMessage,
   findOrCreateTransactionForIntake,
   findPendingApprovalByReply,
@@ -29,18 +31,19 @@ import {
   insertTasks,
   markWebhookEventProcessed,
   saveExtractedContractFacts,
+  updateIntakeArtifact,
   updateAgentActivityRun,
   updateTransactionFromFacts,
   upsertTransactionMemory
 } from "@/lib/db/repositories";
 import {
-  fetchIncomingAttachment,
   isPdfAttachment,
   markStoredAttachmentProcessed,
   storeIncomingAttachment,
   type FetchedAttachment,
   type StoredAttachment
 } from "@/lib/documents/attachments";
+import { storeIntakeArtifactAttachment } from "@/lib/documents/intake-artifacts";
 import { transactionMapEmail } from "@/lib/email/templates";
 import { generateTexasMilestones } from "@/lib/milestones/engine";
 import { executeTransactionWrites } from "@/lib/transaction-writes/executor";
@@ -103,6 +106,35 @@ function summarizeOpeningFacts(facts: ContractFacts) {
     closingDate: summarizeFact(facts.closingDate),
     titleCompany: summarizeFact(facts.titleCompany),
     signatureStatus: facts.signatureStatus
+  };
+}
+
+function intakeArtifactKey(input: {
+  inboxId: string;
+  messageId?: string;
+  eventId: string;
+}) {
+  return input.messageId
+    ? `${input.inboxId}:message:${input.messageId}`
+    : `${input.inboxId}:event:${input.eventId}`;
+}
+
+function summarizeDocumentAssessment(input: {
+  filename: string;
+  assessment: Awaited<ReturnType<typeof assessContractDocument>>;
+}) {
+  return {
+    filename: input.filename,
+    kind: input.assessment.kind,
+    usability: input.assessment.usability,
+    validationStatus: input.assessment.validationStatus,
+    signatureStatus: input.assessment.signatureStatus,
+    extractionMode: input.assessment.extractionMode,
+    extractionError: input.assessment.extractionError,
+    contractVersion: input.assessment.facts.contractVersion,
+    extractedFacts: summarizeOpeningFacts(input.assessment.facts),
+    missingItems: input.assessment.missingItems,
+    findings: input.assessment.findings
   };
 }
 
@@ -941,6 +973,38 @@ export async function processAgentMailInbound(input: {
     }
   });
 
+  const intakeArtifact = await createIntakeArtifact({
+    userId: tcProfile.user_id,
+    tcProfileId: tcProfile.id,
+    webhookEventId: input.webhookEventId,
+    artifactKey: intakeArtifactKey({
+      inboxId: inbound.inboxId,
+      messageId: inbound.messageId,
+      eventId: inbound.eventId
+    }),
+    inboxId: inbound.inboxId,
+    messageId: inbound.messageId,
+    threadId: inbound.threadId,
+    fromAddress: inbound.from,
+    toAddresses: inbound.to,
+    ccAddresses: inbound.cc,
+    subject: inbound.subject,
+    bodyPreview: safeBodyPreview(context.emailText, 1000)
+  });
+  await logActivity(activityContext, {
+    sourceType: "system",
+    eventType: intakeArtifact.inserted ? "intake_artifact_created" : "intake_artifact_reused",
+    title: intakeArtifact.inserted ? "Created intake artifact" : "Reused intake artifact",
+    summary: "Preserved the inbound package before transaction processing.",
+    status: "completed",
+    metadata: {
+      intakeArtifactId: intakeArtifact.id,
+      artifactKey: intakeArtifact.artifact_key,
+      status: intakeArtifact.status,
+      inserted: intakeArtifact.inserted
+    }
+  });
+
   let documentAssessment: Awaited<ReturnType<typeof assessContractDocument>> | undefined;
   let contractRouting: ContractRoutingDecision | undefined;
   let shouldPersistContractAssessment = false;
@@ -962,18 +1026,26 @@ export async function processAgentMailInbound(input: {
           isPdf: isPdfAttachment(attachment)
         }
       });
+      const storedArtifactAttachment = await storeIntakeArtifactAttachment({
+        userId: context.tcProfile.userId,
+        intakeArtifactId: intakeArtifact.id,
+        inboxId: context.inbound.inboxId,
+        messageId: context.inbound.messageId,
+        attachment
+      });
+      fetchedAttachments[attachment.id] = {
+        filename: storedArtifactAttachment.filename,
+        contentType: storedArtifactAttachment.contentType,
+        body: storedArtifactAttachment.body
+      };
     }
     const pdfAttachment = inbound.attachments.find((attachment) => isPdfAttachment(attachment));
 
     if (pdfAttachment) {
-      const fetchedPdf = await fetchIncomingAttachment({
-        userId: context.tcProfile.userId,
-        transactionId,
-        inboxId: context.inbound.inboxId,
-        messageId: context.inbound.messageId,
-        attachment: pdfAttachment
-      });
-      fetchedAttachments[pdfAttachment.id] = fetchedPdf;
+      const fetchedPdf = fetchedAttachments[pdfAttachment.id];
+      if (!fetchedPdf) {
+        throw new Error(`Attachment ${pdfAttachment.id} was not stored before PDF assessment.`);
+      }
       await logActivity(activityContext, {
         sourceType: "document",
         eventType: "contract_pdf_selected",
@@ -1023,6 +1095,14 @@ export async function processAgentMailInbound(input: {
           missingItems: documentAssessment.missingItems,
           findings: documentAssessment.findings
         }
+      });
+      await updateIntakeArtifact({
+        id: intakeArtifact.id,
+        status: "assessed",
+        extractionSummary: summarizeDocumentAssessment({
+          filename: pdfAttachment.filename,
+          assessment: documentAssessment
+        })
       });
 
       const candidates = await findTransactionMatchCandidates(context.tcProfile.userId);
@@ -1211,6 +1291,14 @@ export async function processAgentMailInbound(input: {
         });
       }
     }
+  }
+
+  if (transactionId) {
+    await updateIntakeArtifact({
+      id: intakeArtifact.id,
+      status: "transaction_linked",
+      transactionId
+    });
   }
 
   await createMessage({
