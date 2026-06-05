@@ -490,4 +490,82 @@ describe("processAgentMailInbound reliability guards", () => {
     expect(decision.response.body).not.toContain("Add these deadlines to Google Calendar");
     expect(mocks.createOrReuseTransactionCalendarFeed).not.toHaveBeenCalled();
   });
+
+  it("stores historical contracts without opening active coordination", async () => {
+    setupContractIntake({ generatedMilestones: [] });
+    mocks.assessContractDocument.mockResolvedValue({
+      filename: "contract.pdf",
+      kind: "trec_contract",
+      usability: "usable",
+      validationStatus: "ready_for_review",
+      missingItems: [],
+      intakeGaps: [],
+      findings: [],
+      signatureStatus: "signed",
+      extractionMode: "anthropic_pdf",
+      facts: {
+        ...baseFacts,
+        propertyAddress: { value: "100 Pecanwood South", confidence: 0.99 },
+        effectiveDate: { value: "2026-03-11", confidence: 0.99 },
+        closingDate: { value: "2026-04-01", confidence: 0.99 }
+      }
+    });
+    mocks.orientContractIntake.mockResolvedValue({
+      situation: "This appears to be a closed historical contract package.",
+      posture: "historical_or_closed",
+      action: "ask_realtor",
+      shouldOpenActiveFile: false,
+      shouldStartCoordination: false,
+      nextAction: "Ask whether anything else is needed.",
+      rationale: "The effective and closing dates are both in the past.",
+      confidence: 0.9,
+      signals: {
+        today: "2026-06-03",
+        effectiveDate: "2026-03-11",
+        closingDate: "2026-04-01",
+        effectiveDateOffsetDays: -84,
+        closingDateOffsetDays: -63,
+        keyContractDatesAllPast: true,
+        keyContractDatesAllFuture: false,
+        emailSuggestsHistorical: false,
+        emailSuggestsInformational: false,
+        documentUsability: "usable",
+        missingItems: [],
+        routingAction: "create_transaction",
+        routingConfidence: 0.99,
+        matchConfidence: 0,
+        matchAmbiguous: false
+      },
+      mode: "fallback"
+    });
+
+    await expect(
+      processAgentMailInbound({
+        webhookEventId: "webhook-1",
+        agentMailEvent: { id: "event-1" }
+      })
+    ).resolves.toEqual({
+      status: "stored",
+      transactionId: undefined,
+      posture: "historical_or_closed",
+      action: "ask_realtor"
+    });
+
+    expect(mocks.findOrCreateTransactionForIntake).not.toHaveBeenCalled();
+    expect(mocks.storeIncomingAttachment).not.toHaveBeenCalled();
+    expect(mocks.saveExtractedContractFacts).not.toHaveBeenCalled();
+    expect(mocks.insertMilestones).not.toHaveBeenCalled();
+    expect(mocks.insertTasks).not.toHaveBeenCalled();
+    expect(mocks.scheduleAgentWakeup).not.toHaveBeenCalled();
+    expect(mocks.decideNextAction).not.toHaveBeenCalled();
+    expect(mocks.executeAgentDecision).not.toHaveBeenCalled();
+    expect(mocks.createMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transactionId: undefined,
+        summary:
+          "Inbound email stored as intake artifact with posture historical_or_closed."
+      })
+    );
+    expect(mocks.markWebhookEventProcessed).toHaveBeenCalledWith("webhook-1");
+  });
 });

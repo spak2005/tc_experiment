@@ -1010,6 +1010,7 @@ export async function processAgentMailInbound(input: {
   let contractRouting: ContractRoutingDecision | undefined;
   let intakeOrientation: Awaited<ReturnType<typeof orientContractIntake>> | undefined;
   let shouldPersistContractAssessment = false;
+  let orientationDeferredActiveWork = false;
   const fetchedAttachments: Record<string, FetchedAttachment> = {};
   const evidenceDocuments: EvidenceDocumentInput[] = [];
 
@@ -1170,11 +1171,18 @@ export async function processAgentMailInbound(input: {
         }
       });
 
-      if (contractRouting.action === "update_transaction") {
+      if (
+        intakeOrientation.action === "update_transaction" &&
+        contractRouting.action === "update_transaction" &&
+        contractRouting.transactionId
+      ) {
         transactionId = contractRouting.transactionId;
         activityContext.transactionId = transactionId;
         shouldPersistContractAssessment = true;
-      } else if (contractRouting.action === "create_transaction") {
+      } else if (
+        intakeOrientation.action === "open_transaction" &&
+        contractRouting.action === "create_transaction"
+      ) {
         const transaction = await findOrCreateTransactionForIntake({
           userId: tcProfile.user_id,
           tcProfileId: tcProfile.id,
@@ -1198,10 +1206,8 @@ export async function processAgentMailInbound(input: {
             routing: contractRouting
           }
         });
-      } else if (contractRouting.action === "no_transaction_action" && context.match.transactionId) {
-        transactionId = context.match.transactionId;
-        activityContext.transactionId = transactionId;
       } else {
+        orientationDeferredActiveWork = true;
         transactionId = undefined;
         activityContext.transactionId = undefined;
         context = {
@@ -1327,6 +1333,69 @@ export async function processAgentMailInbound(input: {
         });
       }
     }
+  }
+
+  if (intakeOrientation && orientationDeferredActiveWork) {
+    await createMessage({
+      transactionId: undefined,
+      agentMailMessageId: inbound.messageId || inbound.eventId,
+      threadId: inbound.threadId,
+      from: inbound.from,
+      to: inbound.to,
+      cc: inbound.cc,
+      subject: inbound.subject,
+      receivedAt: new Date(),
+      summary: `Inbound email stored as intake artifact with posture ${intakeOrientation.posture}.`
+    });
+    await logActivity(activityContext, {
+      sourceType: "email",
+      eventType: "message_persisted",
+      title: "Saved inbound message",
+      summary: "Saved the inbound email without opening active coordination.",
+      status: "completed",
+      metadata: {
+        agentMailMessageId: inbound.messageId || inbound.eventId,
+        threadId: inbound.threadId,
+        intakeArtifactId: intakeArtifact.id,
+        posture: intakeOrientation.posture,
+        action: intakeOrientation.action
+      }
+    });
+    await markWebhookEventProcessed(input.webhookEventId);
+
+    const result = {
+      status: "stored",
+      transactionId: undefined,
+      posture: intakeOrientation.posture,
+      action: intakeOrientation.action
+    };
+    await updateAgentActivityRun({
+      id: activityRun.id,
+      title: "Intake oriented",
+      summary: intakeOrientation.rationale,
+      status:
+        intakeOrientation.action === "noop" || intakeOrientation.posture === "noise"
+          ? "ignored"
+          : "waiting",
+      metadata: {
+        technicalType: "inbound_email",
+        webhookEventId: input.webhookEventId,
+        inboxId: inbound.inboxId,
+        messageId: inbound.messageId,
+        threadId: inbound.threadId,
+        from: inbound.from,
+        subject: inbound.subject,
+        intakeArtifactId: intakeArtifact.id,
+        posture: intakeOrientation.posture,
+        action: intakeOrientation.action,
+        documentKind: documentAssessment?.kind,
+        documentUsability: documentAssessment?.usability,
+        routingAction: contractRouting?.action
+      },
+      completedAt: new Date()
+    });
+
+    return result;
   }
 
   if (transactionId) {
