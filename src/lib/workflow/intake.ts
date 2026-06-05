@@ -12,6 +12,11 @@ import { executeAgentDecision } from "@/lib/agent/executor";
 import { orientContractIntake } from "@/lib/agent/orientation";
 import { evaluateActionPolicy } from "@/lib/agent/policy";
 import { normalizeAgentMailInbound } from "@/lib/agentmail/inbound";
+import {
+  extractAgentMailMessageMetadata,
+  replyTcEmailOnce,
+  sendTcEmailOnce
+} from "@/lib/agentmail/service";
 import { executeApprovalReply } from "@/lib/approvals/executor";
 import { buildPublicUrl } from "@/lib/config/urls";
 import { buildExpectedDocumentChecklist } from "@/lib/contracts/checklist";
@@ -147,6 +152,113 @@ function transactionMapMilestones(context: AgentContextPack) {
       stringValue(milestone.source_reference) ?? stringValue(milestone.sourceReference),
     riskLevel: stringValue(milestone.risk_level) ?? stringValue(milestone.riskLevel) ?? "normal"
   }));
+}
+
+function orientationReplyBody(input: {
+  displayName: string;
+  orientation: Awaited<ReturnType<typeof orientContractIntake>>;
+}) {
+  const dateLine =
+    input.orientation.signals.effectiveDate || input.orientation.signals.closingDate
+      ? `I noticed the contract dates appear to be effective ${input.orientation.signals.effectiveDate ?? "unknown"} and closing ${input.orientation.signals.closingDate ?? "unknown"}.`
+      : "I could not confirm enough live transaction timing from the package alone.";
+
+  if (input.orientation.posture === "historical_or_closed") {
+    return [
+      "Hi,",
+      "",
+      `${dateLine} This looks like it may be a past or already-closed transaction, so I did not open an active transaction file or start deadline follow-ups from it.`,
+      "",
+      "If you still want me to do something with this package, reply with what you need and I will take it from there.",
+      "",
+      input.displayName
+    ].join("\n");
+  }
+
+  if (input.orientation.posture === "ambiguous") {
+    return [
+      "Hi,",
+      "",
+      "I saved the package, but I need one clarification before I open or update an active transaction file.",
+      "",
+      input.orientation.nextAction,
+      "",
+      input.displayName
+    ].join("\n");
+  }
+
+  if (input.orientation.posture === "blocked") {
+    return [
+      "Hi,",
+      "",
+      "I saved the package, but I do not have enough usable information to start active coordination yet.",
+      "",
+      input.orientation.nextAction,
+      "",
+      input.displayName
+    ].join("\n");
+  }
+
+  if (input.orientation.posture === "informational_only") {
+    return [
+      "Hi,",
+      "",
+      "I saved this for reference and did not open an active transaction file because it looks informational.",
+      "",
+      "Reply if you want me to start coordination from this package.",
+      "",
+      input.displayName
+    ].join("\n");
+  }
+
+  return [
+    "Hi,",
+    "",
+    "I saved this inbound package and did not start active coordination from it.",
+    "",
+    input.orientation.nextAction,
+    "",
+    input.displayName
+  ].join("\n");
+}
+
+async function sendOrientationReply(input: {
+  context: AgentContextPack;
+  webhookEventId: string;
+  orientation: Awaited<ReturnType<typeof orientContractIntake>>;
+}) {
+  const subject = `Re: ${input.context.inbound.subject}`;
+  const text = orientationReplyBody({
+    displayName: input.context.tcProfile.displayName,
+    orientation: input.orientation
+  });
+  const labels = ["intake_orientation", input.orientation.posture];
+  const idempotencyKey = `intake-orientation:${input.webhookEventId}:reply`;
+
+  const sent = input.context.inbound.messageId
+    ? await replyTcEmailOnce({
+        idempotencyKey,
+        inboxId: input.context.tcProfile.inboxId,
+        messageId: input.context.inbound.messageId,
+        to: [input.context.tcProfile.escalationEmail],
+        text,
+        labels
+      })
+    : await sendTcEmailOnce({
+        idempotencyKey,
+        inboxId: input.context.tcProfile.inboxId,
+        to: [input.context.tcProfile.escalationEmail],
+        subject,
+        text,
+        labels
+      });
+
+  return {
+    subject,
+    text,
+    labels,
+    metadata: extractAgentMailMessageMetadata(sent)
+  };
 }
 
 type ActivityContext = {
@@ -1361,10 +1473,45 @@ export async function processAgentMailInbound(input: {
         action: intakeOrientation.action
       }
     });
+    const orientationReply = await sendOrientationReply({
+      context,
+      webhookEventId: input.webhookEventId,
+      orientation: intakeOrientation
+    });
+    await createMessage({
+      transactionId: undefined,
+      agentMailMessageId:
+        orientationReply.metadata.messageId ??
+        `intake-orientation:${input.webhookEventId}:reply`,
+      threadId: orientationReply.metadata.threadId ?? inbound.threadId,
+      from: context.tcProfile.inboxAddress,
+      to: [context.tcProfile.escalationEmail],
+      cc: [],
+      subject: orientationReply.subject,
+      sentAt: new Date(),
+      summary: `Realtor-only intake orientation reply for posture ${intakeOrientation.posture}.`
+    });
+    await logActivity(activityContext, {
+      sourceType: "email",
+      eventType: "intake_orientation_reply_sent",
+      title: "Sent intake orientation reply",
+      summary: `Sent a realtor-only reply for ${intakeOrientation.posture}.`,
+      status: "sent",
+      metadata: {
+        intakeArtifactId: intakeArtifact.id,
+        to: [context.tcProfile.escalationEmail],
+        cc: [],
+        subject: orientationReply.subject,
+        labels: orientationReply.labels,
+        messageId: orientationReply.metadata.messageId,
+        threadId: orientationReply.metadata.threadId,
+        bodyPreview: safeBodyPreview(orientationReply.text)
+      }
+    });
     await markWebhookEventProcessed(input.webhookEventId);
 
     const result = {
-      status: "stored",
+      status: "sent",
       transactionId: undefined,
       posture: intakeOrientation.posture,
       action: intakeOrientation.action
@@ -1376,7 +1523,7 @@ export async function processAgentMailInbound(input: {
       status:
         intakeOrientation.action === "noop" || intakeOrientation.posture === "noise"
           ? "ignored"
-          : "waiting",
+          : "sent",
       metadata: {
         technicalType: "inbound_email",
         webhookEventId: input.webhookEventId,

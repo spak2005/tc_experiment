@@ -42,7 +42,10 @@ const mocks = vi.hoisted(() => ({
   refreshTransactionMemory: vi.fn(),
   scheduleAgentWakeup: vi.fn(),
   createOpeningTasks: vi.fn(),
-  createTasksForMilestone: vi.fn()
+  createTasksForMilestone: vi.fn(),
+  extractAgentMailMessageMetadata: vi.fn(),
+  replyTcEmailOnce: vi.fn(),
+  sendTcEmailOnce: vi.fn()
 }));
 
 vi.mock("@/lib/agent/context", () => ({
@@ -72,6 +75,12 @@ vi.mock("@/lib/agent/policy", () => ({
 
 vi.mock("@/lib/agentmail/inbound", () => ({
   normalizeAgentMailInbound: mocks.normalizeAgentMailInbound
+}));
+
+vi.mock("@/lib/agentmail/service", () => ({
+  extractAgentMailMessageMetadata: mocks.extractAgentMailMessageMetadata,
+  replyTcEmailOnce: mocks.replyTcEmailOnce,
+  sendTcEmailOnce: mocks.sendTcEmailOnce
 }));
 
 vi.mock("@/lib/approvals/executor", () => ({
@@ -383,6 +392,15 @@ describe("processAgentMailInbound reliability guards", () => {
     mocks.createAgentActivityRun.mockResolvedValue({ id: "run-1" });
     mocks.updateAgentActivityRun.mockResolvedValue({ id: "run-1" });
     mocks.updateIntakeArtifact.mockResolvedValue({ id: "artifact-1" });
+    mocks.replyTcEmailOnce.mockResolvedValue({
+      messageId: "orientation-reply-1",
+      threadId: "thread-1"
+    });
+    mocks.sendTcEmailOnce.mockResolvedValue({
+      messageId: "orientation-send-1",
+      threadId: "orientation-thread-1"
+    });
+    mocks.extractAgentMailMessageMetadata.mockImplementation((value) => value);
   });
 
   it("marks unknown inbox webhooks processed before ignoring them", async () => {
@@ -545,7 +563,7 @@ describe("processAgentMailInbound reliability guards", () => {
         agentMailEvent: { id: "event-1" }
       })
     ).resolves.toEqual({
-      status: "stored",
+      status: "sent",
       transactionId: undefined,
       posture: "historical_or_closed",
       action: "ask_realtor"
@@ -564,6 +582,28 @@ describe("processAgentMailInbound reliability guards", () => {
         transactionId: undefined,
         summary:
           "Inbound email stored as intake artifact with posture historical_or_closed."
+      })
+    );
+    expect(mocks.replyTcEmailOnce).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idempotencyKey: "intake-orientation:webhook-1:reply",
+        inboxId: "inbox-1",
+        messageId: "message-1",
+        to: ["agent@example.com"],
+        text: expect.stringContaining("did not open an active transaction file")
+      })
+    );
+    expect(mocks.replyTcEmailOnce.mock.calls[0][0]).not.toHaveProperty("cc");
+    expect(mocks.sendTcEmailOnce).not.toHaveBeenCalled();
+    expect(mocks.createMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transactionId: undefined,
+        agentMailMessageId: "orientation-reply-1",
+        to: ["agent@example.com"],
+        cc: [],
+        subject: "Re: Executed contract",
+        summary:
+          "Realtor-only intake orientation reply for posture historical_or_closed."
       })
     );
     expect(mocks.markWebhookEventProcessed).toHaveBeenCalledWith("webhook-1");
