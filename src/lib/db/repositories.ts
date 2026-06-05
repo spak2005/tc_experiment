@@ -1193,6 +1193,253 @@ export async function markOutboundEmailFailed(input: {
   return result.rows[0] ?? null;
 }
 
+export interface IntakeArtifactRow {
+  id: string;
+  user_id: string;
+  tc_profile_id: string;
+  webhook_event_id: string | null;
+  artifact_key: string;
+  inbox_id: string;
+  message_id: string | null;
+  thread_id: string | null;
+  from_address: string;
+  to_addresses: string[];
+  cc_addresses: string[];
+  subject: string;
+  body_preview: string | null;
+  status: string;
+  extraction_summary: Record<string, unknown>;
+  orientation_result: Record<string, unknown>;
+  disposition: string | null;
+  transaction_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IntakeArtifactAttachmentRow {
+  id: string;
+  intake_artifact_id: string;
+  attachment_key: string;
+  filename: string;
+  content_type: string | null;
+  blob_key: string | null;
+  document_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  inserted: boolean;
+}
+
+const intakeArtifactColumns = `
+  id,
+  user_id,
+  tc_profile_id,
+  webhook_event_id,
+  artifact_key,
+  inbox_id,
+  message_id,
+  thread_id,
+  from_address,
+  to_addresses,
+  cc_addresses,
+  subject,
+  body_preview,
+  status,
+  extraction_summary,
+  orientation_result,
+  disposition,
+  transaction_id,
+  created_at::text,
+  updated_at::text
+`;
+
+const intakeArtifactAttachmentColumns = `
+  id,
+  intake_artifact_id,
+  attachment_key,
+  filename,
+  content_type,
+  blob_key,
+  document_id,
+  metadata,
+  created_at::text
+`;
+
+function toRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+export async function createIntakeArtifact(input: {
+  userId: string;
+  tcProfileId: string;
+  webhookEventId?: string;
+  artifactKey: string;
+  inboxId: string;
+  messageId?: string;
+  threadId?: string;
+  fromAddress: string;
+  toAddresses: string[];
+  ccAddresses: string[];
+  subject: string;
+  bodyPreview?: string;
+}) {
+  const result = await query<IntakeArtifactRow & { inserted: boolean }>(
+    `insert into intake_artifacts (
+       user_id,
+       tc_profile_id,
+       webhook_event_id,
+       artifact_key,
+       inbox_id,
+       message_id,
+       thread_id,
+       from_address,
+       to_addresses,
+       cc_addresses,
+       subject,
+       body_preview
+     )
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+     on conflict (user_id, artifact_key) do update
+       set webhook_event_id = coalesce(intake_artifacts.webhook_event_id, excluded.webhook_event_id),
+           inbox_id = excluded.inbox_id,
+           message_id = coalesce(excluded.message_id, intake_artifacts.message_id),
+           thread_id = coalesce(excluded.thread_id, intake_artifacts.thread_id),
+           from_address = excluded.from_address,
+           to_addresses = excluded.to_addresses,
+           cc_addresses = excluded.cc_addresses,
+           subject = excluded.subject,
+           body_preview = coalesce(excluded.body_preview, intake_artifacts.body_preview),
+           updated_at = now()
+     returning ${intakeArtifactColumns}, (xmax = 0) as inserted`,
+    [
+      input.userId,
+      input.tcProfileId,
+      input.webhookEventId ?? null,
+      input.artifactKey,
+      input.inboxId,
+      input.messageId ?? null,
+      input.threadId ?? null,
+      input.fromAddress,
+      input.toAddresses,
+      input.ccAddresses,
+      input.subject,
+      input.bodyPreview ?? null
+    ]
+  );
+
+  const row = result.rows[0];
+  return {
+    ...row,
+    extraction_summary: toRecord(row.extraction_summary),
+    orientation_result: toRecord(row.orientation_result)
+  };
+}
+
+export async function updateIntakeArtifact(input: {
+  id: string;
+  status?: string;
+  extractionSummary?: Record<string, unknown>;
+  orientationResult?: Record<string, unknown>;
+  disposition?: string;
+  transactionId?: string;
+}) {
+  const result = await query<IntakeArtifactRow>(
+    `update intake_artifacts
+     set status = coalesce($2, status),
+         extraction_summary = case
+           when $3::jsonb is null then extraction_summary
+           else extraction_summary || $3::jsonb
+         end,
+         orientation_result = case
+           when $4::jsonb is null then orientation_result
+           else $4::jsonb
+         end,
+         disposition = coalesce($5, disposition),
+         transaction_id = coalesce($6::uuid, transaction_id),
+         updated_at = now()
+     where id = $1
+     returning ${intakeArtifactColumns}`,
+    [
+      input.id,
+      input.status ?? null,
+      input.extractionSummary ? toJsonb(input.extractionSummary) : null,
+      input.orientationResult ? toJsonb(input.orientationResult) : null,
+      input.disposition ?? null,
+      input.transactionId ?? null
+    ]
+  );
+
+  const row = result.rows[0];
+  return row
+    ? {
+        ...row,
+        extraction_summary: toRecord(row.extraction_summary),
+        orientation_result: toRecord(row.orientation_result)
+      }
+    : null;
+}
+
+export async function createIntakeArtifactAttachment(input: {
+  intakeArtifactId: string;
+  attachmentKey: string;
+  filename: string;
+  contentType?: string;
+  blobKey?: string;
+  documentId?: string;
+  metadata?: Record<string, unknown>;
+}) {
+  const result = await query<IntakeArtifactAttachmentRow>(
+    `insert into intake_artifact_attachments (
+       intake_artifact_id,
+       attachment_key,
+       filename,
+       content_type,
+       blob_key,
+       document_id,
+       metadata
+     )
+     values ($1, $2, $3, $4, $5, $6, $7)
+     on conflict (intake_artifact_id, attachment_key) do update
+       set filename = excluded.filename,
+           content_type = excluded.content_type,
+           blob_key = coalesce(excluded.blob_key, intake_artifact_attachments.blob_key),
+           document_id = coalesce(excluded.document_id, intake_artifact_attachments.document_id),
+           metadata = intake_artifact_attachments.metadata || excluded.metadata
+     returning ${intakeArtifactAttachmentColumns}, (xmax = 0) as inserted`,
+    [
+      input.intakeArtifactId,
+      input.attachmentKey,
+      input.filename,
+      input.contentType ?? null,
+      input.blobKey ?? null,
+      input.documentId ?? null,
+      toJsonb(input.metadata ?? {})
+    ]
+  );
+
+  const row = result.rows[0];
+  return {
+    ...row,
+    metadata: toRecord(row.metadata)
+  };
+}
+
+export async function listIntakeArtifactAttachments(intakeArtifactId: string) {
+  const result = await query<IntakeArtifactAttachmentRow>(
+    `select ${intakeArtifactAttachmentColumns}, false as inserted
+     from intake_artifact_attachments
+     where intake_artifact_id = $1
+     order by created_at, id`,
+    [intakeArtifactId]
+  );
+
+  return result.rows.map((row) => ({
+    ...row,
+    metadata: toRecord(row.metadata)
+  }));
+}
+
 export async function createAuditEvent(input: {
   userId: string;
   transactionId?: string;
