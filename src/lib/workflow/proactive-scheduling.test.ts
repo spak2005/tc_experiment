@@ -108,4 +108,20 @@ describe("computeNextHeartbeat", () => {
 
     expect(next).toBeUndefined();
   });
+
+  it("does not schedule heartbeats when coordination is disabled", () => {
+    const next = computeNextHeartbeat({
+      context: context({
+        transaction: {
+          id: "tx-1",
+          status: "active",
+          phase: "opening_file",
+          coordination_enabled: false
+        }
+      }),
+      now
+    });
+
+    expect(next).toBeUndefined();
+  });
 });

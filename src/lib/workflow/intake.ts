@@ -1302,7 +1302,8 @@ export async function processAgentMailInbound(input: {
           propertyAddress: getStringFact(documentAssessment.facts.propertyAddress),
           effectiveDate: isoDateOrUndefined(getStringFact(documentAssessment.facts.effectiveDate)),
           closingDate: isoDateOrUndefined(getStringFact(documentAssessment.facts.closingDate)),
-          status: "intake_processing"
+          status: "intake_processing",
+          coordinationEnabled: true
         });
         transactionId = transaction.id;
         activityContext.transactionId = transactionId;

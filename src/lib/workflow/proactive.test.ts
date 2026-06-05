@@ -184,6 +184,39 @@ describe("processDueAgentWakeups", () => {
     );
   });
 
+  it("skips claimed wakeups when coordination is disabled", async () => {
+    mocks.claimDueAgentWakeups.mockResolvedValue([wakeup()]);
+    mocks.buildProactiveAgentContext.mockResolvedValue({
+      ...proactiveContext(),
+      transactionContext: {
+        ...proactiveContext().transactionContext,
+        transaction: {
+          id: "tx-1",
+          status: "active",
+          coordination_enabled: false
+        }
+      }
+    });
+
+    const result = await processDueAgentWakeups({
+      now: new Date("2026-05-14T15:00:00.000Z"),
+      workerId: "worker-1"
+    });
+
+    expect(result.results[0]).toEqual({
+      wakeupId: "wake-1",
+      status: "skipped",
+      actionType: "transaction_heartbeat"
+    });
+    expect(mocks.completeAgentWakeup).toHaveBeenCalledWith({
+      id: "wake-1",
+      status: "skipped",
+      payload: { skippedReason: "coordination_disabled" }
+    });
+    expect(mocks.decideProactiveAction).not.toHaveBeenCalled();
+    expect(mocks.scheduleNextHeartbeat).not.toHaveBeenCalled();
+  });
+
   it("reschedules a wakeup when execution throws", async () => {
     mocks.claimDueAgentWakeups.mockResolvedValue([wakeup()]);
     mocks.buildProactiveAgentContext.mockRejectedValue(new Error("context exploded"));

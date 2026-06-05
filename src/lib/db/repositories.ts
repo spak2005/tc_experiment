@@ -711,7 +711,7 @@ export async function getDiagnosticsSourceRecords(input: {
   ] = await Promise.all([
     query<Record<string, unknown>>(
       `select id, user_id, tc_profile_id, property_address, market, side, status, phase,
-              current_risk, effective_date::text, closing_date::text, intake_source_key,
+              current_risk, coordination_enabled, effective_date::text, closing_date::text, intake_source_key,
               created_at::text, updated_at::text
        from transactions
        where user_id = $1 and id = any($2::uuid[])
@@ -1848,11 +1848,13 @@ export async function claimDueAgentWakeups(input: {
   return withTransaction(async (client) => {
     const result = await client.query<AgentWakeupRow>(
       `with due as (
-         select id
-         from agent_wakeups
-         where status = 'pending'
-           and wake_at <= $1::timestamptz
-         order by wake_at asc, created_at asc
+         select wakeup.id
+         from agent_wakeups wakeup
+         join transactions t on t.id = wakeup.transaction_id
+         where wakeup.status = 'pending'
+           and wakeup.wake_at <= $1::timestamptz
+           and t.coordination_enabled = true
+         order by wakeup.wake_at asc, wakeup.created_at asc
          limit $2
          for update skip locked
        )
@@ -1987,6 +1989,7 @@ export async function createTransaction(input: {
   closingDate?: string;
   status?: string;
   intakeSourceKey?: string;
+  coordinationEnabled?: boolean;
 }) {
   const result = await query<{ id: string }>(
     `insert into transactions (
@@ -1995,11 +1998,12 @@ export async function createTransaction(input: {
        property_address,
        side,
        status,
+       coordination_enabled,
        effective_date,
        closing_date,
        intake_source_key
      )
-     values ($1, $2, $3, $4, $5, $6, $7, $8)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      returning id`,
     [
       input.userId,
@@ -2007,6 +2011,7 @@ export async function createTransaction(input: {
       input.propertyAddress ?? null,
       input.side ?? "unknown",
       input.status ?? "intake_processing",
+      input.coordinationEnabled ?? true,
       input.effectiveDate ?? null,
       input.closingDate ?? null,
       input.intakeSourceKey ?? null
@@ -2025,6 +2030,7 @@ export async function findOrCreateTransactionForIntake(input: {
   effectiveDate?: string;
   closingDate?: string;
   status?: string;
+  coordinationEnabled?: boolean;
 }) {
   const result = await query<{ id: string }>(
     `insert into transactions (
@@ -2033,13 +2039,15 @@ export async function findOrCreateTransactionForIntake(input: {
        property_address,
        side,
        status,
+       coordination_enabled,
        effective_date,
        closing_date,
        intake_source_key
      )
-     values ($1, $2, $3, $4, $5, $6, $7, $8)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      on conflict (intake_source_key) where intake_source_key is not null do update
-       set intake_source_key = excluded.intake_source_key
+       set intake_source_key = excluded.intake_source_key,
+           coordination_enabled = excluded.coordination_enabled
      returning id`,
     [
       input.userId,
@@ -2047,6 +2055,7 @@ export async function findOrCreateTransactionForIntake(input: {
       input.propertyAddress ?? null,
       input.side ?? "unknown",
       input.status ?? "intake_processing",
+      input.coordinationEnabled ?? true,
       input.effectiveDate ?? null,
       input.closingDate ?? null,
       input.intakeSourceKey
@@ -2092,6 +2101,7 @@ export async function getTransactionCore(transactionId: string) {
     status: string;
     phase: string | null;
     current_risk: string;
+    coordination_enabled: boolean;
     effective_date: string | null;
     closing_date: string | null;
   }>(
@@ -2102,6 +2112,7 @@ export async function getTransactionCore(transactionId: string) {
        status,
        phase,
        current_risk,
+       coordination_enabled,
        effective_date::text,
        closing_date::text
      from transactions
@@ -2119,6 +2130,7 @@ export async function updateTransactionCoreFields(input: {
   status?: string;
   phase?: string;
   currentRisk?: string;
+  coordinationEnabled?: boolean;
   effectiveDate?: string;
   closingDate?: string;
 }) {
@@ -2129,6 +2141,7 @@ export async function updateTransactionCoreFields(input: {
     status: string;
     phase: string | null;
     current_risk: string;
+    coordination_enabled: boolean;
     effective_date: string | null;
     closing_date: string | null;
   }>(
@@ -2138,8 +2151,9 @@ export async function updateTransactionCoreFields(input: {
          status = coalesce($4, status),
          phase = coalesce($5, phase),
          current_risk = coalesce($6, current_risk),
-         effective_date = coalesce($7::date, effective_date),
-         closing_date = coalesce($8::date, closing_date),
+         coordination_enabled = coalesce($7::boolean, coordination_enabled),
+         effective_date = coalesce($8::date, effective_date),
+         closing_date = coalesce($9::date, closing_date),
          updated_at = now()
      where id = $1
      returning
@@ -2149,6 +2163,7 @@ export async function updateTransactionCoreFields(input: {
        status,
        phase,
        current_risk,
+       coordination_enabled,
        effective_date::text,
        closing_date::text`,
     [
@@ -2158,6 +2173,7 @@ export async function updateTransactionCoreFields(input: {
       input.status ?? null,
       input.phase ?? null,
       input.currentRisk ?? null,
+      input.coordinationEnabled ?? null,
       input.effectiveDate ?? null,
       input.closingDate ?? null
     ]
@@ -3075,6 +3091,7 @@ export async function findTransactionMatchCandidates(userId: string) {
      left join messages m on m.transaction_id = t.id
      where t.user_id = $1
        and t.status not in ('closed', 'terminated')
+       and t.coordination_enabled = true
      group by t.id, f.facts
      order by t.updated_at desc
      limit 25`,
@@ -3546,6 +3563,7 @@ export async function findAtRiskMilestones(daysAhead: number, today: string) {
        and m.due_date is not null
        and m.due_date <= $2::date + ($1::int * interval '1 day')
        and t.status not in ('closed', 'terminated')
+       and t.coordination_enabled = true
        and b.id is null`,
     [daysAhead, today]
   );
@@ -3585,6 +3603,7 @@ export async function findStaleResponseTasks(today: string) {
        and task.follow_up_due_date is not null
        and task.follow_up_due_date <= $1::date
        and t.status not in ('closed', 'terminated')
+       and t.coordination_enabled = true
        and b.id is null
      order by task.follow_up_due_date asc, task.created_at asc`,
     [today]

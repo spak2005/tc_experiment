@@ -128,6 +128,45 @@ export async function executeAgentWakeup(wakeup: AgentWakeup) {
     return { status: "skipped", reason: "missing_transaction_context" };
   }
 
+  if (context.transactionContext.transaction.coordination_enabled === false) {
+    await createAgentActivityEvent({
+      userId: wakeup.userId,
+      transactionId: wakeup.transactionId,
+      sourceType: "system",
+      eventType: "proactive_wakeup_skipped",
+      title: "Skipped proactive wakeup",
+      summary: "Coordination is disabled for this transaction.",
+      status: "ignored",
+      metadata: {
+        wakeupId: wakeup.id,
+        actionType: wakeup.actionType,
+        reason: wakeup.reason,
+        skippedReason: "coordination_disabled"
+      }
+    });
+    await completeAgentWakeup({
+      id: wakeup.id,
+      status: "skipped",
+      payload: { skippedReason: "coordination_disabled" }
+    });
+    await updateAgentActivityRun({
+      id: activityRun.id,
+      title: "Proactive follow-up",
+      summary: "Skipped proactive follow-up because coordination is disabled.",
+      status: "ignored",
+      metadata: {
+        technicalType: "agent_wakeup",
+        wakeupId: wakeup.id,
+        actionType: wakeup.actionType,
+        taskId: wakeup.taskId,
+        reason: wakeup.reason,
+        skippedReason: "coordination_disabled"
+      },
+      completedAt: new Date()
+    });
+    return { status: "skipped", reason: "coordination_disabled" };
+  }
+
   await createAgentActivityEvent({
     userId: context.tcProfile.userId,
     transactionId: context.transactionId,

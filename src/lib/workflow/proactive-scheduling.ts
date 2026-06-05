@@ -91,6 +91,10 @@ export function computeNextHeartbeat(input: {
   context: ProactiveAgentContext;
   now?: Date;
 }): { wakeAt: string; reason: string; intervalHours: number } | undefined {
+  if (input.context.transactionContext.transaction.coordination_enabled === false) {
+    return undefined;
+  }
+
   const status = stringValue(input.context.transactionContext.transaction.status);
   if (status === "closed" || status === "terminated") {
     return undefined;

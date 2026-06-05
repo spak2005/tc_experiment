@@ -151,5 +151,6 @@ describe("agent wakeup repositories", () => {
       lockedBy: "worker-1"
     });
     expect(mocks.clientQuery.mock.calls[0][0]).toContain("for update skip locked");
+    expect(mocks.clientQuery.mock.calls[0][0]).toContain("t.coordination_enabled = true");
   });
 });

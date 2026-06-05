@@ -176,6 +176,7 @@ export interface Transaction {
   status: TransactionStatus;
   phase?: TransactionPhase;
   currentRisk: RiskLevel;
+  coordinationEnabled: boolean;
   effectiveDate?: string;
   closingDate?: string;
   createdAt: Date;
