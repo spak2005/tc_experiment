@@ -1280,7 +1280,7 @@ export async function processAgentMailInbound(input: {
       await updateIntakeArtifact({
         id: intakeArtifact.id,
         status: "oriented",
-        orientationResult: intakeOrientation,
+        orientationResult: { ...intakeOrientation },
         disposition: intakeOrientation.posture
       });
       await logActivity(activityContext, {
