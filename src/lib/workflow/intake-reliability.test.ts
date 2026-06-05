@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   assessContractDocument: vi.fn(),
   decideNextAction: vi.fn(),
   executeAgentDecision: vi.fn(),
+  orientContractIntake: vi.fn(),
   evaluateActionPolicy: vi.fn(),
   buildExpectedDocumentChecklist: vi.fn(),
   createAgentActivityEvent: vi.fn(),
@@ -59,6 +60,10 @@ vi.mock("@/lib/agent/decision", () => ({
 
 vi.mock("@/lib/agent/executor", () => ({
   executeAgentDecision: mocks.executeAgentDecision
+}));
+
+vi.mock("@/lib/agent/orientation", () => ({
+  orientContractIntake: mocks.orientContractIntake
 }));
 
 vi.mock("@/lib/agent/policy", () => ({
@@ -283,6 +288,28 @@ function setupContractIntake(input: {
     candidates: [],
     reasons: ["Unique contract."]
   });
+  mocks.orientContractIntake.mockResolvedValue({
+    situation: "Current executed contract.",
+    posture: "active_coordination",
+    action: "open_transaction",
+    shouldOpenActiveFile: true,
+    shouldStartCoordination: true,
+    nextAction: "Open the transaction.",
+    rationale: "Contract appears active.",
+    confidence: 0.91,
+    signals: {
+      today: "2026-06-03",
+      keyContractDatesAllPast: false,
+      keyContractDatesAllFuture: true,
+      emailSuggestsHistorical: false,
+      emailSuggestsInformational: false,
+      documentUsability: "usable",
+      missingItems: [],
+      matchConfidence: 0,
+      matchAmbiguous: false
+    },
+    mode: "fallback"
+  });
   mocks.findOrCreateTransactionForIntake.mockResolvedValue({ id: "tx-1" });
   mocks.storeIncomingAttachment.mockResolvedValue({
     documentId: "document-1",
@@ -414,6 +441,29 @@ describe("processAgentMailInbound reliability guards", () => {
     );
     expect(mocks.createIntakeArtifact.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.findOrCreateTransactionForIntake.mock.invocationCallOrder[0]
+    );
+    expect(mocks.orientContractIntake).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: expect.objectContaining({
+          temporalContext: expect.objectContaining({ today: "2026-06-03" })
+        }),
+        documentAssessment: expect.objectContaining({ facts: baseFacts }),
+        contractRouting: expect.objectContaining({ action: "create_transaction" })
+      })
+    );
+    expect(mocks.orientContractIntake.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.findOrCreateTransactionForIntake.mock.invocationCallOrder[0]
+    );
+    expect(mocks.updateIntakeArtifact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "artifact-1",
+        status: "oriented",
+        disposition: "active_coordination",
+        orientationResult: expect.objectContaining({
+          posture: "active_coordination",
+          action: "open_transaction"
+        })
+      })
     );
   });
 

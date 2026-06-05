@@ -9,6 +9,7 @@ import { buildAgentContextPack, getTransactionContext } from "@/lib/agent/contex
 import { assessContractDocument } from "@/lib/agent/document-assessment";
 import { decideNextAction } from "@/lib/agent/decision";
 import { executeAgentDecision } from "@/lib/agent/executor";
+import { orientContractIntake } from "@/lib/agent/orientation";
 import { evaluateActionPolicy } from "@/lib/agent/policy";
 import { normalizeAgentMailInbound } from "@/lib/agentmail/inbound";
 import { executeApprovalReply } from "@/lib/approvals/executor";
@@ -1007,6 +1008,7 @@ export async function processAgentMailInbound(input: {
 
   let documentAssessment: Awaited<ReturnType<typeof assessContractDocument>> | undefined;
   let contractRouting: ContractRoutingDecision | undefined;
+  let intakeOrientation: Awaited<ReturnType<typeof orientContractIntake>> | undefined;
   let shouldPersistContractAssessment = false;
   const fetchedAttachments: Record<string, FetchedAttachment> = {};
   const evidenceDocuments: EvidenceDocumentInput[] = [];
@@ -1131,6 +1133,40 @@ export async function processAgentMailInbound(input: {
           stableIdentity: contractRouting.stableIdentity,
           candidates: contractRouting.candidates,
           reasons: contractRouting.reasons
+        }
+      });
+      intakeOrientation = await orientContractIntake({
+        context,
+        documentAssessment,
+        contractRouting
+      });
+      context = {
+        ...context,
+        intakeOrientation
+      };
+      await updateIntakeArtifact({
+        id: intakeArtifact.id,
+        status: "oriented",
+        orientationResult: intakeOrientation,
+        disposition: intakeOrientation.posture
+      });
+      await logActivity(activityContext, {
+        sourceType: "decision",
+        eventType: `intake_orientation_${intakeOrientation.posture}`,
+        title: "Oriented intake posture",
+        summary: intakeOrientation.rationale,
+        status: intakeOrientation.shouldStartCoordination ? "completed" : "waiting",
+        metadata: {
+          intakeArtifactId: intakeArtifact.id,
+          posture: intakeOrientation.posture,
+          action: intakeOrientation.action,
+          shouldOpenActiveFile: intakeOrientation.shouldOpenActiveFile,
+          shouldStartCoordination: intakeOrientation.shouldStartCoordination,
+          confidence: intakeOrientation.confidence,
+          mode: intakeOrientation.mode,
+          nextAction: intakeOrientation.nextAction,
+          situation: intakeOrientation.situation,
+          signals: intakeOrientation.signals
         }
       });
 
