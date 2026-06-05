@@ -81,6 +81,7 @@ function compactContext(context: AgentContextPack, assessment?: DocumentAssessme
     },
     match: context.match,
     contractRouting: context.contractRouting,
+    intakeOrientation: context.intakeOrientation,
     transactionContext: context.transactionContext
       ? {
           transaction: context.transactionContext.transaction,
