@@ -1,7 +1,7 @@
 # Agent Improvement
 
 This directory contains tooling for the improvement cycle around Stephanie and
-future agents. It is intentionally separate from the main runtime agent code.
+future agents. It is intentionally separate from the main runtime agent code for simplicity.
 
 The first capability is diagnostics: Codex-readable JSON bundles assembled from
 the same database records that power human observability. The diagnostics flow
