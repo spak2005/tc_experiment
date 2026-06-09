@@ -41,7 +41,7 @@ describe("scenario email prep", () => {
       caseId: "CASE-001",
       env: {
         STEPH_STAGING_INBOX: "stephanie-staging@example.com"
-      } as NodeJS.ProcessEnv,
+      } as unknown as NodeJS.ProcessEnv,
       now: new Date("2026-06-09T12:05:00.000Z")
     });
 
@@ -75,7 +75,7 @@ describe("scenario email prep", () => {
       prepareScenarioEmail({
         cwd,
         caseId: "CASE-002",
-        env: {} as NodeJS.ProcessEnv
+        env: {} as unknown as NodeJS.ProcessEnv
       })
     ).rejects.toThrow("STEPH_STAGING_INBOX");
   });

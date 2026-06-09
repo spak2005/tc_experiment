@@ -51,7 +51,7 @@ describe("deterministic intake judge", () => {
     const result = judgeDeterministicIntake(bundle(), {
       STEPH_ENV: "staging",
       IMPROVEMENT_EMAIL_SINK: "qa-sink@example.com"
-    } as NodeJS.ProcessEnv);
+    } as unknown as NodeJS.ProcessEnv);
 
     expect(result.status).toBe("pass");
     expect(result.checks.every((check) => check.status === "pass")).toBe(true);
@@ -96,7 +96,7 @@ describe("deterministic intake judge", () => {
       {
         STEPH_ENV: "staging",
         IMPROVEMENT_EMAIL_SINK: "qa-sink@example.com"
-      } as NodeJS.ProcessEnv
+      } as unknown as NodeJS.ProcessEnv
     );
 
     expect(result.status).toBe("fail");
