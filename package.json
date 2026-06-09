@@ -5,6 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "debug:find": "tsx agent-improvement/diagnostics/cli/find.ts",
+    "debug:timeline": "tsx agent-improvement/diagnostics/cli/timeline.ts",
+    "debug:event": "tsx agent-improvement/diagnostics/cli/event.ts",
     "debug:run": "tsx agent-improvement/diagnostics/cli/debug-run.ts",
     "improve:check": "tsx agent-improvement/loop/cli/check.ts",
     "improve:new": "tsx agent-improvement/loop/cli/new.ts",
