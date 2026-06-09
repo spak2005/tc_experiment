@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getDiagnosticsSourceRecords } from "@/lib/db/repositories";
+import {
+  findActivityEventDiagnosticsTarget,
+  findActivityRunByImprovementCaseRunId,
+  getDiagnosticsSourceRecords
+} from "@/lib/db/repositories";
 
 const mocks = vi.hoisted(() => ({
   query: vi.fn()
@@ -132,3 +136,53 @@ describe("getDiagnosticsSourceRecords", () => {
   });
 });
 
+describe("diagnostics lookup helpers", () => {
+  beforeEach(() => {
+    mocks.query.mockReset();
+  });
+
+  it("finds an activity run by improvement case run id", async () => {
+    mocks.query.mockResolvedValueOnce({
+      rows: [
+        {
+          id: "run-1",
+          user_id: "user-1",
+          workflow_type: "inbound_email",
+          title: "Inbound email",
+          status: "completed",
+          started_at: "2026-06-09T12:00:00.000Z"
+        }
+      ]
+    });
+
+    await expect(
+      findActivityRunByImprovementCaseRunId("case-run-1")
+    ).resolves.toMatchObject({
+      id: "run-1",
+      user_id: "user-1"
+    });
+
+    expect(String(mocks.query.mock.calls[0][0])).toContain(
+      "improvementCaseRunId"
+    );
+    expect(mocks.query.mock.calls[0][1]).toEqual(["case-run-1"]);
+  });
+
+  it("finds the run and owner for one event drilldown", async () => {
+    mocks.query.mockResolvedValueOnce({
+      rows: [
+        {
+          event_id: "event-1",
+          user_id: "user-1",
+          activity_run_id: "run-1"
+        }
+      ]
+    });
+
+    await expect(findActivityEventDiagnosticsTarget("event-1")).resolves.toEqual({
+      event_id: "event-1",
+      user_id: "user-1",
+      activity_run_id: "run-1"
+    });
+  });
+});
