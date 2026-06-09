@@ -652,6 +652,9 @@ describe("processAgentMailInbound reliability guards", () => {
         text: expect.stringContaining("did not open an active transaction file")
       })
     );
+    expect(mocks.replyTcEmailOnce.mock.calls[0][0].text).toContain(
+      "For 100 Pecanwood South, I noticed the contract dates appear to be effective 2026-03-11 and closing 2026-04-01."
+    );
     expect(mocks.replyTcEmailOnce.mock.calls[0][0]).not.toHaveProperty("cc");
     expect(mocks.sendTcEmailOnce).not.toHaveBeenCalled();
     expect(mocks.createMessage).toHaveBeenCalledWith(
@@ -666,5 +669,76 @@ describe("processAgentMailInbound reliability guards", () => {
       })
     );
     expect(mocks.markWebhookEventProcessed).toHaveBeenCalledWith("webhook-1");
+  });
+
+  it("asks realtor-facing ambiguous intake clarifications with the property named", async () => {
+    setupContractIntake({ generatedMilestones: [] });
+    mocks.assessContractDocument.mockResolvedValue({
+      filename: "contract.pdf",
+      kind: "trec_contract",
+      usability: "usable",
+      validationStatus: "ready_for_review",
+      missingItems: [],
+      intakeGaps: [],
+      findings: [],
+      signatureStatus: "signed",
+      extractionMode: "anthropic_pdf",
+      facts: {
+        ...baseFacts,
+        propertyAddress: { value: "100 Pecanwood South", confidence: 0.99 },
+        effectiveDate: { value: "2026-03-11", confidence: 0.99 },
+        closingDate: { value: "2026-04-01", confidence: 0.99 }
+      }
+    });
+    mocks.orientContractIntake.mockResolvedValue({
+      situation: "The package may be historical or may need a date correction.",
+      posture: "ambiguous",
+      action: "ask_realtor",
+      shouldOpenActiveFile: false,
+      shouldStartCoordination: false,
+      nextAction:
+        "Contact the submitting agent to clarify the status of this transaction before opening any active file.",
+      rationale: "The closing date is in the past.",
+      confidence: 0.78,
+      signals: {
+        today: "2026-06-03",
+        effectiveDate: "2026-03-11",
+        closingDate: "2026-04-01",
+        effectiveDateOffsetDays: -84,
+        closingDateOffsetDays: -63,
+        keyContractDatesAllPast: true,
+        keyContractDatesAllFuture: false,
+        emailSuggestsHistorical: false,
+        emailSuggestsInformational: false,
+        documentUsability: "usable",
+        missingItems: [],
+        routingAction: "create_transaction",
+        routingConfidence: 0.99,
+        matchConfidence: 0,
+        matchAmbiguous: false
+      },
+      mode: "llm"
+    });
+
+    await expect(
+      processAgentMailInbound({
+        webhookEventId: "webhook-1",
+        agentMailEvent: { id: "event-1" }
+      })
+    ).resolves.toEqual({
+      status: "sent",
+      transactionId: undefined,
+      posture: "ambiguous",
+      action: "ask_realtor"
+    });
+
+    const replyText = mocks.replyTcEmailOnce.mock.calls[0][0].text;
+    expect(replyText).toContain(
+      "I saved the package for 100 Pecanwood South, but I need one clarification"
+    );
+    expect(replyText).toContain(
+      "Can you confirm the status of this transaction before opening any active file."
+    );
+    expect(replyText).not.toContain("Contact the submitting agent");
   });
 });

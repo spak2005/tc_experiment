@@ -156,13 +156,47 @@ function transactionMapMilestones(context: AgentContextPack) {
   }));
 }
 
+function compactSentence(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function propertyLabelFromFacts(facts: ContractFacts) {
+  return getStringFact(facts.propertyAddress);
+}
+
+function realtorFacingNextAction(nextAction: string) {
+  const compact = compactSentence(nextAction);
+  if (/^contact the submitting agent to clarify\b/i.test(compact)) {
+    return compact.replace(
+      /^contact the submitting agent to clarify\b/i,
+      "Can you confirm"
+    );
+  }
+
+  if (/^contact the submitting agent\b/i.test(compact)) {
+    return compact.replace(
+      /^contact the submitting agent\b/i,
+      "Can you confirm"
+    );
+  }
+
+  return compact;
+}
+
 function orientationReplyBody(input: {
   orientation: Awaited<ReturnType<typeof orientContractIntake>>;
+  documentAssessment?: Awaited<ReturnType<typeof assessContractDocument>>;
 }) {
+  const propertyLabel = input.documentAssessment
+    ? propertyLabelFromFacts(input.documentAssessment.facts)
+    : undefined;
+  const propertyPrefix = propertyLabel ? `For ${propertyLabel}, ` : "";
+  const packageLabel = propertyLabel ? ` for ${propertyLabel}` : "";
   const dateLine =
     input.orientation.signals.effectiveDate || input.orientation.signals.closingDate
-      ? `I noticed the contract dates appear to be effective ${input.orientation.signals.effectiveDate ?? "unknown"} and closing ${input.orientation.signals.closingDate ?? "unknown"}.`
-      : "I could not confirm enough live transaction timing from the package alone.";
+      ? `${propertyPrefix}I noticed the contract dates appear to be effective ${input.orientation.signals.effectiveDate ?? "unknown"} and closing ${input.orientation.signals.closingDate ?? "unknown"}.`
+      : `${propertyPrefix}I could not confirm enough live transaction timing from the package alone.`;
+  const nextAction = realtorFacingNextAction(input.orientation.nextAction);
 
   if (input.orientation.posture === "historical_or_closed") {
     return [
@@ -181,9 +215,9 @@ function orientationReplyBody(input: {
     return [
       "Hi,",
       "",
-      "I saved the package, but I need one clarification before I open or update an active transaction file.",
+      `I saved the package${packageLabel}, but I need one clarification before I open or update an active transaction file.`,
       "",
-      input.orientation.nextAction,
+      nextAction,
       "",
       "Best,",
       "Stephanie"
@@ -194,9 +228,9 @@ function orientationReplyBody(input: {
     return [
       "Hi,",
       "",
-      "I saved the package, but I do not have enough usable information to start active coordination yet.",
+      `I saved the package${packageLabel}, but I do not have enough usable information to start active coordination yet.`,
       "",
-      input.orientation.nextAction,
+      nextAction,
       "",
       "Best,",
       "Stephanie"
@@ -207,7 +241,7 @@ function orientationReplyBody(input: {
     return [
       "Hi,",
       "",
-      "I saved this for reference and did not open an active transaction file because it looks informational.",
+      `I saved this${packageLabel} for reference and did not open an active transaction file because it looks informational.`,
       "",
       "Reply if you want me to start coordination from this package.",
       "",
@@ -219,9 +253,9 @@ function orientationReplyBody(input: {
   return [
     "Hi,",
     "",
-    "I saved this inbound package and did not start active coordination from it.",
+    `I saved this inbound package${packageLabel} and did not start active coordination from it.`,
     "",
-    input.orientation.nextAction,
+    nextAction,
     "",
     "Best,",
     "Stephanie"
@@ -232,10 +266,12 @@ async function sendOrientationReply(input: {
   context: AgentContextPack;
   webhookEventId: string;
   orientation: Awaited<ReturnType<typeof orientContractIntake>>;
+  documentAssessment?: Awaited<ReturnType<typeof assessContractDocument>>;
 }) {
   const subject = `Re: ${input.context.inbound.subject}`;
   const text = orientationReplyBody({
-    orientation: input.orientation
+    orientation: input.orientation,
+    documentAssessment: input.documentAssessment
   });
   const labels = ["intake_orientation", input.orientation.posture];
   const idempotencyKey = `intake-orientation:${input.webhookEventId}:reply`;
@@ -1533,7 +1569,8 @@ export async function processAgentMailInbound(input: {
     const orientationReply = await sendOrientationReply({
       context,
       webhookEventId: input.webhookEventId,
-      orientation: intakeOrientation
+      orientation: intakeOrientation,
+      documentAssessment
     });
     await createMessage({
       transactionId: undefined,
