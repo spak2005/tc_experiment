@@ -11,6 +11,7 @@
     "debug:run": "tsx agent-improvement/diagnostics/cli/debug-run.ts",
     "improve:check": "tsx agent-improvement/loop/cli/check.ts",
     "improve:new": "tsx agent-improvement/loop/cli/new.ts",
+    "improve:prepare-email": "tsx agent-improvement/loop/cli/prepare-email.ts",
     "improve:record": "tsx agent-improvement/loop/cli/record.ts",
     "start": "next start",
     "lint": "next lint",
