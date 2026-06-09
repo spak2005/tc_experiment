@@ -52,6 +52,7 @@ import {
 } from "@/lib/documents/attachments";
 import { storeIntakeArtifactAttachment } from "@/lib/documents/intake-artifacts";
 import { transactionMapEmail } from "@/lib/email/templates";
+import { extractImprovementCaseRunId } from "@/lib/improvement/case-marker";
 import { generateTexasMilestones } from "@/lib/milestones/engine";
 import { executeTransactionWrites } from "@/lib/transaction-writes/executor";
 import type { TransactionWrite } from "@/lib/transaction-writes/schemas";
@@ -872,6 +873,14 @@ export async function processAgentMailInbound(input: {
 }) {
   const inbound = normalizeAgentMailInbound(input.agentMailEvent);
   const tcProfile = await findTcProfileByInbox(inbound.inboxId);
+  const improvementCaseRunId = extractImprovementCaseRunId(
+    inbound.subject,
+    inbound.text,
+    inbound.html
+  );
+  const improvementCaseMetadata = improvementCaseRunId
+    ? { improvementCaseRunId }
+    : {};
 
   if (!tcProfile) {
     await markWebhookEventProcessed(input.webhookEventId);
@@ -893,7 +902,8 @@ export async function processAgentMailInbound(input: {
       messageId: inbound.messageId,
       threadId: inbound.threadId,
       from: inbound.from,
-      subject: inbound.subject
+      subject: inbound.subject,
+      ...improvementCaseMetadata
     }
   });
 
@@ -919,7 +929,8 @@ export async function processAgentMailInbound(input: {
         messageId: inbound.messageId,
         threadId: inbound.threadId,
         from: inbound.from,
-        subject: inbound.subject
+        subject: inbound.subject,
+        ...improvementCaseMetadata
       }
     });
     await markWebhookEventProcessed(input.webhookEventId);
@@ -936,7 +947,8 @@ export async function processAgentMailInbound(input: {
         messageId: inbound.messageId,
         threadId: inbound.threadId,
         from: inbound.from,
-        subject: inbound.subject
+        subject: inbound.subject,
+        ...improvementCaseMetadata
       },
       completedAt: new Date()
     });
@@ -968,7 +980,8 @@ export async function processAgentMailInbound(input: {
         messageId: inbound.messageId,
         threadId: inbound.threadId,
         from: inbound.from,
-        subject: inbound.subject
+        subject: inbound.subject,
+        ...improvementCaseMetadata
       }
     });
     await createMessage({
@@ -1012,7 +1025,8 @@ export async function processAgentMailInbound(input: {
       metadata: {
         approvalId: pendingApproval.id,
         action: approvalExecution.action,
-        status: approvalExecution.status
+        status: approvalExecution.status,
+        ...improvementCaseMetadata
       }
     });
     await markWebhookEventProcessed(input.webhookEventId);
@@ -1036,7 +1050,8 @@ export async function processAgentMailInbound(input: {
         status: approvalExecution.status,
         webhookEventId: input.webhookEventId,
         messageId: inbound.messageId,
-        threadId: inbound.threadId
+        threadId: inbound.threadId,
+        ...improvementCaseMetadata
       },
       completedAt: new Date()
     });
@@ -1127,6 +1142,14 @@ export async function processAgentMailInbound(input: {
     subject: inbound.subject,
     bodyPreview: safeBodyPreview(context.emailText, 1000)
   });
+  if (improvementCaseRunId) {
+    await updateIntakeArtifact({
+      id: intakeArtifact.id,
+      extractionSummary: {
+        improvementCaseRunId
+      }
+    });
+  }
   await logActivity(activityContext, {
     sourceType: "system",
     eventType: intakeArtifact.inserted ? "intake_artifact_created" : "intake_artifact_reused",
@@ -1137,7 +1160,8 @@ export async function processAgentMailInbound(input: {
       intakeArtifactId: intakeArtifact.id,
       artifactKey: intakeArtifact.artifact_key,
       status: intakeArtifact.status,
-      inserted: intakeArtifact.inserted
+      inserted: intakeArtifact.inserted,
+      ...improvementCaseMetadata
     }
   });
 
@@ -1489,7 +1513,7 @@ export async function processAgentMailInbound(input: {
       cc: inbound.cc,
       subject: inbound.subject,
       receivedAt: new Date(),
-      summary: `Inbound email stored as intake artifact with posture ${intakeOrientation.posture}.`
+      summary: `Inbound email stored as intake artifact with posture ${intakeOrientation.posture}.${improvementCaseRunId ? ` Improvement case ${improvementCaseRunId}.` : ""}`
     });
     await logActivity(activityContext, {
       sourceType: "email",
@@ -1502,7 +1526,8 @@ export async function processAgentMailInbound(input: {
         threadId: inbound.threadId,
         intakeArtifactId: intakeArtifact.id,
         posture: intakeOrientation.posture,
-        action: intakeOrientation.action
+        action: intakeOrientation.action,
+        ...improvementCaseMetadata
       }
     });
     const orientationReply = await sendOrientationReply({
@@ -1569,7 +1594,8 @@ export async function processAgentMailInbound(input: {
         action: intakeOrientation.action,
         documentKind: documentAssessment?.kind,
         documentUsability: documentAssessment?.usability,
-        routingAction: contractRouting?.action
+        routingAction: contractRouting?.action,
+        ...improvementCaseMetadata
       },
       completedAt: new Date()
     });
@@ -1595,8 +1621,8 @@ export async function processAgentMailInbound(input: {
     subject: inbound.subject,
     receivedAt: new Date(),
     summary: transactionId
-      ? "Inbound email attached to transaction context."
-      : "Inbound email received without a transaction action."
+      ? `Inbound email attached to transaction context.${improvementCaseRunId ? ` Improvement case ${improvementCaseRunId}.` : ""}`
+      : `Inbound email received without a transaction action.${improvementCaseRunId ? ` Improvement case ${improvementCaseRunId}.` : ""}`
   });
   await logActivity(activityContext, {
     sourceType: "email",
@@ -1609,7 +1635,8 @@ export async function processAgentMailInbound(input: {
     metadata: {
       agentMailMessageId: inbound.messageId || inbound.eventId,
       threadId: inbound.threadId,
-      transactionId
+      transactionId,
+      ...improvementCaseMetadata
     }
   });
 
@@ -1855,7 +1882,8 @@ export async function processAgentMailInbound(input: {
       policy: policy.result,
       documentKind: documentAssessment?.kind,
       documentUsability: documentAssessment?.usability,
-      routingAction: contractRouting?.action
+      routingAction: contractRouting?.action,
+      ...improvementCaseMetadata
     },
     completedAt: new Date()
   });
@@ -1878,7 +1906,8 @@ export async function processAgentMailInbound(input: {
           threadId: inbound.threadId,
           from: inbound.from,
           subject: inbound.subject,
-          error: error instanceof Error ? error.message : "Unknown error"
+          error: error instanceof Error ? error.message : "Unknown error",
+          ...improvementCaseMetadata
         },
         completedAt: new Date()
       });

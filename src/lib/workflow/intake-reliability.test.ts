@@ -520,6 +520,54 @@ describe("processAgentMailInbound reliability guards", () => {
     expect(mocks.createOrReuseTransactionCalendarFeed).not.toHaveBeenCalled();
   });
 
+  it("stamps improvement case markers onto intake diagnostics", async () => {
+    setupContractIntake({ generatedMilestones: [] });
+    mocks.normalizeAgentMailInbound.mockReturnValue({
+      eventId: "event-1",
+      inboxId: "inbox-1",
+      messageId: "message-1",
+      threadId: "thread-1",
+      from: "agent@example.com",
+      to: ["stephanie@example.com"],
+      cc: [],
+      subject: "Executed contract [STEPH-CASE:case-run-1]",
+      text: "See attached.",
+      attachments: [
+        {
+          id: "attachment-1",
+          filename: "contract.pdf",
+          contentType: "application/pdf"
+        }
+      ]
+    });
+
+    await processAgentMailInbound({
+      webhookEventId: "webhook-1",
+      agentMailEvent: { id: "event-1" }
+    });
+
+    expect(mocks.createAgentActivityRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          improvementCaseRunId: "case-run-1"
+        })
+      })
+    );
+    expect(mocks.updateIntakeArtifact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "artifact-1",
+        extractionSummary: {
+          improvementCaseRunId: "case-run-1"
+        }
+      })
+    );
+    expect(mocks.createMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        summary: expect.stringContaining("Improvement case case-run-1")
+      })
+    );
+  });
+
   it("stores historical contracts without opening active coordination", async () => {
     setupContractIntake({ generatedMilestones: [] });
     mocks.assessContractDocument.mockResolvedValue({
