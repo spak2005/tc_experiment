@@ -19,9 +19,10 @@ case instead of waiting for a human-provided activity id:
 5. Fetch compact diagnostics first.
 6. Judge actual behavior against the rubric.
 7. If the case passes, record `no_gap` and stop.
-8. If the case fails, diagnose the gap before changing code.
-9. Add or update a targeted test/eval before or alongside the fix.
-10. Verify relevant regression tests still pass.
+8. If human taste, outside logs, or help after repeated failed attempts is needed, write a human-review item and regenerate `agent-improvement/state/status.html`.
+9. If the case fails and no human input is needed, diagnose the gap before changing code.
+10. Add or update a targeted test/eval before or alongside the fix.
+11. Verify relevant regression tests still pass.
 
 ## Diagnostics Workflow
 
@@ -48,6 +49,7 @@ Classify the issue before fixing it:
 - **Execution/write failure**: transaction writes, emails, approvals, tasks, milestones, wakeups, or blockers did not reflect the decision.
 - **Product behavior gap**: the code worked as designed, but the design is not how a strong human operator should work.
 - **No gap**: Stephanie met the rubric. Record the pass; do not make a change.
+- **Human review needed**: taste, outside logs, or repeated failed attempts require Israel before continuing.
 
 ## Improvement Rules
 
@@ -65,6 +67,11 @@ Prefer durable improvements over one-off fixes:
 - `npm run improve:check`
 - `npm run improve:new -- --title "..." --failure-type product_behavior`
 - `npm run improve:prepare-email -- --case-id <case-id>`
+- `npm run improve:status`
+- `npm run improve:ask-human -- --type question --title "..." --body "..."`
+- `npm run improve:pause -- --reason "..."`
+- `npm run improve:ack -- --item-id <item-id>`
+- `npm run improve:answer -- --item-id <item-id> --body "..."`
 - `npm run debug:find -- --case-run-id <case-run-id>`
 - `npm run debug:timeline -- --case-run-id <case-run-id>`
 - `npm run debug:event -- --event-id <event-id> --depth standard`

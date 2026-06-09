@@ -18,6 +18,8 @@ export const requiredStateFiles = [
   "experiments.md",
   "evals.md",
   "failure-taxonomy.md",
+  "human-loop.md",
+  "human-review.json",
   "prompts.md",
   "run-logs/README.md",
   "cases/README.md",

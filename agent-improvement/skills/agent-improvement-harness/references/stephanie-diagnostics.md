@@ -66,11 +66,12 @@ Use this sequence:
 5. Fetch `standard` or `raw` only if needed.
 6. Judge actual behavior against the rubric.
 7. If the case passes, record `no_gap` and stop.
-8. If the case fails, state actual vs expected and identify the code path.
-9. Add a targeted test/eval using the real failure shape when possible.
-10. Implement the smallest safe fix.
-11. Run targeted tests, then relevant regression tests.
-12. Record the run, diagnosis, fix, tests, and residual risks.
+8. If human taste, outside logs, or repeated failed attempts block progress, create a human-review item and regenerate `status.html`.
+9. If the case fails, state actual vs expected and identify the code path.
+10. Add a targeted test/eval using the real failure shape when possible.
+11. Implement the smallest safe fix.
+12. Run targeted tests, then relevant regression tests.
+13. Record the run, diagnosis, fix, tests, and residual risks.
 
 ## Current Harness Locations
 
@@ -78,4 +79,5 @@ Use this sequence:
 - Diagnostics API route: `src/app/api/internal/diagnostics/activity-runs/[runId]/route.ts`
 - Diagnostics source loader: `src/lib/db/repositories.ts` via `getDiagnosticsSourceRecords`
 - Improvement state: `agent-improvement/state/`
+- Human-readable status page: `agent-improvement/state/status.html`
 - Human observability docs: `docs/activity-debugger.md`

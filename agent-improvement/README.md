@@ -20,6 +20,8 @@ Read `state/` at the start of every Stephanie-improvement session:
 - `rubrics/` — quality bars such as initial contract intake.
 - `cases/` — machine-readable improvement case manifests.
 - `run-logs/` — dated append-only work history.
+- `human-review.json` — open and archived prompts for Israel.
+- `status.html` — generated human-readable status page.
 
 If Stephanie meets the rubric, record `no_gap` and stop. Do not invent a patch.
 
@@ -40,6 +42,24 @@ If Stephanie meets the rubric, record `no_gap` and stop. Do not invent a patch.
    `npm run improve:judge -- --case-id <case-id> --case-run-id <case-run-id>`.
 9. If the case passes, record `no_gap`. If it fails, classify the gap, add or
    update a targeted test/eval, implement the smallest fix, rerun, and record.
+10. If Codex needs Israel's judgment, run `npm run improve:pause` or
+    `npm run improve:ask-human`, then point Israel to `state/status.html`.
+
+## Human Review
+
+Use the status page when the loop needs human taste, outside logs, or help
+after repeated failed attempts. Keep it short and current:
+
+```bash
+npm run improve:status
+npm run improve:ask-human -- --type question --title "Need your taste" --body "Which approach feels right?"
+npm run improve:pause -- --reason "Need Vercel logs for this case."
+npm run improve:ack -- --item-id <item-id>
+npm run improve:answer -- --item-id <item-id> --body "Use the warmer version."
+```
+
+Acknowledged or answered items remain archived in `human-review.json` but are
+hidden from the active HTML page.
 
 ## Diagnostics
 
