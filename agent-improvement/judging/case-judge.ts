@@ -7,6 +7,8 @@ import {
   readImprovementCase,
   stateRoot
 } from "@improvement/loop/state";
+import { createHumanReviewItem } from "@improvement/human-review/state";
+import { renderHumanStatusHtml } from "@improvement/human-review/status-page";
 import { judgeDeterministicIntake } from "./deterministic";
 import { judgeRubric } from "./rubric";
 
@@ -82,11 +84,28 @@ export async function judgeImprovementCase(input: {
     `${JSON.stringify(updated, null, 2)}\n`
   );
 
+  let humanReviewItemId: string | undefined;
+  if (status === "needs_human_review") {
+    const { item } = await createHumanReviewItem({
+      cwd,
+      type: "question",
+      title: `Review ${manifest.caseId}`,
+      body:
+        rubricResult.summary ||
+        "Codex needs your judgment before deciding whether to change Stephanie.",
+      caseId: manifest.caseId,
+      caseRunId: input.caseRunId
+    });
+    humanReviewItemId = item.id;
+  }
+  await renderHumanStatusHtml({ cwd });
+
   return {
     status,
     summary,
     deterministic,
     rubric: rubricResult,
-    activityRunId: resolved.activityRunId
+    activityRunId: resolved.activityRunId,
+    humanReviewItemId
   };
 }
