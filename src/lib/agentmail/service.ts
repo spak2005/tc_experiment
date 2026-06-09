@@ -93,6 +93,57 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unknown AgentMail send failure.";
 }
 
+function parseEmailList(value?: string) {
+  return new Set(
+    (value ?? "")
+      .split(",")
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean)
+  );
+}
+
+function isStagingSafetyEnabled() {
+  return process.env.STEPH_ENV === "staging" && Boolean(process.env.IMPROVEMENT_EMAIL_SINK);
+}
+
+function applyStagingEmailSafety<T extends SendTcEmailInput | ReplyTcEmailInput>(
+  input: T
+): T {
+  if (!isStagingSafetyEnabled()) return input;
+
+  const sink = process.env.IMPROVEMENT_EMAIL_SINK!;
+  const allowlist = parseEmailList(process.env.IMPROVEMENT_EMAIL_ALLOWLIST);
+  allowlist.add(sink.toLowerCase());
+  const original = {
+    to: "to" in input ? input.to ?? [] : [],
+    cc: input.cc ?? [],
+    bcc: input.bcc ?? []
+  };
+  const allRecipients = [...original.to, ...original.cc, ...original.bcc];
+  const hasUnsafeRecipient = allRecipients.some(
+    (address) => !allowlist.has(address.toLowerCase())
+  );
+
+  if (!hasUnsafeRecipient) return input;
+
+  const safetyHeader = [
+    "[Staging safety rewrite]",
+    `Original to: ${original.to.join(", ") || "(none)"}`,
+    `Original cc: ${original.cc.join(", ") || "(none)"}`,
+    `Original bcc: ${original.bcc.join(", ") || "(none)"}`,
+    ""
+  ].join("\n");
+
+  return {
+    ...input,
+    to: [sink],
+    cc: [],
+    bcc: [],
+    text: `${safetyHeader}${input.text}`,
+    labels: [...(input.labels ?? []), "staging-safety-rewrite"]
+  };
+}
+
 export const STEPHANIE_TC_DISPLAY_NAME = "Stephanie";
 
 function toInboxUsername(userId: string): string {
@@ -128,31 +179,33 @@ export async function provisionTcInbox(
 
 export async function sendTcEmail(input: SendTcEmailInput) {
   const client = getAgentMailClient();
+  const safeInput = applyStagingEmailSafety(input);
 
-  return client.inboxes.messages.send(input.inboxId, {
-    to: input.to,
-    cc: input.cc,
-    bcc: input.bcc,
-    subject: input.subject,
-    text: input.text,
-    html: input.html,
-    labels: input.labels
+  return client.inboxes.messages.send(safeInput.inboxId, {
+    to: safeInput.to,
+    cc: safeInput.cc,
+    bcc: safeInput.bcc,
+    subject: safeInput.subject,
+    text: safeInput.text,
+    html: safeInput.html,
+    labels: safeInput.labels
   });
 }
 
 export async function sendTcEmailOnce(input: SendTcEmailOnceInput) {
   const { idempotencyKey, ...sendInput } = input;
+  const safeInput = applyStagingEmailSafety(sendInput);
   const { action, acquired } = await beginOutboundEmailAction({
     idempotencyKey,
     sendKind: "send",
-    inboxId: sendInput.inboxId,
-    to: sendInput.to,
-    cc: sendInput.cc,
-    bcc: sendInput.bcc,
-    subject: sendInput.subject,
-    text: sendInput.text,
-    html: sendInput.html,
-    labels: sendInput.labels
+    inboxId: safeInput.inboxId,
+    to: safeInput.to,
+    cc: safeInput.cc,
+    bcc: safeInput.bcc,
+    subject: safeInput.subject,
+    text: safeInput.text,
+    html: safeInput.html,
+    labels: safeInput.labels
   });
 
   if (!action) {
@@ -169,7 +222,7 @@ export async function sendTcEmailOnce(input: SendTcEmailOnceInput) {
 
   let sent: unknown;
   try {
-    sent = await sendTcEmail(sendInput);
+    sent = await sendTcEmail(safeInput);
   } catch (error) {
     await markOutboundEmailFailed({ idempotencyKey, error: errorMessage(error) });
     throw error;
@@ -187,31 +240,33 @@ export async function sendTcEmailOnce(input: SendTcEmailOnceInput) {
 
 export async function replyTcEmail(input: ReplyTcEmailInput) {
   const client = getAgentMailClient();
+  const safeInput = applyStagingEmailSafety(input);
 
-  return client.inboxes.messages.reply(input.inboxId, input.messageId, {
-    to: input.to,
-    cc: input.cc,
-    bcc: input.bcc,
-    text: input.text,
-    html: input.html,
-    labels: input.labels
+  return client.inboxes.messages.reply(safeInput.inboxId, safeInput.messageId, {
+    to: safeInput.to,
+    cc: safeInput.cc,
+    bcc: safeInput.bcc,
+    text: safeInput.text,
+    html: safeInput.html,
+    labels: safeInput.labels
   });
 }
 
 export async function replyTcEmailOnce(input: ReplyTcEmailOnceInput) {
   const { idempotencyKey, ...replyInput } = input;
+  const safeInput = applyStagingEmailSafety(replyInput);
   const { action, acquired } = await beginOutboundEmailAction({
     idempotencyKey,
     sendKind: "reply",
-    inboxId: replyInput.inboxId,
-    messageId: replyInput.messageId,
-    to: replyInput.to ?? [],
-    cc: replyInput.cc,
-    bcc: replyInput.bcc,
+    inboxId: safeInput.inboxId,
+    messageId: safeInput.messageId,
+    to: safeInput.to ?? [],
+    cc: safeInput.cc,
+    bcc: safeInput.bcc,
     subject: undefined,
-    text: replyInput.text,
-    html: replyInput.html,
-    labels: replyInput.labels
+    text: safeInput.text,
+    html: safeInput.html,
+    labels: safeInput.labels
   });
 
   if (!action) {
@@ -228,7 +283,7 @@ export async function replyTcEmailOnce(input: ReplyTcEmailOnceInput) {
 
   let sent: unknown;
   try {
-    sent = await replyTcEmail(replyInput);
+    sent = await replyTcEmail(safeInput);
   } catch (error) {
     await markOutboundEmailFailed({ idempotencyKey, error: errorMessage(error) });
     throw error;

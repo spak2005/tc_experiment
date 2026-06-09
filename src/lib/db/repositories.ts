@@ -917,6 +917,61 @@ export async function findActivityRunOwner(activityRunId: string) {
   return result.rows[0]?.user_id ?? null;
 }
 
+export async function findActivityRunByImprovementCaseRunId(caseRunId: string) {
+  const result = await query<{
+    id: string;
+    user_id: string;
+    workflow_type: string;
+    title: string;
+    status: string;
+    started_at: string;
+  }>(
+    `with matching_runs as (
+       select r.id, r.user_id, r.workflow_type, r.title, r.status, r.started_at
+       from agent_activity_runs r
+       where r.metadata->>'improvementCaseRunId' = $1
+
+       union
+
+       select r.id, r.user_id, r.workflow_type, r.title, r.status, r.started_at
+       from agent_activity_events e
+       join agent_activity_runs r on r.id = e.activity_run_id
+       where e.metadata->>'improvementCaseRunId' = $1
+
+       union
+
+       select r.id, r.user_id, r.workflow_type, r.title, r.status, r.started_at
+       from intake_artifacts a
+       join agent_activity_runs r
+         on r.metadata->>'webhookEventId' = a.webhook_event_id::text
+       where a.extraction_summary->>'improvementCaseRunId' = $1
+     )
+     select id, user_id, workflow_type, title, status, started_at::text
+     from matching_runs
+     order by started_at desc, id desc
+     limit 1`,
+    [caseRunId]
+  );
+
+  return result.rows[0] ?? null;
+}
+
+export async function findActivityEventDiagnosticsTarget(eventId: string) {
+  const result = await query<{
+    event_id: string;
+    user_id: string;
+    activity_run_id: string | null;
+  }>(
+    `select id as event_id, user_id, activity_run_id
+     from agent_activity_events
+     where id = $1
+     limit 1`,
+    [eventId]
+  );
+
+  return result.rows[0] ?? null;
+}
+
 export async function createUser(input: CreateUserInput, client?: PoolClientLike) {
   const db = client ?? { query };
   const result = await db.query<{

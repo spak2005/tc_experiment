@@ -84,6 +84,12 @@ pipeline doc instead.
 
 ## Other docs worth knowing
 
+- [agent-improvement/README.md](agent-improvement/README.md) explains the
+  autonomous Stephanie improvement loop. For Stephanie-improvement work,
+  read `agent-improvement/state/` before changing code. If a case meets
+  the human-TC rubric, record `no_gap` and do not make a patch. If Codex
+  needs Israel's taste, outside logs, or help after repeated failed attempts,
+  add a human-review item and regenerate `agent-improvement/state/status.html`.
 - [docs/activity-debugger.md](docs/activity-debugger.md) explains the
   agent observability surfaces and how activity events are written. The
   `lib/agent/activity*.ts` files are observability only and are

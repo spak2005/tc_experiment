@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "steph-improvement-case.v1",
+  "caseId": "CASE-20260609T070431Z-kokoszka-receipted-contract-intake",
+  "title": "Kokoszka receipted contract intake",
+  "failureType": "product_behavior",
+  "rubricId": "initial-contract-intake",
+  "status": "fixed",
+  "stimulus": {
+    "description": "Stage a realtor-forwarded initial contract intake email asking Stephanie to open coordination for the receipted contract package.",
+    "fixturePaths": [
+      "/Users/israelogbonna/Downloads/100 Pecanwood S Receipted Contract Package - Henry & Mary Kokoszka - 3.11.26.pdf"
+    ],
+    "subject": "Staged initial contract intake - Kokoszka Pecanwood",
+    "body": "Hi Stephanie,\n\nPlease open this receipted contract package for coordination and let me know what you need from me next.\n\nThanks,\nQA Realtor"
+  },
+  "expectedBehavior": "Because the staged intake arrived on 2026-06-09 with contract dates that appear to close on 2026-04-01, Stephanie should preserve the intake artifact and avoid opening active coordination until the realtor confirms whether this is post-close, fell through, or contains a date/status error. The realtor-facing reply should still be warm and operationally precise: name the property, identify the apparent past-close posture, ask the realtor directly for the needed clarification, and avoid legal advice or unsafe external sends.",
+  "latestJudgment": {
+    "status": "fail",
+    "summary": "Stephanie correctly avoided active coordination for a likely stale/past-close package, but the reply did not name the property and used awkward realtor-facing wording. A targeted code fix now names the property and rewrites submitting-agent clarification instructions as direct realtor questions.",
+    "judgedAt": "2026-06-09T07:21:02Z"
+  },
+  "runs": [
+    {
+      "caseRunId": "CASE-20260609T070431Z-kokoszka-receipted-contract-intake-RUN-20260609T070618Z",
+      "sentMessageId": "19eab3558236f9b2",
+      "replyMessageId": "<0100019eab37b9d0-7f176317-757c-42c0-91b9-3b5c0cb390c5-000000@email.amazonses.com>",
+      "status": "failed",
+      "createdAt": "2026-06-09T07:06:18.607Z",
+      "updatedAt": "2026-06-09T07:21:02Z",
+      "result": "Observed via AgentMail because direct Postgres diagnostics timed out. Reply labels were intake_orientation/ambiguous; reply preserved the package and asked for status clarification, but missed property naming and used awkward 'Contact the submitting agent' wording."
+    }
+  ],
+  "createdAt": "2026-06-09T07:04:31.620Z",
+  "updatedAt": "2026-06-09T07:21:02Z"
+}

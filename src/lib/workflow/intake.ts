@@ -52,6 +52,7 @@ import {
 } from "@/lib/documents/attachments";
 import { storeIntakeArtifactAttachment } from "@/lib/documents/intake-artifacts";
 import { transactionMapEmail } from "@/lib/email/templates";
+import { extractImprovementCaseRunId } from "@/lib/improvement/case-marker";
 import { generateTexasMilestones } from "@/lib/milestones/engine";
 import { executeTransactionWrites } from "@/lib/transaction-writes/executor";
 import type { TransactionWrite } from "@/lib/transaction-writes/schemas";
@@ -155,13 +156,47 @@ function transactionMapMilestones(context: AgentContextPack) {
   }));
 }
 
+function compactSentence(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function propertyLabelFromFacts(facts: ContractFacts) {
+  return getStringFact(facts.propertyAddress);
+}
+
+function realtorFacingNextAction(nextAction: string) {
+  const compact = compactSentence(nextAction);
+  if (/^contact the submitting agent to clarify\b/i.test(compact)) {
+    return compact.replace(
+      /^contact the submitting agent to clarify\b/i,
+      "Can you confirm"
+    );
+  }
+
+  if (/^contact the submitting agent\b/i.test(compact)) {
+    return compact.replace(
+      /^contact the submitting agent\b/i,
+      "Can you confirm"
+    );
+  }
+
+  return compact;
+}
+
 function orientationReplyBody(input: {
   orientation: Awaited<ReturnType<typeof orientContractIntake>>;
+  documentAssessment?: Awaited<ReturnType<typeof assessContractDocument>>;
 }) {
+  const propertyLabel = input.documentAssessment
+    ? propertyLabelFromFacts(input.documentAssessment.facts)
+    : undefined;
+  const propertyPrefix = propertyLabel ? `For ${propertyLabel}, ` : "";
+  const packageLabel = propertyLabel ? ` for ${propertyLabel}` : "";
   const dateLine =
     input.orientation.signals.effectiveDate || input.orientation.signals.closingDate
-      ? `I noticed the contract dates appear to be effective ${input.orientation.signals.effectiveDate ?? "unknown"} and closing ${input.orientation.signals.closingDate ?? "unknown"}.`
-      : "I could not confirm enough live transaction timing from the package alone.";
+      ? `${propertyPrefix}I noticed the contract dates appear to be effective ${input.orientation.signals.effectiveDate ?? "unknown"} and closing ${input.orientation.signals.closingDate ?? "unknown"}.`
+      : `${propertyPrefix}I could not confirm enough live transaction timing from the package alone.`;
+  const nextAction = realtorFacingNextAction(input.orientation.nextAction);
 
   if (input.orientation.posture === "historical_or_closed") {
     return [
@@ -180,9 +215,9 @@ function orientationReplyBody(input: {
     return [
       "Hi,",
       "",
-      "I saved the package, but I need one clarification before I open or update an active transaction file.",
+      `I saved the package${packageLabel}, but I need one clarification before I open or update an active transaction file.`,
       "",
-      input.orientation.nextAction,
+      nextAction,
       "",
       "Best,",
       "Stephanie"
@@ -193,9 +228,9 @@ function orientationReplyBody(input: {
     return [
       "Hi,",
       "",
-      "I saved the package, but I do not have enough usable information to start active coordination yet.",
+      `I saved the package${packageLabel}, but I do not have enough usable information to start active coordination yet.`,
       "",
-      input.orientation.nextAction,
+      nextAction,
       "",
       "Best,",
       "Stephanie"
@@ -206,7 +241,7 @@ function orientationReplyBody(input: {
     return [
       "Hi,",
       "",
-      "I saved this for reference and did not open an active transaction file because it looks informational.",
+      `I saved this${packageLabel} for reference and did not open an active transaction file because it looks informational.`,
       "",
       "Reply if you want me to start coordination from this package.",
       "",
@@ -218,9 +253,9 @@ function orientationReplyBody(input: {
   return [
     "Hi,",
     "",
-    "I saved this inbound package and did not start active coordination from it.",
+    `I saved this inbound package${packageLabel} and did not start active coordination from it.`,
     "",
-    input.orientation.nextAction,
+    nextAction,
     "",
     "Best,",
     "Stephanie"
@@ -231,10 +266,12 @@ async function sendOrientationReply(input: {
   context: AgentContextPack;
   webhookEventId: string;
   orientation: Awaited<ReturnType<typeof orientContractIntake>>;
+  documentAssessment?: Awaited<ReturnType<typeof assessContractDocument>>;
 }) {
   const subject = `Re: ${input.context.inbound.subject}`;
   const text = orientationReplyBody({
-    orientation: input.orientation
+    orientation: input.orientation,
+    documentAssessment: input.documentAssessment
   });
   const labels = ["intake_orientation", input.orientation.posture];
   const idempotencyKey = `intake-orientation:${input.webhookEventId}:reply`;
@@ -872,6 +909,14 @@ export async function processAgentMailInbound(input: {
 }) {
   const inbound = normalizeAgentMailInbound(input.agentMailEvent);
   const tcProfile = await findTcProfileByInbox(inbound.inboxId);
+  const improvementCaseRunId = extractImprovementCaseRunId(
+    inbound.subject,
+    inbound.text,
+    inbound.html
+  );
+  const improvementCaseMetadata = improvementCaseRunId
+    ? { improvementCaseRunId }
+    : {};
 
   if (!tcProfile) {
     await markWebhookEventProcessed(input.webhookEventId);
@@ -893,7 +938,8 @@ export async function processAgentMailInbound(input: {
       messageId: inbound.messageId,
       threadId: inbound.threadId,
       from: inbound.from,
-      subject: inbound.subject
+      subject: inbound.subject,
+      ...improvementCaseMetadata
     }
   });
 
@@ -919,7 +965,8 @@ export async function processAgentMailInbound(input: {
         messageId: inbound.messageId,
         threadId: inbound.threadId,
         from: inbound.from,
-        subject: inbound.subject
+        subject: inbound.subject,
+        ...improvementCaseMetadata
       }
     });
     await markWebhookEventProcessed(input.webhookEventId);
@@ -936,7 +983,8 @@ export async function processAgentMailInbound(input: {
         messageId: inbound.messageId,
         threadId: inbound.threadId,
         from: inbound.from,
-        subject: inbound.subject
+        subject: inbound.subject,
+        ...improvementCaseMetadata
       },
       completedAt: new Date()
     });
@@ -968,7 +1016,8 @@ export async function processAgentMailInbound(input: {
         messageId: inbound.messageId,
         threadId: inbound.threadId,
         from: inbound.from,
-        subject: inbound.subject
+        subject: inbound.subject,
+        ...improvementCaseMetadata
       }
     });
     await createMessage({
@@ -1012,7 +1061,8 @@ export async function processAgentMailInbound(input: {
       metadata: {
         approvalId: pendingApproval.id,
         action: approvalExecution.action,
-        status: approvalExecution.status
+        status: approvalExecution.status,
+        ...improvementCaseMetadata
       }
     });
     await markWebhookEventProcessed(input.webhookEventId);
@@ -1036,7 +1086,8 @@ export async function processAgentMailInbound(input: {
         status: approvalExecution.status,
         webhookEventId: input.webhookEventId,
         messageId: inbound.messageId,
-        threadId: inbound.threadId
+        threadId: inbound.threadId,
+        ...improvementCaseMetadata
       },
       completedAt: new Date()
     });
@@ -1127,6 +1178,14 @@ export async function processAgentMailInbound(input: {
     subject: inbound.subject,
     bodyPreview: safeBodyPreview(context.emailText, 1000)
   });
+  if (improvementCaseRunId) {
+    await updateIntakeArtifact({
+      id: intakeArtifact.id,
+      extractionSummary: {
+        improvementCaseRunId
+      }
+    });
+  }
   await logActivity(activityContext, {
     sourceType: "system",
     eventType: intakeArtifact.inserted ? "intake_artifact_created" : "intake_artifact_reused",
@@ -1137,7 +1196,8 @@ export async function processAgentMailInbound(input: {
       intakeArtifactId: intakeArtifact.id,
       artifactKey: intakeArtifact.artifact_key,
       status: intakeArtifact.status,
-      inserted: intakeArtifact.inserted
+      inserted: intakeArtifact.inserted,
+      ...improvementCaseMetadata
     }
   });
 
@@ -1489,7 +1549,7 @@ export async function processAgentMailInbound(input: {
       cc: inbound.cc,
       subject: inbound.subject,
       receivedAt: new Date(),
-      summary: `Inbound email stored as intake artifact with posture ${intakeOrientation.posture}.`
+      summary: `Inbound email stored as intake artifact with posture ${intakeOrientation.posture}.${improvementCaseRunId ? ` Improvement case ${improvementCaseRunId}.` : ""}`
     });
     await logActivity(activityContext, {
       sourceType: "email",
@@ -1502,13 +1562,15 @@ export async function processAgentMailInbound(input: {
         threadId: inbound.threadId,
         intakeArtifactId: intakeArtifact.id,
         posture: intakeOrientation.posture,
-        action: intakeOrientation.action
+        action: intakeOrientation.action,
+        ...improvementCaseMetadata
       }
     });
     const orientationReply = await sendOrientationReply({
       context,
       webhookEventId: input.webhookEventId,
-      orientation: intakeOrientation
+      orientation: intakeOrientation,
+      documentAssessment
     });
     await createMessage({
       transactionId: undefined,
@@ -1569,7 +1631,8 @@ export async function processAgentMailInbound(input: {
         action: intakeOrientation.action,
         documentKind: documentAssessment?.kind,
         documentUsability: documentAssessment?.usability,
-        routingAction: contractRouting?.action
+        routingAction: contractRouting?.action,
+        ...improvementCaseMetadata
       },
       completedAt: new Date()
     });
@@ -1595,8 +1658,8 @@ export async function processAgentMailInbound(input: {
     subject: inbound.subject,
     receivedAt: new Date(),
     summary: transactionId
-      ? "Inbound email attached to transaction context."
-      : "Inbound email received without a transaction action."
+      ? `Inbound email attached to transaction context.${improvementCaseRunId ? ` Improvement case ${improvementCaseRunId}.` : ""}`
+      : `Inbound email received without a transaction action.${improvementCaseRunId ? ` Improvement case ${improvementCaseRunId}.` : ""}`
   });
   await logActivity(activityContext, {
     sourceType: "email",
@@ -1609,7 +1672,8 @@ export async function processAgentMailInbound(input: {
     metadata: {
       agentMailMessageId: inbound.messageId || inbound.eventId,
       threadId: inbound.threadId,
-      transactionId
+      transactionId,
+      ...improvementCaseMetadata
     }
   });
 
@@ -1855,7 +1919,8 @@ export async function processAgentMailInbound(input: {
       policy: policy.result,
       documentKind: documentAssessment?.kind,
       documentUsability: documentAssessment?.usability,
-      routingAction: contractRouting?.action
+      routingAction: contractRouting?.action,
+      ...improvementCaseMetadata
     },
     completedAt: new Date()
   });
@@ -1878,7 +1943,8 @@ export async function processAgentMailInbound(input: {
           threadId: inbound.threadId,
           from: inbound.from,
           subject: inbound.subject,
-          error: error instanceof Error ? error.message : "Unknown error"
+          error: error instanceof Error ? error.message : "Unknown error",
+          ...improvementCaseMetadata
         },
         completedAt: new Date()
       });
