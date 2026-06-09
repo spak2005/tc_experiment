@@ -2,7 +2,7 @@
 
 ## Status
 
-running
+fixed
 
 ## Current Case
 
@@ -20,7 +20,7 @@ Compare Stephanie's actual behavior against the rubric and close only real gaps.
 
 ## Expected Behavior
 
-Stephanie should treat the receipted Texas resale contract package as active coordination work, preserve the intake artifact, open or update the correct transaction file, extract the property and core deal posture, track key dates, parties, documents, tasks, and blockers, acknowledge receipt warmly to the realtor, name clear next actions and owners, escalate missing or risky items without giving legal advice, and approval-gate any external-party emails unless policy allows direct send.
+Because the staged intake arrived on 2026-06-09 with contract dates that appear to close on 2026-04-01, Stephanie should preserve the intake artifact and avoid opening active coordination until the realtor confirms whether this is post-close, fell through, or contains a date/status error. The realtor-facing reply should still be warm and operationally precise: name the property, identify the apparent past-close posture, ask the realtor directly for the needed clarification, and avoid legal advice or unsafe external sends.
 
 ## Success Criteria
 
@@ -31,4 +31,4 @@ Stephanie should treat the receipted Texas resale contract package as active coo
 
 ## Next Step
 
-Inspect Stephanie's staged run with `npm run debug:find -- --case-run-id CASE-20260609T070431Z-kokoszka-receipted-contract-intake-RUN-20260609T070618Z`.
+Deploy this branch before rerunning the staged Kokoszka case against the live worker.
