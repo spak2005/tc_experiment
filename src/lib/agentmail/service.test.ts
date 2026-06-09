@@ -55,6 +55,9 @@ const action = {
 describe("sendTcEmailOnce", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.STEPH_ENV;
+    delete process.env.IMPROVEMENT_EMAIL_SINK;
+    delete process.env.IMPROVEMENT_EMAIL_ALLOWLIST;
     mocks.markOutboundEmailFailed.mockResolvedValue(null);
     mocks.markOutboundEmailSent.mockResolvedValue(null);
   });
@@ -103,5 +106,73 @@ describe("sendTcEmailOnce", () => {
       idempotencyKey: "key-1",
       error: "AgentMail down"
     });
+  });
+
+  it("rewrites unsafe staging recipients to the improvement sink", async () => {
+    process.env.STEPH_ENV = "staging";
+    process.env.IMPROVEMENT_EMAIL_SINK = "qa-sink@example.com";
+    process.env.IMPROVEMENT_EMAIL_ALLOWLIST = "allowed@example.com";
+    mocks.beginOutboundEmailAction.mockResolvedValue({
+      acquired: true,
+      action
+    });
+    mocks.send.mockResolvedValueOnce({
+      messageId: "message-2",
+      threadId: "thread-2"
+    });
+
+    await sendTcEmailOnce({
+      idempotencyKey: "key-2",
+      inboxId: "inbox-1",
+      to: ["real-title@example.com"],
+      cc: ["allowed@example.com"],
+      subject: "Subject",
+      text: "Body"
+    });
+
+    expect(mocks.beginOutboundEmailAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: ["qa-sink@example.com"],
+        cc: [],
+        text: expect.stringContaining("Original to: real-title@example.com"),
+        labels: ["staging-safety-rewrite"]
+      })
+    );
+    expect(mocks.send).toHaveBeenCalledWith(
+      "inbox-1",
+      expect.objectContaining({
+        to: ["qa-sink@example.com"],
+        text: expect.stringContaining("Original cc: allowed@example.com")
+      })
+    );
+  });
+
+  it("does not rewrite allowlisted staging recipients", async () => {
+    process.env.STEPH_ENV = "staging";
+    process.env.IMPROVEMENT_EMAIL_SINK = "qa-sink@example.com";
+    process.env.IMPROVEMENT_EMAIL_ALLOWLIST = "allowed@example.com";
+    mocks.beginOutboundEmailAction.mockResolvedValue({
+      acquired: true,
+      action
+    });
+    mocks.send.mockResolvedValueOnce({
+      messageId: "message-3",
+      threadId: "thread-3"
+    });
+
+    await sendTcEmailOnce({
+      idempotencyKey: "key-3",
+      inboxId: "inbox-1",
+      to: ["allowed@example.com"],
+      subject: "Subject",
+      text: "Body"
+    });
+
+    expect(mocks.beginOutboundEmailAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: ["allowed@example.com"],
+        text: "Body"
+      })
+    );
   });
 });
