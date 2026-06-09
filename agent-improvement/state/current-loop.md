@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+running
 
 ## Current Case
 
@@ -31,4 +31,4 @@ Stephanie should treat the receipted Texas resale contract package as active coo
 
 ## Next Step
 
-Run or prepare the case stimulus.
+Inspect Stephanie's staged run with `npm run debug:find -- --case-run-id CASE-20260609T070431Z-kokoszka-receipted-contract-intake-RUN-20260609T070618Z`.

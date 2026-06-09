@@ -4,17 +4,25 @@
   "title": "Kokoszka receipted contract intake",
   "failureType": "product_behavior",
   "rubricId": "initial-contract-intake",
-  "status": "planned",
+  "status": "running",
   "stimulus": {
     "description": "Stage a realtor-forwarded initial contract intake email asking Stephanie to open coordination for the receipted contract package.",
-    "subject": "Staged initial contract intake - Kokoszka Pecanwood",
-    "body": "Hi Stephanie,\n\nPlease open this receipted contract package for coordination and let me know what you need from me next.\n\nThanks,\nQA Realtor",
     "fixturePaths": [
       "/Users/israelogbonna/Downloads/100 Pecanwood S Receipted Contract Package - Henry & Mary Kokoszka - 3.11.26.pdf"
-    ]
+    ],
+    "subject": "Staged initial contract intake - Kokoszka Pecanwood",
+    "body": "Hi Stephanie,\n\nPlease open this receipted contract package for coordination and let me know what you need from me next.\n\nThanks,\nQA Realtor"
   },
   "expectedBehavior": "Stephanie should treat the receipted Texas resale contract package as active coordination work, preserve the intake artifact, open or update the correct transaction file, extract the property and core deal posture, track key dates, parties, documents, tasks, and blockers, acknowledge receipt warmly to the realtor, name clear next actions and owners, escalate missing or risky items without giving legal advice, and approval-gate any external-party emails unless policy allows direct send.",
-  "runs": [],
+  "runs": [
+    {
+      "caseRunId": "CASE-20260609T070431Z-kokoszka-receipted-contract-intake-RUN-20260609T070618Z",
+      "sentMessageId": "19eab3558236f9b2",
+      "status": "sent",
+      "createdAt": "2026-06-09T07:06:18.607Z",
+      "updatedAt": "2026-06-09T07:07:49Z"
+    }
+  ],
   "createdAt": "2026-06-09T07:04:31.620Z",
-  "updatedAt": "2026-06-09T07:05:35Z"
+  "updatedAt": "2026-06-09T07:07:49Z"
 }
