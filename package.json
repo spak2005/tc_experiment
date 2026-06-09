@@ -10,6 +10,7 @@
     "debug:event": "tsx agent-improvement/diagnostics/cli/event.ts",
     "debug:run": "tsx agent-improvement/diagnostics/cli/debug-run.ts",
     "improve:check": "tsx agent-improvement/loop/cli/check.ts",
+    "improve:judge": "tsx agent-improvement/judging/cli/judge.ts",
     "improve:new": "tsx agent-improvement/loop/cli/new.ts",
     "improve:prepare-email": "tsx agent-improvement/loop/cli/prepare-email.ts",
     "improve:record": "tsx agent-improvement/loop/cli/record.ts",
